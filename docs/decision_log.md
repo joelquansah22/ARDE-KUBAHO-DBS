@@ -264,6 +264,38 @@ Neither changed the cleaner. Both changed only how the scorer judges a cell, and
 | D93 | `python src/score_cleaning.py` now re-scores only the main set and the held-out-2 recovery runs; `--all` re-scores every set. | Team instruction: no new held-out round now. |
 | D94 | **Planned for Phase 7: one final held-out round.** A new config (`synthetic_holdout3.yaml`, new seed), written and committed before it is generated, plus every hand-made file in `data/holdout/manual/` with its answer key. Scored once with `python src/score_cleaning.py --all` on the code as it stands then, and reported next to v1, v2 and v3 without further tuning. | Team instruction. |
 
+## Phase 3: Validation and data model (2026-10-14)
+
+### Data-quality rules and quarantine
+
+| # | Decision | Reason |
+|---|---|---|
+| D95 | The checks run where the data is read and cleaned (`ingest.py`, `clean.py`), each raising a flag with a severity. `validate.py` groups the flags into 14 rules in `config/dq_rules.yaml`, covering the six dimensions of brief Section 8, and scores them: **rule score** = % of the records it applies to that do not break it; **dimension score** = average of its rules; **overall** = average of the six dimensions. | Checking each value once, at the moment it is cleaned, avoids two copies of every rule drifting apart. The grouping and the formula are in config and in the report, so the MEAL officer can see how a score is made. |
+| D96 | Plain pandas checks are used rather than pandera. | The brief allows either. The rules already run inside the cleaner; a second schema layer would duplicate them, and pandas checks are easier for a maintainer to read. |
+| D97 | **Quarantine** = every row with at least one critical flag. Quarantined rows are **not** in the fact tables; they are kept in the `quarantine` table with their reasons and details. Rows with warnings only are used in results and listed in `review_queue`. A test confirms that every cleaned row is either in a fact table or in quarantine (nothing silently dropped). | Brief Section 8; severity levels agreed in D58. |
+| D98 | Skipped sheets are the **first section** of `docs/data_quality_report.md`, are a completeness rule (COM-01), and are stored in the `skipped_sheets` table. | Team instruction: show skipped sheets prominently. A skipped sheet removes every one of its records from the results. |
+| D99 | Data quality by field officer covers activity records (officer column) and indicator reports (`entered_by`). Registers and service lists have no officer column, so they are scored by source file only. | No invented officer link. **To be confirmed with partner** whether registers can carry an officer code. |
+
+### Star schema
+
+| # | Decision | Reason |
+|---|---|---|
+| D100 | The fact tables have exactly the columns in brief Section 5 plus the approved additions (`planned_date`, `entry_date`, `status` on `fact_activity`; `source_sheet` on every fact). **Not added** (would change the data model, so not done without asking): a quality flag or field-officer column on `fact_activity`. The data-quality tables hold that information and can be joined on the lineage columns. | Brief Section 11: ask before changing the data model. |
+| D101 | `dim_location` holds one row per village **plus one row per district** (`DIST-<district>`, with no sector, cell or village), because monthly indicator reports are at district level. These are extra rows, not extra columns. | `fact_indicator_result` needs a location_id; the reports do not name a village. |
+| D102 | `dim_programme.funder_id` holds the funder's `donor_key`, so it links to `dim_donor` (the donor ID itself is not carried into the warehouse). `dim_indicator.indicator_id` is a number given in catalogue order; `owner` and `data_source` stay mostly empty until the full catalogue in Phase 4. | Keeps every link inside the warehouse. |
+| D103 | `dim_beneficiary` takes each person's details from their earliest registration that was **not** quarantined. A person whose only registrations were quarantined still gets a row (key only, details empty), so that service records link. | Avoids using details from a row that failed a critical check, without breaking links. |
+| D104 | `fact_indicator_result.quality_flag` is `ok`, or the row's warnings in words (e.g. `no target set`, `actual more than 3 x target`). A missing target keeps the row (D74). | Lets the Indicators page show "no target set" instead of a % achieved. |
+| D105 | Before saving, `model.py` checks that keys are unique, every link points to an existing row, no personal-data column exists, and every fact row has its lineage. If any check fails it stops with a list of problems and **saves nothing** (it builds a temporary file and only replaces the warehouse when all checks pass). | A broken model must never reach the dashboard. |
+
+### Exports, data dictionary, pipeline
+
+| # | Decision | Reason |
+|---|---|---|
+| D106 | Every warehouse table is exported to `data/exports/` as CSV (UTF-8 with a byte-order mark, so Excel shows accented characters correctly) and Parquet (for Power BI), plus `model_relationships.csv` listing every link (many-to-one) for setting up the Power BI model. | Brief Section 2: Power BI compatibility. The Power BI guide follows in Phase 7. |
+| D107 | `docs/data_dictionary.md` is generated from the real warehouse schema (column types, row counts) and the descriptions in `config/data_dictionary.yaml`. The build fails if a table has a column that is not described, or a described column is missing. | The dictionary cannot fall out of date. |
+| D108 | `python src/pipeline.py` runs ingest, clean, validate and model in one command: **15.5 seconds** on the main set (target under 60). | Brief Phase 3. |
+| D109 | Main-set results: overall data-quality score **96.1%** (completeness 96.8, validity 99.5, consistency 96.9, uniqueness 97.6, timeliness 86.5, accuracy 99.2); **240 rows quarantined** (167 activities, 64 registrations, 5 indicator results, 4 opportunities); **287 rows in the review queue**; no sheets skipped. Warehouse: 2,727 activity facts, 4,475 service facts, 586 indicator results, 26 opportunities, 1,509 people. | Recorded for the report. |
+
 ## Open items to confirm with ARDE/KUBAHO and supervisors (brief Section 15)
 
 These do not block the prototype.
@@ -283,5 +315,6 @@ These do not block the prototype.
 - [ ] Old district names and their candidate districts (D72, config/district_legacy_map.yaml)
 - [ ] **Partner question:** do staff ever write dates month first ("Mar 12, 2024")? They are not read until confirmed (D69, D82, D88)
 - [ ] Minutes per review-queue row, checked with the MEAL officer (D60)
+- [ ] Whether beneficiary registers can carry a field-officer code (D99)
 - [ ] Reporting schedule for indicator reports (D25)
 - [ ] USD to RWF exchange rate to use in reports (`currency.usd_to_rwf`, now 1,450)

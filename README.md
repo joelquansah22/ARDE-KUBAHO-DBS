@@ -6,8 +6,9 @@ dataset, MEAL indicators and a dashboard.
 > **Demonstration data.** Everything in this prototype currently runs on synthetic records,
 > not ARDE/KUBAHO data. Synthetic files always start with `SYNTHETIC_`.
 
-**Status: Phase 2 of 8** (templates, synthetic data, reading, cleaning and pseudonymising the
-records). The dashboard comes in Phase 5. A full user guide for staff comes in Phase 7.
+**Status: Phase 3 of 8** (templates, synthetic data, reading, cleaning and pseudonymising the
+records, data-quality checks, the data warehouse and exports for Power BI). The indicators come in
+Phase 4 and the dashboard in Phase 5. A full user guide for staff comes in Phase 7.
 
 ## First-time set-up (Windows)
 
@@ -28,9 +29,14 @@ python -m pip install -r requirements.txt
 python src/pipeline.py
 ```
 
-This is the production run: it reads every Excel file in `data/raw/`, pseudonymises and cleans the
-records into `data/staging/` (later phases add data-quality checks, the data model and indicators).
-It takes about 12 seconds. A file whose columns are not recognised is **skipped** with a message
+This is the production run. It reads every Excel file in `data/raw/`, pseudonymises and cleans the
+records, checks data quality, and builds the warehouse. It takes about 16 seconds and produces:
+
+- `docs/data_quality_report.md`: skipped sheets, scores, quarantined records and the review queue;
+- `data/warehouse/arde.duckdb`: the data warehouse (one file);
+- `data/exports/`: every table as CSV (opens in Excel) and Parquet (for Power BI);
+- `docs/data_dictionary.md`: what every table and column means.
+ A file whose columns are not recognised is **skipped** with a message
 listing its column names; add them to `config/source_mappings.yaml` and run it again.
 
 Other commands (not part of the production run):
@@ -53,6 +59,8 @@ that protects people's identities. **Back it up**: without it, new records will 
 | `templates/` | Standard Excel entry templates for staff |
 | `data/raw/` | Input Excel files (synthetic for now) |
 | `data/staging/` | Cleaned tables with no names, phones or ID numbers, plus the log of every change and flag |
+| `data/warehouse/` | The data warehouse (`arde.duckdb`) |
+| `data/exports/` | CSV and Parquet copies of every warehouse table, for Excel and Power BI |
 | `data/ground_truth/` | Answer key for the synthetic data (testing only) |
 | `src/` | The Python scripts |
 | `docs/` | Decision log and guides |

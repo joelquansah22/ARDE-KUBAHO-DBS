@@ -1,0 +1,325 @@
+# =============================================================================
+# Data dictionary: what every table and column in the warehouse means
+# =============================================================================
+# model.py builds data/warehouse/arde.duckdb and checks that every column it
+# creates is described here; docs/data_dictionary.md is generated from this file
+# plus the real column types and row counts. If you add a column, describe it here.
+# =============================================================================
+
+tables:
+  # ------------------------------------------------------------------ dimensions
+  dim_programme:
+    kind: dimension
+    description: One row per programme.
+    key: programme_id
+    columns:
+      programme_id: Programme code, e.g. PRG01.
+      name: Programme name.
+      thematic_area: WASH, Livelihoods, Agriculture or Environment.
+      funder_id: The main funder, as a donor_key (links to dim_donor).
+      start_date: First day of the programme.
+      end_date: Last day of the programme.
+      status: Programme status, e.g. active.
+
+  dim_project:
+    kind: dimension
+    description: One row per project. Each project belongs to one programme.
+    key: project_id
+    columns:
+      project_id: Project code, e.g. PRJ01.
+      programme_id: The programme it belongs to (links to dim_programme).
+      name: Project name.
+      budget_rwf: Total project budget in Rwandan francs.
+      start_date: First day of the project.
+      end_date: Last day of the project.
+
+  dim_activity:
+    kind: dimension
+    description: One row per type of activity a project runs (the activity list, not each event).
+    key: activity_id
+    columns:
+      activity_id: Activity code, e.g. ACT01.
+      project_id: The project that runs it (links to dim_project).
+      activity_name: Activity name as in the activity list.
+      activity_type: construction, training, awareness, distribution, meeting or demonstration.
+
+  dim_location:
+    kind: dimension
+    description: >-
+      One row per village, plus one row per district (for results reported at district level, such as
+      monthly indicator reports). District rows have no sector, cell or village. Provinces and districts are
+      Rwanda's real ones; sectors, cells and villages are synthetic while on demonstration data.
+    key: location_id
+    columns:
+      location_id: Location code. LOC0001-style codes are villages; DIST-<district> codes are whole districts.
+      province: Province (Kigali City, Northern, Southern, Eastern, Western).
+      district: District (one of the 30).
+      sector: Sector (empty for a district row).
+      cell: Cell (empty for a district row).
+      village: Village (empty for a district row).
+
+  dim_indicator:
+    kind: dimension
+    description: One row per MEAL indicator in config/indicator_catalogue.yaml (draft, for co-design with ARDE/KUBAHO staff).
+    key: indicator_id
+    columns:
+      indicator_id: Number given to the indicator in the warehouse.
+      code: Indicator code, e.g. WASH-01.
+      name: Indicator name.
+      level: output or outcome.
+      unit: number, percent, hectares or RWF.
+      higher_is_better: True if a higher value is good (the direction of the indicator).
+      disaggregation: How results are broken down (none or sex).
+      frequency: monthly, quarterly, semi-annual or annual.
+      owner: Who is responsible for the indicator (to be completed in Phase 4).
+      data_source: Where the value comes from (report or computed; detail in Phase 4).
+
+  dim_date:
+    kind: dimension
+    description: One row per calendar day, with Rwanda's fiscal year (July to June).
+    key: date
+    columns:
+      date: The day.
+      month: Month number (1 to 12).
+      quarter: Calendar quarter (1 to 4).
+      year: Calendar year.
+      fiscal_year: Rwanda fiscal year, e.g. FY2023/24 (1 July 2023 to 30 June 2024).
+
+  dim_beneficiary:
+    kind: dimension
+    description: >-
+      One row per person (after duplicate matching). No names, phone numbers or ID numbers: the person is
+      identified only by a salted hash. Details come from the person's earliest registration that passed the
+      data-quality checks.
+    key: beneficiary_key
+    columns:
+      beneficiary_key: Pseudonymous person key (salted hash). The same for every registration of one person.
+      sex: female or male (empty if never recorded clearly).
+      age_band: Age at registration, in bands (e.g. 25-34).
+      household_size: Number of people in the household.
+      disability_flag: True if the person reported a disability.
+      location_id: Village where the person registered (links to dim_location).
+
+  dim_donor:
+    kind: dimension
+    description: >-
+      One row per donor. Organisations keep their names; individual donors appear only as "Individual donor #NNN".
+      Contact names, emails and phone numbers are never stored.
+    key: donor_key
+    columns:
+      donor_key: Pseudonymous donor key (salted hash).
+      donor_name: Organisation name, or "Individual donor #NNN" for a person.
+      donor_type: bilateral, multilateral, foundation, government, private or individual.
+      country: Donor's country.
+      thematic_interests: What the donor funds, e.g. "WASH; Livelihoods".
+
+  # ------------------------------------------------------------------ facts
+  fact_activity:
+    kind: fact
+    description: >-
+      One row per activity event from the activity monitoring files and digitised paper records. Rows that broke a
+      critical rule are not here: they are in the quarantine table.
+    key: [source_file, source_sheet, source_row]
+    columns:
+      activity_id: Which activity (links to dim_activity).
+      location_id: Village where it took place (links to dim_location).
+      date: Day it took place (empty if cancelled or not yet done; links to dim_date).
+      participants_total: Number of participants.
+      participants_female: Number of women and girls.
+      participants_male: Number of men and boys.
+      cost_rwf: Cost in Rwandan francs.
+      planned_date: Day it was planned for.
+      entry_date: Day it was typed into Excel.
+      status: planned, completed, delayed or cancelled.
+      source_file: Excel file the row came from.
+      source_sheet: Sheet in that file.
+      source_row: Row number in that sheet, as shown in Excel.
+
+  fact_beneficiary_service:
+    kind: fact
+    description: One row per service a registered person received.
+    key: [source_file, source_sheet, source_row]
+    columns:
+      beneficiary_key: Who received it (links to dim_beneficiary).
+      activity_id: Which activity it was part of (links to dim_activity).
+      date: Day it was received (links to dim_date).
+      service_type: What was received, e.g. hygiene training.
+      source_file: Excel file the row came from.
+      source_sheet: Sheet in that file.
+      source_row: Row number in that sheet, as shown in Excel.
+
+  fact_indicator_result:
+    kind: fact
+    description: >-
+      One row per indicator value reported in the monthly indicator reports (per project, district, month and,
+      where relevant, sex). Rows that broke a critical rule are in the quarantine table instead.
+    key: [source_file, source_sheet, source_row]
+    columns:
+      indicator_id: Which indicator (links to dim_indicator).
+      project_id: Which project (links to dim_project).
+      location_id: District the result is for (a DIST-<district> row in dim_location).
+      period_date: First day of the reporting month (links to dim_date).
+      target_value: Target for the period (empty when no target was set).
+      actual_value: Value achieved.
+      disaggregation_key: total, or sex=female / sex=male.
+      source_file: Excel file the row came from.
+      source_sheet: Sheet in that file.
+      source_row: Row number in that sheet, as shown in Excel.
+      entered_by: Officer code of the person who reported it.
+      quality_flag: ok, or the warnings on the row (e.g. "no target set; actual more than 3 x target").
+
+  fact_opportunity:
+    kind: fact
+    description: One row per funding opportunity in the donor tracker.
+    key: opportunity_id
+    columns:
+      opportunity_id: Opportunity code, e.g. OPP001.
+      donor_key: Which donor (links to dim_donor).
+      title: Short title of the opportunity.
+      thematic_fit: Which programme theme it fits (e.g. WASH; Agriculture).
+      stage: Identified, Qualified, Concept note, Proposal submitted, Awarded or Declined.
+      deadline: Submission or decision deadline.
+      requested_amount_rwf: Amount asked for, in RWF (USD amounts converted at the configured rate).
+      awarded_amount_rwf: Amount awarded, in RWF (empty unless awarded).
+      probability: Chance of success, 0 to 1.
+      owner: Staff code of the person responsible.
+      next_action: What has to happen next.
+      next_action_date: When the next action is due.
+      source_file: Excel file the row came from.
+      source_sheet: Sheet in that file.
+      source_row: Row number in that sheet, as shown in Excel.
+
+  # ------------------------------------------------------------------ data quality
+  dq_results:
+    kind: data quality
+    description: One row per data-quality rule (config/dq_rules.yaml), with how many records it checked and how many broke it.
+    key: rule_id
+    columns:
+      rule_id: Rule code, e.g. COM-02.
+      dimension: completeness, validity, consistency, uniqueness, timeliness or accuracy.
+      description: The rule in plain English.
+      records_checked: Number of records (or sheets, or expected reports) the rule applies to.
+      records_failed: Number that broke the rule.
+      score: Percentage that passed (0 to 100).
+      critical_failures: Failures that quarantined a row.
+      warning_failures: Failures that sent a row to the review queue.
+      info_failures: Failures that are only counted.
+
+  dq_dimension_scores:
+    kind: data quality
+    description: One row per data-quality dimension, plus an "overall" row (the average of the six).
+    key: dimension
+    columns:
+      dimension: Dimension name, or overall.
+      score: Average of the dimension's rule scores (0 to 100).
+      rules: Number of rules in the dimension.
+
+  dq_by_source_file:
+    kind: data quality
+    description: One row per Excel file and sheet read, with how many of its rows had problems.
+    key: [source_file, source_sheet]
+    columns:
+      source_file: Excel file.
+      source_sheet: Sheet in that file.
+      entity: Kind of record (activity, registration, ...).
+      field_officer: Officer code for the file, where one officer owns it.
+      rows_read: Rows read after removing blank, title and totals rows.
+      rows_quarantined: Rows with a critical problem.
+      rows_for_review: Rows with warnings only.
+      rows_clean: Rows with neither.
+      score: Percentage of rows read with no critical or warning problem.
+      skipped: True if the sheet could not be read at all.
+
+  dq_by_field_officer:
+    kind: data quality
+    description: One row per field officer (activity records and indicator reports), with their data-quality results.
+    key: field_officer
+    columns:
+      field_officer: Officer code.
+      rows: Rows recorded by the officer.
+      rows_quarantined: Rows with a critical problem.
+      rows_for_review: Rows with warnings only.
+      late_entries: Activity rows entered after the allowed number of days.
+      score: Percentage of rows with no critical or warning problem.
+
+  quarantine:
+    kind: data quality
+    description: >-
+      Every row that broke a critical rule, with the reasons. These rows are kept here, not in the fact tables, until
+      the source Excel file is corrected and the pipeline is run again.
+    key: [source_file, source_sheet, source_row]
+    columns:
+      entity: Kind of record.
+      source_file: Excel file.
+      source_sheet: Sheet in that file.
+      source_row: Row number in that sheet, as shown in Excel.
+      month: Month the row arrived (by entry or reporting date), if known.
+      reasons: The critical problems, e.g. "missing_required, negative_value".
+      details: Plain-English details of each problem.
+      field_officer: Officer code, where known.
+
+  review_queue:
+    kind: data quality
+    description: Every row with warnings (and no critical problem). The row is used in results, but a person should check it.
+    key: [source_file, source_sheet, source_row]
+    columns:
+      entity: Kind of record.
+      source_file: Excel file.
+      source_sheet: Sheet in that file.
+      source_row: Row number in that sheet, as shown in Excel.
+      month: Month the row arrived, if known.
+      reasons: The warnings, e.g. "sum_mismatch".
+      details: Plain-English details of each warning.
+      field_officer: Officer code, where known.
+
+  skipped_sheets:
+    kind: data quality
+    description: Every sheet the pipeline could not read, with the reason and the column headers it did not recognise.
+    key: [source_file, source_sheet]
+    columns:
+      source_file: Excel file.
+      source_sheet: Sheet in that file.
+      entity: Kind of record the sheet should hold.
+      reason: Why it was skipped.
+      missing_required: Required fields that were not found.
+      headers_found: Column headers that were not recognised.
+
+  dq_info_measures:
+    kind: data quality
+    description: Data-quality measures shown on the dashboard instead of rows to review (info-level flags).
+    key: metric
+    columns:
+      metric: What is measured, e.g. timeliness.
+      percent: The measure (0 to 100).
+      numerator: Records meeting the standard.
+      denominator: Records measured.
+      note: How it is measured.
+
+  report_completeness:
+    kind: data quality
+    description: One row per monthly indicator report that was due, and whether it arrived.
+    key: [project_id, district, period]
+    columns:
+      project_id: Project (links to dim_project).
+      district: District.
+      period: Reporting month.
+      indicators_due: Indicators due that month.
+      submitted: True if the report arrived.
+
+relationships:
+  - [dim_project.programme_id, dim_programme.programme_id]
+  - [dim_programme.funder_id, dim_donor.donor_key]
+  - [dim_activity.project_id, dim_project.project_id]
+  - [dim_beneficiary.location_id, dim_location.location_id]
+  - [fact_activity.activity_id, dim_activity.activity_id]
+  - [fact_activity.location_id, dim_location.location_id]
+  - [fact_activity.date, dim_date.date]
+  - [fact_beneficiary_service.beneficiary_key, dim_beneficiary.beneficiary_key]
+  - [fact_beneficiary_service.activity_id, dim_activity.activity_id]
+  - [fact_beneficiary_service.date, dim_date.date]
+  - [fact_indicator_result.indicator_id, dim_indicator.indicator_id]
+  - [fact_indicator_result.project_id, dim_project.project_id]
+  - [fact_indicator_result.location_id, dim_location.location_id]
+  - [fact_indicator_result.period_date, dim_date.date]
+  - [fact_opportunity.donor_key, dim_donor.donor_key]
+  - [report_completeness.project_id, dim_project.project_id]

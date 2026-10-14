@@ -1,0 +1,111 @@
+# =============================================================================
+# Data-quality rules (used by src/validate.py)
+# =============================================================================
+# The checks themselves run while the data is cleaned (clean.py raises a flag on
+# every problem it finds). This file groups those flags into RULES, and the rules
+# into the six standard data-quality dimensions, so they can be scored and reported.
+#
+# How a score is worked out (written for the data-quality report and dashboard):
+#   rule score      = % of the records the rule applies to that do NOT break it
+#   dimension score = the average of its rules' scores
+#   overall score   = the average of the six dimension scores
+# Whether a broken rule quarantines a row, sends it for review or is only counted
+# is set by flag_severity in config/settings.yaml (critical / warning / info).
+#
+# Fields:
+#   id           short code shown in reports
+#   dimension    completeness, validity, consistency, uniqueness, timeliness, accuracy
+#   description  plain-English rule
+#   entities     which kind of record it applies to (the denominator)
+#   flags        the issue codes (from clean.py / ingest.py) that mean the rule is broken
+#   special      for rules whose denominator is not records: expected_reports or sheets
+# =============================================================================
+
+dimensions: [completeness, validity, consistency, uniqueness, timeliness, accuracy]
+
+rules:
+  # ---------------------------------------------------------------- completeness
+  - id: COM-01
+    dimension: completeness
+    description: Every sheet could be read (none skipped for unknown or missing columns)
+    special: sheets
+    flags: [sheet_skipped_unrecognised_layout, sheet_skipped_required_fields_missing]
+  - id: COM-02
+    dimension: completeness
+    description: Required fields are filled in
+    entities: [activity, registration, service, indicator_result, opportunity]
+    flags: [missing_required]
+  - id: COM-03
+    dimension: completeness
+    description: Every indicator result has a target
+    entities: [indicator_result]
+    flags: [missing_target]
+  - id: COM-04
+    dimension: completeness
+    description: Expected monthly indicator reports were received
+    special: expected_reports
+    flags: [report_missing]
+
+  # ---------------------------------------------------------------- validity
+  - id: VAL-01
+    dimension: validity
+    description: Dates can be read and fall inside the project window
+    entities: [activity, registration, service, indicator_result, opportunity]
+    flags: [date_unreadable, date_outside_project_window]
+  - id: VAL-02
+    dimension: validity
+    description: Codes are in the allowed lists (sex, status, district, village, project, activity, indicator, stage, donor)
+    entities: [activity, registration, service, indicator_result, donor, opportunity]
+    flags: [sex_unmapped, status_unmapped, disability_unmapped, province_unmapped, stage_unmapped,
+            donor_type_unmapped, district_unrecognised, village_unrecognised, project_unrecognised,
+            activity_unrecognised, indicator_unrecognised, district_legacy_name_ambiguous,
+            donor_not_in_donor_list, service_unknown_registration]
+  - id: VAL-03
+    dimension: validity
+    description: Numbers are readable and possible (no negatives, percentages 0 to 100, plausible ages and household sizes)
+    entities: [activity, registration, indicator_result, opportunity]
+    flags: [negative_value, number_unreadable, not_whole_number, percent_over_100, impossible_age,
+            impossible_household_size, probability_word, probability_out_of_range]
+
+  # ---------------------------------------------------------------- consistency
+  - id: CON-01
+    dimension: consistency
+    description: Female + male = total participants, and women are not more than the total
+    entities: [activity]
+    flags: [sum_mismatch, female_exceeds_total]
+  - id: CON-02
+    dimension: consistency
+    description: The district belongs to the stated province
+    entities: [activity, registration]
+    flags: [district_province_mismatch]
+  - id: CON-03
+    dimension: consistency
+    description: Status and dates agree (no "completed" activity done late; no entry before the activity)
+    entities: [activity]
+    flags: [status_completed_but_late, entry_before_activity]
+
+  # ---------------------------------------------------------------- uniqueness
+  - id: UNI-01
+    dimension: uniqueness
+    description: No activity row is entered twice
+    entities: [activity]
+    flags: [exact_duplicate_row]
+  - id: UNI-02
+    dimension: uniqueness
+    description: No unresolved suspected duplicate beneficiaries (after fuzzy matching)
+    entities: [registration]
+    flags: [possible_duplicate_person, possible_duplicate_initials]
+
+  # ---------------------------------------------------------------- timeliness
+  - id: TIM-01
+    dimension: timeliness
+    description: Activities are entered within the allowed number of days (late_entry_days in settings)
+    entities: [activity]
+    flags: [late_entry, late_entry_possible]
+
+  # ---------------------------------------------------------------- accuracy (proxy)
+  - id: ACC-01
+    dimension: accuracy
+    description: Reported actual is not more than 3 times the target (flagged for review)
+    entities: [indicator_result]
+    flags: [accuracy_outlier]
