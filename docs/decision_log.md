@@ -237,6 +237,33 @@ Production pipeline: 11.6 s (ingest 5.5 s, clean 4.4 s). Scoring all four sets: 
 | D85 | Late entries 83% and sum mismatches 89.5% are knock-ons of D81 and D82 (the dates or female/male columns could not be read, so the checks could not run). |
 | D86 | The monthly review queue stays within one hour on every set (busiest month 25 rows, about 50 minutes). Quarantine on held-out 2 averages about 30 rows a month, driven by D81 and D82. |
 
+## Round 4: last changes to the cleaner on synthetic data (2026-10-14)
+
+**Team decision: the cleaner is not tuned on synthetic data after this round.** The next changes to it should come from real partner files or from the final held-out round in Phase 7 (D94).
+
+| # | Decision | Reason |
+|---|---|---|
+| D87 | **No partial reads.** Each kind of sheet has required fields (`required_fields` in `config/source_mappings.yaml`, e.g. an activity sheet needs date, activity, district, village, status and total). If any is unmapped, the whole sheet is **skipped** with the same SKIPPED message as an unreadable layout, naming the missing required fields and the unrecognised headers. Skipped sheets are listed in `skipped_sheets.csv` and at the top of the data-quality report. Main set: no change (every sheet has its required fields). Held-out 2: FO06's activity sheet and register are now skipped instead of read partly. | Team instruction (finding D81). A sheet read without its dates or activity names produced 364 quarantined rows and hid injected problems. |
+| D88 | **`2024.03.12` (year.month.day)** added to `cleaning.date_text_formats`. Month-first dates (`Mar 12, 2024`) stay out and are now a question for the partner. | Team instruction (finding D82). Year-first with a 4-digit year is unambiguous; month-first is not the Rwandan convention and could be confused with day-first. |
+| D89 | **Initials rule:** a name with initials (`J. C. Uwimana`) is compared with full names in the same district (`Jean Claude Uwimana`). It becomes a review candidate (`possible_duplicate_initials`, warning) when every full word (the surname) scores at least 90, the initials match the first letters of the other given names, both ages are known and within 2 years, and sex, phone and ID do not disagree. **Never merged.** Settings: `duplicate_matching.initials_rule`, `initials_surname_min_score`. **Main-set review queue: no change** (287 review rows before and after, 7.9 a month on average, busiest month 16), because the main set contains no initials; all cleaned tables were identical before and after this round. On held-out 2 (seen data) recall of true duplicate pairs, merged or sent to review, rose from 0.687 to 0.855. | Team instruction (finding D84). |
+
+### Scorer corrections: both were found AFTER seeing results
+
+Neither changed the cleaner. Both changed only how the scorer judges a cell, and both make the score more lenient in one specific, checked situation, so they are recorded with their evidence.
+
+| # | Correction | Evidence | Effect |
+|---|---|---|---|
+| D90 | (Also D78.) **Age from a date of birth is compared with the age worked out from the true date of birth and the true date of that registration**, instead of the answer key's `age` column with a tolerance of +/-1. Found while reviewing the held-out-1 results after the round-3 fixes. | Held-out 1, `SYNTHETIC_beneficiary_register_FO02.xlsx`, Register row 279 (registration FO02-0275, person PER00321, a second registration). Date of birth 1996-02-08, registered 2025-06-12: true age at that registration 29. The cleaner gave 29. The answer key said 27, because the generator copies the first registration's age (28) and adds a random -1. The generator's age for second registrations is therefore not a reliable answer when a sheet gives a date of birth. The cleaner was right. | Held-out 1 false corrections 1 to 0. Main set: no change. |
+| D91 | (Also D83.) **A blank age is classed as a knock-on when the registration date on the same row carries an injected problem**, because an age at registration cannot be worked out without that date (rule D70). Found after seeing the held-out-2 results (before scorecard v2 was written, so v2 already includes it). | Held-out 2, `SYNTHETIC_beneficiary_register_FO02.xlsx`, Register rows 16, 26, 33, 78, 134, 144 and 170. Every one has an injected registration date in an unreadable style (`2023.09.17`, `Nov 11, 2023`, `Dec 8, 2023`, `Jul 30, 2024`, `2025.07.14`, `2025.09.18`, `Jan 19, 2026`). The cleaner left the age empty and flagged `age_not_computable`, as designed. Checked row by row by hand. | Held-out 2 "clean values wrongly changed" 7 to 0; the 7 cells are still shown in the scorecard as knock-ons. The 92.9% headline is not affected (false corrections are reported separately). |
+
+### Reporting
+
+| # | Decision | Reason |
+|---|---|---|
+| D92 | Scorecard v2 is frozen as `docs/phase2_scorecard_v2_holdout2.md` (from commit `95c2b03`; content SHA-256 `5ec05b29821f786303b0e6be049dce3030483d8118266b4c883be2baa87ac3d4`, guarded by a test). **The headline stays held-out 2 as first scored: genuine errors 92.9%.** The live scorecard (v3) copies that column from v2, re-scores the main set, and adds two clearly labelled recovery runs on held-out 2, which is now seen data: after this round's fixes alone, genuine errors **87.5%** (lower, because FO06's sheets are now skipped and all their records count as missed; quarantined rows fall from 1,093 to 449); and with the FO06 column names added in config (`config/mapping_overlays/holdout2_fo06.yaml`, no code), **96.6%**, officer habits 100%. | Team instruction: do not replace the headline; show what fix 1 plus a config mapping recovers. |
+| D93 | `python src/score_cleaning.py` now re-scores only the main set and the held-out-2 recovery runs; `--all` re-scores every set. | Team instruction: no new held-out round now. |
+| D94 | **Planned for Phase 7: one final held-out round.** A new config (`synthetic_holdout3.yaml`, new seed), written and committed before it is generated, plus every hand-made file in `data/holdout/manual/` with its answer key. Scored once with `python src/score_cleaning.py --all` on the code as it stands then, and reported next to v1, v2 and v3 without further tuning. | Team instruction. |
+
 ## Open items to confirm with ARDE/KUBAHO and supervisors (brief Section 15)
 
 These do not block the prototype.
@@ -254,7 +281,7 @@ These do not block the prototype.
 - [ ] Kinyarwanda column names and values used in the mappings (D23, D36)
 - [ ] Add a planned-date field to the paper activity form (D56)
 - [ ] Old district names and their candidate districts (D72, config/district_legacy_map.yaml)
-- [ ] Whether month-first dates ("Mar 12, 2024") are ever used by staff (D69, D82)
+- [ ] **Partner question:** do staff ever write dates month first ("Mar 12, 2024")? They are not read until confirmed (D69, D82, D88)
 - [ ] Minutes per review-queue row, checked with the MEAL officer (D60)
 - [ ] Reporting schedule for indicator reports (D25)
 - [ ] USD to RWF exchange rate to use in reports (`currency.usd_to_rwf`, now 1,450)

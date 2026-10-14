@@ -69,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
             print("Scoring needs the synthetic answer keys; synthetic_mode is off, so scoring is skipped.")
         else:
             t0 = time.perf_counter()
-            importlib.import_module("score_cleaning").main()
+            importlib.import_module("score_cleaning").main([])
             print(f"Scoring finished in {time.perf_counter() - t0:.1f}s")
     return 0
 

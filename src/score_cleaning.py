@@ -223,7 +223,7 @@ class Scorer:
             same = a is not None and b is not None and a["beneficiary_key"] == b["beneficiary_key"]
             if same:
                 return "fixed", "merged"
-            if "possible_duplicate_person" in self.flags.get((p, "name"), set()):
+            if {"possible_duplicate_person", "possible_duplicate_initials"} & self.flags.get((p, "name"), set()):
                 return "flagged", "not merged; sent to review"
             return "missed", "not matched to first registration"
         if etype == "namesake_different_person":
@@ -235,7 +235,8 @@ class Scorer:
                 return "missed", "row missing from cleaned table"
             if a["beneficiary_key"] == b["beneficiary_key"]:
                 return "missed", "different people merged"
-            reviewed = "possible_duplicate_person" in self.flags.get((p, "name"), set())
+            reviewed = bool({"possible_duplicate_person", "possible_duplicate_initials"}
+                            & self.flags.get((p, "name"), set()))
             return "fixed", "kept apart; sent to review" if reviewed else "kept apart"
         if etype == "personal_data_individual_donor":
             row = self.clean_rows["donor"].get(p)
@@ -351,7 +352,9 @@ class Scorer:
         for (variant, use_id, use_veto), t in [(v, t) for v in variants for t in thresholds]:
             review: list = []
             ids["cluster"] = ingest.cluster_identities(ids, t, self.settings, use_id, use_veto, review_pairs=review)
-            review = [(i, j) for i, j in review if ids["cluster"].iat[i] != ids["cluster"].iat[j]]
+            if use_veto:
+                review += ingest.initials_review_pairs(ids, self.settings)
+            review = sorted({(i, j) for i, j in review if ids["cluster"].iat[i] != ids["cluster"].iat[j]})
             review_true = sum(1 for i, j in review if persons[i] and persons[i] == persons[j])
             namesake_set = {frozenset(x) for x in namesake_pairs}
             review_namesakes = sum(1 for i, j in review if frozenset((persons[i], persons[j])) in namesake_set)
@@ -655,68 +658,113 @@ def summary_row(name: str, r: dict, run: dict, staging) -> dict:
             "crashed": "YES" if run["crash"] else "no"}
 
 
-TEST_SETS = [
-    # (name, raw folder key, answer key folder key, staging folder key, mapping overlays, generator config)
-    ("Main set (seed 2023)", "raw", "ground_truth", "staging", (), None),
-    ("Held-out 1, as is (seed 7919)", "holdout_raw", "holdout_ground_truth", "holdout_staging", (),
-     "synthetic_holdout.yaml"),
-    ("Held-out 1 + FO05 mapping in config", "holdout_raw", "holdout_ground_truth", "holdout_fo05_staging",
-     ("mapping_overlays/holdout1_fo05.yaml",), "synthetic_holdout.yaml"),
-    ("Held-out 2 (seed 4243, fresh mess) - HEADLINE", "holdout2_raw", "holdout2_ground_truth", "holdout2_staging", (),
-     "synthetic_holdout2.yaml"),
-]
+TEST_SETS = {
+    # key: (name, raw folder key, answer key folder key, staging folder key, mapping overlays, generator config)
+    "main": ("Main set (seed 2023)", "raw", "ground_truth", "staging", (), None),
+    "holdout1": ("Held-out 1, as is (seed 7919)", "holdout_raw", "holdout_ground_truth", "holdout_staging", (),
+                 "synthetic_holdout.yaml"),
+    "holdout1_fo05": ("Held-out 1 + FO05 mapping in config", "holdout_raw", "holdout_ground_truth",
+                      "holdout_fo05_staging", ("mapping_overlays/holdout1_fo05.yaml",), "synthetic_holdout.yaml"),
+    "holdout2": ("Held-out 2 (seed 4243)", "holdout2_raw", "holdout2_ground_truth", "holdout2_staging", (),
+                 "synthetic_holdout2.yaml"),
+    "holdout2_fix1": ("Held-out 2 after this round's fixes (seen data)", "holdout2_raw", "holdout2_ground_truth",
+                      "holdout2_fix1_staging", (), "synthetic_holdout2.yaml"),
+    "holdout2_fo06": ("Held-out 2 after the fixes + FO06 mapping in config (seen data)", "holdout2_raw",
+                      "holdout2_ground_truth", "holdout2_fo06_staging", ("mapping_overlays/holdout2_fo06.yaml",),
+                      "synthetic_holdout2.yaml"),
+}
+DEFAULT_RUNS = ["main", "holdout2_fix1", "holdout2_fo06"]
+FROZEN_V2 = "phase2_scorecard_v2_holdout2.md"
+FROZEN_V2_COLUMNS = {   # column in the frozen v2 table -> column in the v3 side-by-side table
+    "Held-out 1 + FO05 mapping in config": "Held-out 1 + FO05 mapping (v2, seen data)",
+    "Held-out 2 (seed 4243, fresh mess) - HEADLINE": "HEADLINE: held-out 2 (v2, code 2754c99, never tuned on)",
+}
 
 
-def main():
+def frozen_side_table(name: str) -> pd.DataFrame:
+    """Read the side-by-side table from a frozen scorecard (index = measure)."""
+    lines = (resolve_path("docs") / name).read_text(encoding="utf-8").splitlines()
+    start = next(i for i, l in enumerate(lines) if l.startswith("| measure |"))
+    rows = []
+    for line in lines[start:]:
+        if not line.startswith("|"):
+            break
+        rows.append([c.strip() for c in line.strip().strip("|").split("|")])
+    header, body = rows[0], [r for r in rows[2:]]
+    return pd.DataFrame(body, columns=header).set_index("measure")
+
+
+def score_set(key: str) -> dict:
+    import generate_synthetic
+    name, raw_key, truth_key, staging_key, overlays, config = TEST_SETS[key]
+    raw, truth, staging = resolve_path(raw_key), resolve_path(truth_key), resolve_path(staging_key)
+    if not (raw / "SYNTHETIC_programme_master.xlsx").exists():
+        if config is None:
+            raise SystemExit(f"{name}: no data in {raw}; run python src/generate_synthetic.py first.")
+        print(f"{name}: generating it from config/{config} ...")
+        generate_synthetic.generate(raw, truth, quiet=True, config_name=config)
+    print(f"Scoring: {name}")
+    run = run_pipeline_on(raw, staging, overlays)
+    result = Scorer(staging, truth, run["raw"], overlays=overlays).run()
+    return dict(key=key, name=name, run=run, result=result, staging=staging)
+
+
+def main(argv: list[str] | None = None):
+    import argparse
+    parser = argparse.ArgumentParser(description="Score the cleaning against the synthetic answer keys.")
+    parser.add_argument("--all", action="store_true",
+                        help="re-score every test set, including the held-out sets (for the final round)")
+    args = parser.parse_args(argv)
     settings = load_settings()
     if not settings["synthetic_mode"]:
         print("Scoring needs the synthetic answer key; synthetic_mode is off, so nothing to do.")
         return
-    import generate_synthetic
-    results = []
-    for name, raw_key, truth_key, staging_key, overlays, config in TEST_SETS:
-        raw, truth, staging = resolve_path(raw_key), resolve_path(truth_key), resolve_path(staging_key)
-        if not (raw / "SYNTHETIC_programme_master.xlsx").exists():
-            if config is None:
-                print(f"{name}: no data in {raw}; run python src/generate_synthetic.py first.")
-                return
-            print(f"{name}: generating it from config/{config} ...")
-            generate_synthetic.generate(raw, truth, quiet=True, config_name=config)
-        print(f"Scoring: {name}")
-        run = run_pipeline_on(raw, staging, overlays)
-        r = Scorer(staging, truth, run["raw"], overlays=overlays).run()
-        results.append(dict(name=name, run=run, result=r, staging=staging, config=config))
+    keys = list(TEST_SETS) if args.all else DEFAULT_RUNS
+    results = [score_set(k) for k in keys]
 
-    v1 = frozen_v1_figures()
     side = pd.DataFrame([summary_row(x["name"], x["result"], x["run"], x["staging"]) for x in results]).set_index("set").T
+    side.index.name = "measure"
+    if not args.all and (resolve_path("docs") / FROZEN_V2).exists():
+        frozen = frozen_side_table(FROZEN_V2)
+        for old, new in FROZEN_V2_COLUMNS.items():
+            side.insert(1 if "FO05" in new else 2, new, frozen[old].reindex(side.index))
     undetectable = results[0]["result"]["undetectable"]
     lines = [
-        "# Phase 2 cleaning scorecard v2 (synthetic data)", "",
-        f"*Generated by `src/score_cleaning.py` on {dt.date.today():%d %B %Y}. Do not edit by hand. The 'before' "
-        "figures are frozen in `docs/phase2_scorecard_v1_holdout1.md` (commit 5087cad).*", "",
+        "# Phase 2 cleaning scorecard v3 (synthetic data)", "",
+        f"*Generated by `src/score_cleaning.py` on {dt.date.today():%d %B %Y}. Do not edit by hand. Earlier "
+        "versions are frozen: v1 (`docs/phase2_scorecard_v1_holdout1.md`, before any held-out fix) and v2 "
+        f"(`docs/{FROZEN_V2}`, which holds the held-out-2 headline).*", "",
         "**Fixed** = the cleaned value equals the true value. **Flagged** = the pipeline marked the cell or row "
         "for review. **Missed** = neither. Problems that cannot be detected from the files are excluded.", "",
         "## Side by side", "",
-        "**Held-out 2 is the headline figure**: a new seed and new kinds of mess, generated after the fixes and "
-        "never used for tuning. Held-out 1 has been seen (its findings drove the fixes), so it is no longer a "
-        "fair test; it is shown to measure the fixes.", "",
-        md_table(side.reset_index().rename(columns={"index": "measure"})), "",
-    ]
-    if v1:
-        lines += ["Held-out 1 **before** the fixes (frozen v1): genuine errors "
-                  f"{v1.get('genuine_errors')}%, officer habits {v1.get('officer_habits')}%, namesakes kept apart "
-                  f"{v1.get('matching_traps')}%, false corrections {v1.get('false_corrections')}, and the pipeline "
-                  "crashed.", ""]
-    lines += [
+        "**The headline figure stays held-out 2 as first scored (v2): genuine errors 92.9%.** It was generated "
+        "after the code was frozen and has never been used for tuning. Every other held-out column is on data that "
+        "has now been seen, so it measures what the fixes recover, not how the cleaner does on new data. The "
+        "columns marked v2 are copied from the frozen v2 scorecard; the others were re-scored now.", "",
+        md_table(side.reset_index()), "",
+        "## Why held-out 2 scored lower: officer FO06", "",
+        "FO06's sheets were only **partly** recognisable. The activity sheet had five known column names (District, "
+        "Sector, Cell, Village, Total), so in v2 it was read, but its activity date, activity, project, status, "
+        "female/male and cost columns had names the pipeline did not know (`Event date`, `Type of activity`, "
+        "`Implementation status`, `Females`...). Those rows arrived without their key values: 364 were quarantined "
+        "and many injected problems could not be seen. FO06's register was read without its registration number "
+        "and registration date. That one officer's files pulled genuine errors from 96.1% to 92.9% and habits "
+        "from 100% to 87.5%.", "",
+        "This round's fix 1 stops partial reads: a sheet missing any required field is now **skipped** with a "
+        "message naming the missing fields and the unrecognised headers. The two right-hand columns show what that "
+        "fix achieves alone, and then with the FO06 column names added to the config (`config/mapping_overlays/"
+        "holdout2_fo06.yaml`, the lines a maintainer would paste into `source_mappings.yaml`). Neither replaces "
+        "the headline.", "",
         "## Known limitations", "",
         f"- {len(undetectable)} problems in the main set cannot be detected from the files (accepted 14 October 2026):",
         "", md_table(undetectable.groupby(["error_type", "detail"]).size().reset_index(name="count")), "",
         "- Nicknames (e.g. `Jado` for Jean de Dieu) are not recognised; there is deliberately no nickname list.",
-        "- Similar names with no phone or ID are never merged; they go to the review queue instead, so some true "
-        "duplicates stay as two people until a person confirms them.",
+        "- Similar names, and initials matching a full name, are never merged without a phone or ID; they go to the "
+        "review queue, so some true duplicates stay as two people until a person confirms them.",
+        "- Month-first dates (`Mar 12, 2024`) are not read, on purpose, until the partner says whether staff use them.",
         "- An ID stored as a number in Excel has lost its 16th digit; it is flagged, but cannot be recovered.",
-        "- A sheet whose column names are unknown is skipped and reported, not guessed: its records are missing "
-        "until a maintainer adds the column names to `config/source_mappings.yaml`.",
+        "- A sheet with unknown column names, or missing a required field, is skipped and reported, never read "
+        "partly: its records are missing until a maintainer adds the column names to `config/source_mappings.yaml`.",
         "- The synthetic data and the cleaner were written by the same team; real partner files are the real test.",
         "",
     ]
@@ -728,11 +776,12 @@ def main():
         if run["crash"]:
             lines += ["**The pipeline crashed.**", "", "```", run["crash"].strip(), "```", ""]
         if len(run["skipped"]):
-            lines += ["Sheets skipped (layout not recognised; records counted as missed):", "",
-                      md_table(run["skipped"][["source_file", "source_sheet", "known_columns", "headers_found"]]), ""]
+            cols = [c for c in ("source_file", "source_sheet", "reason", "missing_required", "headers_found")
+                    if c in run["skipped"].columns]
+            lines += ["Sheets skipped (records counted as missed):", "", md_table(run["skipped"][cols]), ""]
         lines += section_lines(x["result"], f"Results: {x['name']}", level="###")
         queue = review_queue_lines(x["staging"], f"Review queue and quarantine: {x['name']}")
-        lines += ["#" + l if l.startswith("## ") else ("#" + l if l.startswith("### ") else l) for l in queue]
+        lines += ["#" + l if l.startswith("## ") or l.startswith("### ") else l for l in queue]
     lines += manual_lines()
     (resolve_path("docs") / "phase2_cleaning_scorecard.md").write_text("\n".join(lines), encoding="utf-8")
     print(side.to_string())

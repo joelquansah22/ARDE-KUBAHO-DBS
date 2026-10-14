@@ -181,6 +181,29 @@ class Reader:
                     self.read_sheet(path.name, ws.title, entity, rows)
             wb.close()
 
+    def missing_required(self, entity: str, found: set) -> list[str]:
+        """Required fields (source_mappings.yaml: required_fields) that this sheet does not have."""
+        missing = []
+        for item in self.mappings.get("required_fields", {}).get(entity, []):
+            options = item if isinstance(item, list) else [item]
+            if not set(options) & found:
+                missing.append(" or ".join(options))
+        return missing
+
+    def skip(self, entity, base, code, reason, unrecognised, known, missing):
+        """Skip a whole sheet: print a clear message, list it in skipped_sheets.csv and log it."""
+        message = (f"SKIPPED {base['source_file']} / {base['source_sheet']}: {reason}. "
+                   f"Unrecognised column headers: {', '.join(unrecognised) or '(none)'}. "
+                   "Add them to config/source_mappings.yaml and run the pipeline again.")
+        print(message)
+        self.skipped.append(dict(source_file=base["source_file"], source_sheet=base["source_sheet"], entity=entity,
+                                 reason=reason, known_columns=known, missing_required=", ".join(missing),
+                                 headers_found=", ".join(unrecognised), message=message))
+        self.inventory.append(dict(source_file=base["source_file"], source_sheet=base["source_sheet"], entity=entity,
+                                   header_row=None, fields_found="", unmapped_columns=", ".join(unrecognised),
+                                   note=f"skipped: {reason}"))
+        self.log.add(entity, {**base, "source_row": None}, None, code, FLAGGED, detail=message)
+
     def is_totals_row(self, row: tuple, first) -> bool:
         """True if the first filled cell is a totals label ("TOTAL", "Total (RWF)", "Sub-total:")
         and every other filled cell is a number. A row with any other text is never dropped."""
@@ -207,19 +230,17 @@ class Reader:
             # Do not guess: skip the sheet, say exactly why, and carry on with the other files.
             first = next((r for r in rows[:HEADER_SEARCH_ROWS] if any(not is_blank(v) for v in r)), ())
             headers = [str(v).strip() for v in first if not is_blank(v)]
-            message = (f"SKIPPED {file_name} / {sheet}: layout not recognised (best row has {max(score, 0)} known "
-                       f"column name(s); {needed} needed). Column headers found: {', '.join(headers)}. "
-                       "Add them to config/source_mappings.yaml and run the pipeline again.")
-            print(message)
-            self.skipped.append(dict(source_file=file_name, source_sheet=sheet, entity=entity,
-                                     known_columns=max(score, 0), headers_found=", ".join(headers), message=message))
-            self.inventory.append(dict(source_file=file_name, source_sheet=sheet, entity=entity, header_row=None,
-                                       fields_found="", unmapped_columns=", ".join(headers),
-                                       note="skipped: layout not recognised"))
-            self.log.add(entity, {**base, "source_row": None}, None, "sheet_skipped_unrecognised_layout", FLAGGED,
-                         detail=message)
+            self.skip(entity, base, "sheet_skipped_unrecognised_layout",
+                      f"layout not recognised (best row has {max(score, 0)} known column name(s); {needed} needed)",
+                      headers, max(score, 0), [])
             return
         assigned, unmapped = assign_fields(list(rows[h]) if rows else [], index)
+        missing = self.missing_required(entity, set(assigned.values()))
+        if missing:
+            # No silent partial reads: a sheet without all its required fields is skipped.
+            self.skip(entity, base, "sheet_skipped_required_fields_missing",
+                      f"required field(s) not found: {', '.join(missing)}", unmapped, len(assigned), missing)
+            return
         self.inventory.append(dict(source_file=file_name, source_sheet=sheet, entity=entity, header_row=h + 1,
                                    fields_found=", ".join(assigned.values()), unmapped_columns=", ".join(unmapped),
                                    note=""))
@@ -402,6 +423,52 @@ def cluster_identities(ids: pd.DataFrame, threshold: float, settings: dict,
     return np.array([find(i) for i in range(n)])
 
 
+def initials_review_pairs(ids: pd.DataFrame, settings: dict) -> list[tuple[int, int]]:
+    """Find registrations where one name uses initials for the given names ("J. C. Uwimana")
+    and another writes them in full ("Jean Claude Uwimana"). REVIEW ONLY: never merged.
+
+    A pair is listed when the full words of the shorter name (normally the surname) each match a
+    word of the other name (score at least initials_surname_min_score), the initials match the
+    first letters of the other name's remaining words, both are in the same district, both ages
+    are known and close, and sex, phone and ID do not disagree.
+    """
+    rules = settings["duplicate_matching"]
+    if not rules.get("initials_rule", True):
+        return []
+    col = lambda c: [None if is_blank(v) else v for v in ids[c].tolist()]
+    names, phones, nids = col("name"), col("phone"), col("national_id")
+    ages, sexes, districts = col("age"), col("sex"), col("district")
+    id_digits, min_score = rules["compare_id_digits"], rules["initials_surname_min_score"]
+    words = [(n or "").split() for n in names]
+    pairs = []
+    for i, wi in enumerate(words):
+        initials = [w for w in wi if len(w) == 1]
+        full = [w for w in wi if len(w) > 1]
+        if not initials or not full or districts[i] is None or ages[i] is None:
+            continue
+        for j, wj in enumerate(words):
+            if j == i or districts[j] != districts[i] or ages[j] is None or any(len(w) == 1 for w in wj):
+                continue
+            if abs(ages[i] - ages[j]) > rules["max_age_difference_years"]:
+                continue
+            if sexes[i] and sexes[j] and sexes[i] != sexes[j]:
+                continue
+            if phones[i] and phones[j] and _digits_apart(phones[i], phones[j]) > rules["max_phone_digit_difference"]:
+                continue
+            if nids[i] and nids[j] and nids[i][:id_digits] != nids[j][:id_digits]:
+                continue
+            remaining = list(wj)
+            for w in full:                          # every full word (the surname) must be found
+                best = max(remaining, key=lambda r: fuzz.ratio(w, r), default=None)
+                if best is None or fuzz.ratio(w, best) < min_score:
+                    break
+                remaining.remove(best)
+            else:
+                if sorted(w[0] for w in remaining) == sorted(initials):
+                    pairs.append((min(i, j), max(i, j)))
+    return sorted(set(pairs))
+
+
 def assign_keys(ids: pd.DataFrame, clusters: np.ndarray, salt: bytes, id_digits: int) -> pd.DataFrame:
     """Give each person one stable beneficiary_key and each row a registration_key."""
     ids = ids.copy()
@@ -502,6 +569,15 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
         log.add("registration", regs[idx], "name", "possible_duplicate_person", FLAGGED,
                 detail=f"similar name to {count} other registration(s) in the same district, but no phone or ID "
                        "to confirm it; NOT merged - please check")
+    initials_partners: dict[int, int] = {}
+    for i, j in initials_review_pairs(ids, settings):
+        if clusters[i] != clusters[j]:
+            initials_partners[i] = initials_partners.get(i, 0) + 1
+            initials_partners[j] = initials_partners.get(j, 0) + 1
+    for idx, count in initials_partners.items():
+        log.add("registration", regs[idx], "name", "possible_duplicate_initials", FLAGGED,
+                detail=f"initials match the full name of {count} other registration(s) (same surname, district "
+                       "and similar age); NOT merged - please check")
     reg_lookup = {(r["source_file"], norm_key(r.get("reg_no") or "")): (r["registration_key"], r["beneficiary_key"])
                   for r in regs}
     for rec in reader.records.get("service", []):
@@ -543,9 +619,9 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
     for entity, df in reader.refs.items():
         df.to_parquet(staging / f"{entity}.parquet", index=False)
     log.frame().to_parquet(staging / "ingest_issues.parquet", index=False)
-    pd.DataFrame(reader.skipped, columns=["source_file", "source_sheet", "entity", "known_columns",
-                                          "headers_found", "message"]).to_csv(staging / "skipped_sheets.csv",
-                                                                              index=False)
+    pd.DataFrame(reader.skipped, columns=["source_file", "source_sheet", "entity", "reason", "known_columns",
+                                          "missing_required", "headers_found", "message"]).to_csv(
+        staging / "skipped_sheets.csv", index=False)
     pd.DataFrame(reader.inventory).to_csv(staging / "sheet_inventory.csv", index=False)
     return dict(tables=written, inventory=pd.DataFrame(reader.inventory), issues=log.frame(),
                 skipped=pd.DataFrame(reader.skipped))

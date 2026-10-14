@@ -119,3 +119,14 @@ fields:
 personal_fields:
   registration: [name, surname, first_name, phone, national_id, dob]
   donor: [contact_person, email, phone]
+
+# Fields a sheet MUST have before any of it is read. If one is missing, the whole sheet is
+# SKIPPED and reported (never read partly). A list in square brackets means "any one of these",
+# e.g. [name, surname]: a full-name column or a surname column.
+required_fields:
+  activity: [date, activity, district, village, status, total]
+  registration: [reg_no, [name, surname], sex, district, village, reg_date]
+  service: [reg_no, activity, date]
+  indicator_result: [project, district, period, indicator, actual]
+  donor: [donor_id, donor_name]
+  opportunity: [opportunity_id, donor, stage]

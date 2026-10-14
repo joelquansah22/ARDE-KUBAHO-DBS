@@ -35,6 +35,8 @@ paths:
   holdout2_raw: data/holdout2/raw                  # held-out set 2 (fresh seed and mess; never used for tuning)
   holdout2_ground_truth: data/holdout2/ground_truth
   holdout2_staging: data/holdout2/staging
+  holdout2_fix1_staging: data/holdout2/staging_after_round4_fixes        # recovery runs on SEEN data
+  holdout2_fo06_staging: data/holdout2/staging_after_fixes_with_fo06_mapping
   templates: templates
   docs: docs
 
@@ -120,6 +122,10 @@ duplicate_matching:
   # Similar names alone are never enough to merge two people: a matching phone (within the
   # digit limit below) or national ID is also needed. Name-only matches go to the review queue.
   merge_requires_phone_or_id: true
+  # Initials ("J. C. Uwimana") are compared with full names ("Jean Claude Uwimana"): same district,
+  # surname scoring at least this much, ages known and close. Matches go to REVIEW only, never merged.
+  initials_rule: true
+  initials_surname_min_score: 90
   require_same_district: true      # only compare people registered in the same district
   require_same_sex: true           # only compare people of the same sex (when both are known)
   # Even when names are alike, two records are kept apart if any of these disagree:
@@ -139,7 +145,9 @@ cleaning:
   # Day-month-year dates written with a month NAME, e.g. "12 Mar 24", "12 March 2024", "12-Mar-2024".
   # Codes: %d day, %b short month name (Mar), %B full month name (March), %y 2-digit year, %Y 4-digit year.
   date_text_formats: ["%d %b %y", "%d %B %y", "%d %b %Y", "%d %B %Y", "%d-%b-%y", "%d-%b-%Y",
-                      "%d-%B-%Y", "%d/%b/%y", "%d/%b/%Y", "%d.%b.%Y", "%d %b, %Y", "%d %B, %Y"]
+                      "%d-%B-%Y", "%d/%b/%y", "%d/%b/%Y", "%d.%b.%Y", "%d %b, %Y", "%d %B, %Y",
+                      "%Y.%m.%d"]   # %m = month number; "%Y.%m.%d" is 2024.03.12 (year first)
+  # Month-first dates such as "Mar 12, 2024" are deliberately NOT accepted (question for the partner).
   ordinal_suffixes: [st, nd, rd, th]   # "12th March 2024" is read as "12 March 2024"
   # A 2-digit year up to this number means 20xx, above it 19xx ("24" = 2024, "57" = 1957).
   two_digit_year_pivot: 30
@@ -215,6 +223,7 @@ flag_severity:
     - number_unreadable
     - not_whole_number
     - sheet_skipped_unrecognised_layout   # a whole sheet could not be read: see skipped_sheets.csv
+    - sheet_skipped_required_fields_missing  # a sheet lacked a required column: not read at all
     - missing_required
     - sex_unmapped
     - status_unmapped
@@ -233,6 +242,7 @@ flag_severity:
     - probability_out_of_range
   warning:
     - possible_duplicate_person      # suspected duplicates below the certain-match level
+    - possible_duplicate_initials    # initials that match a full name (never merged)
     - accuracy_outlier               # actual more than 3 x target
     - missing_target                 # row kept; the indicator shows "no target set" instead of % achieved
     - district_legacy_name_ambiguous # an old (pre-2006) name that may mean several districts

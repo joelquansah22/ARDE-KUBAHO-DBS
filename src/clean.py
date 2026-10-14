@@ -77,12 +77,12 @@ def _month_from_name(text: str) -> int | None:
 
 
 def _parse_text_date(text: str, rules: dict) -> dt.date | None:
-    """Read day-month-year dates written with a month name ("12 Mar 24", "12th March 2024").
+    """Read dates in the extra styles listed in settings ("12 Mar 24", "12th March 2024", "2024.03.12").
 
     The accepted styles are listed in settings.yaml (cleaning: date_text_formats). A 2-digit
     year is placed in the 2000s up to two_digit_year_pivot, otherwise in the 1900s.
     """
-    if not re.search(r"[A-Za-z]", text) or not re.match(r"\d", text):
+    if not re.match(r"\d", text):          # day-first or year-first only; never month-first
         return None
     suffixes = "|".join(rules.get("ordinal_suffixes", []))
     cleaned = re.sub(rf"^(\d{{1,2}})({suffixes})\b", r"\1", text, flags=re.IGNORECASE) if suffixes else text

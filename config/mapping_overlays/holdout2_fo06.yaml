@@ -1,0 +1,31 @@
+# =============================================================================
+# Test overlay: the mapping a maintainer would add for officer FO06 (held-out set 2)
+# =============================================================================
+# FO06 is FICTIONAL (synthetic held-out data). This file is NOT used by the
+# production pipeline. score_cleaning.py uses it for one run, to show what a quick
+# config fix achieves once the pipeline has skipped the sheet and listed the
+# unmapped required fields and unrecognised headers. No code change is involved.
+# FO06's District, Sector, Cell, Village, Total, Names, Sex, Age, Telephone,
+# National ID, Household size and Disability columns were already recognised.
+# =============================================================================
+
+fields:
+  activity:
+    date: [Event date]
+    planned_date: [Target date]
+    entry_date: [Data entry date]
+    project: [Project title]
+    activity: [Type of activity]
+    status: [Implementation status]
+    female: [Females]
+    male: [Males]
+    cost: [Expenditure (Frw)]
+    officer: [Recorded by]
+  registration:
+    reg_no: [Beneficiary ID]
+    project: [Project title]
+    reg_date: [Date of registration]
+  service:
+    reg_no: [Beneficiary ID]
+    activity: [Type of activity]
+    date: [Event date]
