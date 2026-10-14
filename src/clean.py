@@ -288,7 +288,15 @@ class Reference:
                                for p in self.projects.itertuples()}
         self.activity_by_key = {(norm_key(a.activity_name)): a.activity_id for a in self.activities.itertuples()}
         self.activity_project = dict(zip(self.activities.activity_id, self.activities.project_id))
-        self.locs_by_district = {d: g for d, g in self.locations.groupby("district")}
+        # Villages by district, with their spellings already normalised, so each row is a quick
+        # dictionary lookup rather than a search through the whole table.
+        self.locs_by_district = {
+            d: [dict(r, _sector=norm_key(r["sector"]), _village=norm_key(r["village"]))
+                for r in g.to_dict("records")]
+            for d, g in self.locations.groupby("district")}
+        self.districts_of_village: dict[str, set] = {}
+        for r in self.locations.to_dict("records"):
+            self.districts_of_village.setdefault(norm_key(r["village"]), set()).add(r["district"])
         catalogue = load_yaml("indicator_catalogue.yaml")["indicators"]
         self.indicators = {i["code"]: i for i in catalogue}
         self.indicator_by_key = {}
@@ -312,23 +320,23 @@ class Reference:
             return CodeResult(aid)
         return CodeResult(None, "activity_unrecognised", FLAGGED, f"'{norm_text(raw)}' is not a known activity")
 
-    def location(self, district, sector, cell, village, settings) -> tuple[pd.Series | None, CodeResult]:
+    def location(self, district, sector, cell, village, settings) -> tuple[dict | None, CodeResult]:
         """Find the village in the stated district (exact, then closest spelling)."""
         if district is None or is_blank(village) or district not in self.locs_by_district:
             return None, CodeResult()
         locs = self.locs_by_district[district]
         if not is_blank(sector):
-            same_sector = locs[locs["sector"].map(norm_key) == norm_key(sector)]
-            if len(same_sector):
+            same_sector = [loc for loc in locs if loc["_sector"] == norm_key(sector)]
+            if same_sector:
                 locs = same_sector
-        exact = locs[locs["village"].map(norm_key) == norm_key(village)]
+        wanted = norm_key(village)
+        exact = [loc for loc in locs if loc["_village"] == wanted]
         if len(exact) == 1:
-            return exact.iloc[0], CodeResult(exact.iloc[0]["location_id"])
-        names = list(locs["village"])
-        best = process.extract(norm_key(village), [norm_key(n) for n in names], scorer=fuzz.ratio, limit=2)
+            return exact[0], CodeResult(exact[0]["location_id"])
+        best = process.extract(wanted, [loc["_village"] for loc in locs], scorer=fuzz.ratio, limit=2)
         min_score = settings["cleaning"]["village_fuzzy_min_score"]
         if best and best[0][1] >= min_score and (len(best) == 1 or best[0][1] - best[1][1] >= 5):
-            row = locs.iloc[best[0][2]]
+            row = locs[best[0][2]]
             return row, CodeResult(row["location_id"], "village_spelling_corrected", FIXED,
                                    f"'{norm_text(village)}' read as {row['village']} (score {best[0][1]:.0f})")
         return None, CodeResult(None, "village_unrecognised", FLAGGED,
@@ -385,9 +393,9 @@ class Cleaner:
         if district is None and not is_blank(rec.get("village")):
             # Work out the district from the village when that village name exists in only one
             # district. The original problem (missing or unrecognised district) stays flagged.
-            matches = self.ref.locations[self.ref.locations["village"].map(norm_key) == norm_key(rec["village"])]
-            if matches["district"].nunique() == 1:
-                district = matches["district"].iloc[0]
+            candidates = self.ref.districts_of_village.get(norm_key(rec["village"]), set())
+            if len(candidates) == 1:
+                district = next(iter(candidates))
                 self.log.add(entity, rec, "district", "district_filled_from_village", FIXED, rec.get("district"),
                              district, f"village {rec['village']} is only in {district}")
         province = None
