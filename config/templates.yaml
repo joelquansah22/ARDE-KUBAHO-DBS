@@ -1,0 +1,111 @@
+# =============================================================================
+# Standard Excel entry templates for staff
+# =============================================================================
+# src/build_templates.py turns this file into the .xlsx files in templates/.
+# To add a column: add a line under the right sheet and rerun
+#     python src/build_templates.py
+#
+# Column options:
+#   header    the text staff see in row 1 (keep it short and plain)
+#   required  true if the row is rejected for review when this cell is empty
+#   list      name of a dropdown list (see "lists" at the bottom)
+#   type      date, whole_number, number or text (Excel checks what is typed)
+#   note      a hint shown when the cell is selected
+# =============================================================================
+
+templates:
+  activity_monitoring_template.xlsx:
+    instructions:
+      - "One row per activity. Do not merge cells, add totals rows or leave blank rows."
+      - "Type dates as dd/mm/yyyy. Use the dropdown lists where they appear."
+      - "Female + Male must equal Total participants."
+      - "Write the date you typed the row into Excel in 'Date entered'."
+    sheets:
+      Activities:
+        - {header: Activity date, required: true, type: date, note: "Date the activity actually took place (leave empty if cancelled or not yet done)"}
+        - {header: Planned date, required: true, type: date, note: "Date in the work plan"}
+        - {header: Date entered, required: true, type: date, note: "Date you typed this row"}
+        - {header: Project, required: true, list: projects}
+        - {header: Activity, required: true, list: activities}
+        - {header: District, required: true, list: districts}
+        - {header: Sector, required: true, type: text}
+        - {header: Cell, required: false, type: text}
+        - {header: Village, required: true, type: text}
+        - {header: Status, required: true, list: activity_status}
+        - {header: Female participants, required: true, type: whole_number}
+        - {header: Male participants, required: true, type: whole_number}
+        - {header: Total participants, required: true, type: whole_number}
+        - {header: Cost (RWF), required: true, type: number, note: "Numbers only, no 'RWF' and no commas"}
+        - {header: Field officer, required: true, list: officers}
+        - {header: Notes, required: false, type: text}
+
+  beneficiary_register_template.xlsx:
+    instructions:
+      - "One row per person. Register each person once only: search the sheet first."
+      - "Names, phone numbers and ID numbers are personal data. Keep this file on an ARDE/KUBAHO device only."
+      - "Type phone and ID numbers as text (they must keep their leading zero and all 16 digits)."
+    sheets:
+      Register:
+        - {header: Reg No, required: true, type: text, note: "Your officer code and a number, e.g. FO01-0001"}
+        - {header: Full name, required: true, type: text, note: "Surname first, then given names"}
+        - {header: Sex, required: true, list: sex}
+        - {header: Age, required: true, type: whole_number}
+        - {header: Phone, required: false, type: text}
+        - {header: National ID, required: false, type: text}
+        - {header: Household size, required: true, type: whole_number}
+        - {header: Disability, required: true, list: yes_no}
+        - {header: District, required: true, list: districts}
+        - {header: Sector, required: true, type: text}
+        - {header: Cell, required: false, type: text}
+        - {header: Village, required: true, type: text}
+        - {header: Project, required: true, list: projects}
+        - {header: Registration date, required: true, type: date}
+      Services:
+        - {header: Reg No, required: true, type: text}
+        - {header: Activity, required: true, list: activities}
+        - {header: Date, required: true, type: date}
+        - {header: Service received, required: true, type: text}
+
+  donor_opportunity_template.xlsx:
+    instructions:
+      - "Donors sheet: one row per donor. For individual donors, the name is pseudonymised by the pipeline."
+      - "Opportunities sheet: one row per funding opportunity. Amounts in RWF, numbers only."
+      - "Probability is a percentage between 0% and 100%."
+      - "(Phase 1 draft. This template is finished in Phase 6.)"
+    sheets:
+      Donors:
+        - {header: Donor ID, required: true, type: text}
+        - {header: Donor name, required: true, type: text}
+        - {header: Type, required: true, list: donor_types}
+        - {header: Country, required: false, type: text}
+        - {header: Thematic interests, required: false, type: text}
+        - {header: Contact person, required: false, type: text, note: "Personal data: never shown on the dashboard"}
+        - {header: Email, required: false, type: text, note: "Personal data: never shown on the dashboard"}
+        - {header: Phone, required: false, type: text, note: "Personal data: never shown on the dashboard"}
+        - {header: Notes, required: false, type: text}
+      Opportunities:
+        - {header: Opp ID, required: true, type: text}
+        - {header: Opportunity title, required: true, type: text}
+        - {header: Donor, required: true, type: text, note: "Exactly as written on the Donors sheet"}
+        - {header: Thematic fit, required: true, list: themes}
+        - {header: Stage, required: true, list: stages}
+        - {header: Deadline, required: false, type: date}
+        - {header: Requested amount (RWF), required: true, type: number}
+        - {header: Awarded amount (RWF), required: false, type: number}
+        - {header: Probability, required: true, type: number, note: "0% to 100%"}
+        - {header: Owner, required: true, type: text}
+        - {header: Next action, required: false, type: text}
+        - {header: Next action date, required: false, type: date}
+
+# Dropdown lists. "from:" means the list is filled in automatically from another config file.
+lists:
+  sex: [Female, Male]
+  yes_no: ["Yes", "No"]
+  activity_status: [Planned, Completed, Delayed, Cancelled]
+  districts: {from: rwanda_admin}
+  projects: {from: synthetic_projects}        # replace with the real project list in Phase 8
+  activities: {from: synthetic_activities}    # replace with the real activity list in Phase 8
+  officers: {from: synthetic_officers}        # replace with the real officer codes in Phase 8
+  donor_types: [bilateral, multilateral, foundation, government, private, individual]
+  themes: [WASH, Agriculture, "WASH; Agriculture", Environment, Livelihoods]
+  stages: {from: donor_pipeline_stages}

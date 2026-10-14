@@ -1,0 +1,145 @@
+# =============================================================================
+# MEAL indicator catalogue (SOURCE OF TRUTH for indicator definitions)
+# =============================================================================
+# STATUS: PHASE 1 STUB. DRAFT, FOR CO-DESIGN WITH ARDE/KUBAHO STAFF.
+#
+# Only the identifying fields are filled in for now so that the synthetic data
+# can use the same codes. Phase 4 adds the full definition, numerator,
+# denominator, calculation rule, target-setting rule, data source, owner and notes.
+#
+# Field meanings:
+#   code            short unique code; never reuse a code for a different indicator
+#   level           output or outcome
+#   unit            number, percent, hectares, RWF
+#   higher_is_better true if a bigger number is good (the "direction" of the indicator)
+#   frequency       monthly, quarterly, semi-annual, annual
+#   disaggregation  how results are broken down (none, sex)
+#   source          report = entered by staff in the monthly indicator report
+#                   computed = calculated by the pipeline from activity records
+# =============================================================================
+
+catalogue_status: "Draft, for co-design with ARDE/KUBAHO staff (Phase 1 stub)"
+
+indicators:
+  # ---------------------------------------------------------------- WASH
+  - code: WASH-01
+    name: Number of people with access to improved water sources
+    thematic_area: WASH
+    level: output
+    unit: number
+    higher_is_better: true
+    frequency: monthly
+    disaggregation: none
+    source: report
+
+  - code: WASH-02
+    name: Number of household latrines constructed or rehabilitated
+    thematic_area: WASH
+    level: output
+    unit: number
+    higher_is_better: true
+    frequency: monthly
+    disaggregation: none
+    source: report
+
+  - code: WASH-03
+    name: Percentage of trained households practising handwashing with soap
+    thematic_area: WASH
+    level: outcome
+    unit: percent
+    higher_is_better: true
+    frequency: quarterly
+    disaggregation: none
+    source: report
+
+  - code: WASH-04
+    name: Number of water user committees established and functional
+    thematic_area: WASH
+    level: output
+    unit: number
+    higher_is_better: true
+    frequency: quarterly
+    disaggregation: none
+    source: report
+
+  # ---------------------------------------------------------------- Agriculture / climate resilience
+  - code: AGR-01
+    name: Number of farmers trained in climate-smart agriculture
+    thematic_area: Agriculture
+    level: output
+    unit: number
+    higher_is_better: true
+    frequency: monthly
+    disaggregation: sex
+    source: report
+
+  - code: AGR-02
+    name: Hectares under solar-powered or improved irrigation
+    thematic_area: Agriculture
+    level: output
+    unit: hectares
+    higher_is_better: true
+    frequency: monthly
+    disaggregation: none
+    source: report
+
+  - code: AGR-03
+    name: Percentage of supported farmers reporting a yield increase
+    thematic_area: Agriculture
+    level: outcome
+    unit: percent
+    higher_is_better: true
+    frequency: semi-annual
+    disaggregation: none
+    source: report
+
+  - code: AGR-04
+    name: Number of cooperatives formed or strengthened
+    thematic_area: Agriculture
+    level: output
+    unit: number
+    higher_is_better: true
+    frequency: quarterly
+    disaggregation: none
+    source: report
+
+  # ---------------------------------------------------------------- Cross-cutting
+  - code: CC-01
+    name: Percentage of participants who are women
+    thematic_area: Cross-cutting
+    level: output
+    unit: percent
+    higher_is_better: true
+    frequency: monthly
+    disaggregation: none
+    source: computed
+
+  - code: CC-02
+    name: Percentage of planned activities completed on time
+    thematic_area: Cross-cutting
+    level: output
+    unit: percent
+    higher_is_better: true
+    frequency: monthly
+    disaggregation: none
+    source: computed
+
+  - code: CC-03
+    name: Cost per beneficiary reached (RWF)
+    thematic_area: Cross-cutting
+    level: output
+    unit: RWF
+    higher_is_better: false
+    frequency: quarterly
+    disaggregation: none
+    source: computed
+
+  - code: CC-04
+    name: "Reporting completeness: percentage of expected monthly reports submitted"
+    thematic_area: Cross-cutting
+    level: output
+    unit: percent
+    higher_is_better: true
+    frequency: monthly
+    disaggregation: none
+    source: computed

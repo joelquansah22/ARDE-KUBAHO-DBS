@@ -1,0 +1,124 @@
+# =============================================================================
+# ARDE/KUBAHO MEAL prototype: main settings
+# =============================================================================
+# This is the file to edit when something about the organisation changes
+# (paths, the pilot programme, the exchange rate, thresholds, allowed values).
+# You should not need to edit any Python code for these.
+#
+# Format notes for Excel users:
+#   - Lines starting with # are comments and are ignored.
+#   - Indentation matters: use spaces, never tabs.
+#   - Text after a colon is the value. Keep the spacing as you see it.
+# =============================================================================
+
+project_name: "ARDE/KUBAHO MEAL and Donor Analytics Prototype"
+
+# While this is true, every file name starts with SYNTHETIC_ and every dashboard
+# page shows the banner below. Set to false only when real partner data is in use.
+synthetic_mode: true
+synthetic_banner: "Demonstration data. Synthetic records, not ARDE/KUBAHO data."
+
+# -----------------------------------------------------------------------------
+# Folders (relative to the project folder)
+# -----------------------------------------------------------------------------
+paths:
+  raw: data/raw                    # messy input files go here
+  staging: data/staging            # cleaned, pseudonymised tables
+  warehouse: data/warehouse/arde.duckdb
+  exports: data/exports            # CSV/Parquet star schema for Power BI
+  ground_truth: data/ground_truth  # synthetic answer key; NEVER read by the pipeline
+  templates: templates
+  docs: docs
+
+# -----------------------------------------------------------------------------
+# Privacy
+# -----------------------------------------------------------------------------
+# The salt is a secret random value used to pseudonymise names, phone numbers and
+# ID numbers. It must live OUTSIDE the project folder so it is never shared or
+# committed. "~" means your Windows user folder (for example C:\Users\YourName).
+# If the file does not exist, the pipeline creates it the first time it runs.
+# Losing the salt means new hashes will not match old ones: back it up safely.
+privacy:
+  salt_file: "~/.arde_meal/pseudonymisation_salt.txt"
+  individual_donor_label: "Individual donor #{number:03d}"
+
+# -----------------------------------------------------------------------------
+# Pilot scope (TO BE CONFIRMED WITH PARTNER: which programme is the pilot)
+# -----------------------------------------------------------------------------
+pilot:
+  programme_ids: [PRG01, PRG02]    # both synthetic programmes until the pilot is chosen
+
+# -----------------------------------------------------------------------------
+# Dates and money
+# -----------------------------------------------------------------------------
+fiscal_year:
+  start_month: 7                   # Rwanda fiscal year runs July to June
+  label_format: "FY{start}/{end_short}"   # e.g. FY2023/24
+
+reporting_window:
+  start: 2023-07-01
+  end: 2026-06-30
+
+# Date used as "today" for deadlines and overdue actions while on synthetic data.
+# Set to null to use the real current date.
+as_of_date: 2026-06-30
+
+currency:
+  base: RWF
+  show_usd_option: true
+  usd_to_rwf: 1450                 # TO BE CONFIRMED: update from the BNR rate when reporting
+
+# -----------------------------------------------------------------------------
+# Allowed values and recoding (used by clean.py and validate.py)
+# -----------------------------------------------------------------------------
+# Any value not listed here is NOT guessed: it is flagged for review.
+# Matching ignores upper/lower case and spaces at either end.
+sex_mapping:
+  female: [Female, F, Gore, Woman, Women]
+  male: [Male, M, Gabo, Man, Men]
+  # "1" and "2" are deliberately NOT mapped: different officers use them differently.
+  # Add them above only once the partner confirms the coding.
+
+disability_mapping:
+  "yes": ["Yes", "Y", "Yego", "1", "True"]
+  "no": ["No", "N", "Oya", "0", "False"]
+
+activity_status_values: [planned, completed, delayed, cancelled]
+activity_status_mapping:
+  planned: [Planned, Scheduled, Not yet]
+  completed: [Completed, Complete, Done]
+  delayed: [Delayed, Late]
+  cancelled: [Cancelled, Canceled]
+
+# -----------------------------------------------------------------------------
+# Data-quality thresholds
+# -----------------------------------------------------------------------------
+data_quality:
+  late_entry_days: 30              # entry more than this many days after the activity = late
+  on_time_tolerance_days: 7        # activity done within this many days of its planned date = on time
+  accuracy_outlier_ratio: 3.0      # actual > 3 x target is flagged for review
+  age_min: 0
+  age_max: 110
+  household_size_min: 1
+  household_size_max: 25
+
+# Fuzzy matching of duplicate beneficiaries (ingest.py). Score is 0 to 100;
+# higher means names must be more alike before two records are treated as one person.
+duplicate_matching:
+  name_similarity_threshold: 88
+  require_same_district: true
+  require_same_sex: true
+
+# -----------------------------------------------------------------------------
+# Indicator traffic lights (% of target achieved)
+# -----------------------------------------------------------------------------
+traffic_light:
+  on_track_min: 90                 # >= 90% achieved
+  at_risk_min: 70                  # 70 to 89% achieved; below 70% is off track
+
+# -----------------------------------------------------------------------------
+# Donor pipeline
+# -----------------------------------------------------------------------------
+donor_pipeline:
+  stages: [Identified, Qualified, Concept note, Proposal submitted, Awarded, Declined]
+  deadline_windows_days: [30, 60, 90]

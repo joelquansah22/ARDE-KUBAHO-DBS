@@ -1,0 +1,27 @@
+# Pinned versions, tested on Windows 11 with Python 3.12.
+# Install with:  python -m pip install -r requirements.txt
+# Every package here is free and open source. See docs/decision_log.md for why each one is needed.
+
+# Core data processing (brief Section 3)
+pandas==3.0.6
+numpy==2.5.4
+openpyxl==3.1.5
+
+# Storage and SQL (brief Section 3)
+duckdb==1.5.6
+
+# Validation (brief Section 3)
+pandera==0.34.1
+
+# Dashboard (brief Section 3)
+streamlit==1.65.0
+plotly==7.1.0
+
+# Tests (brief Section 3)
+pytest==9.1.1
+
+# Approved additions (decision log, 2026-10-14)
+PyYAML==6.0.3      # reads the config/*.yaml files
+pyarrow==25.0.1    # Parquet export of the star schema for Power BI
+rapidfuzz==3.14.6  # fuzzy matching of duplicate beneficiaries
+fpdf2==2.8.9       # PDF donor report

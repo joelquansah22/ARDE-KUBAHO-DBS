@@ -1,0 +1,55 @@
+# =============================================================================
+# Rwanda administrative hierarchy: provinces and districts
+# =============================================================================
+# These are Rwanda's real 5 provinces and 30 districts (2006 territorial reform).
+# Sectors, cells and villages used by the prototype are SYNTHETIC and are generated
+# in data/raw/SYNTHETIC_programme_master.xlsx, not stored here.
+#
+# The pipeline uses this list to standardise district names and to check that a
+# district belongs to the province written next to it.
+# =============================================================================
+
+provinces:
+  Kigali City:
+    - Gasabo
+    - Kicukiro
+    - Nyarugenge
+  Northern:
+    - Burera
+    - Gakenke
+    - Gicumbi
+    - Musanze
+    - Rulindo
+  Southern:
+    - Gisagara
+    - Huye
+    - Kamonyi
+    - Muhanga
+    - Nyamagabe
+    - Nyanza
+    - Nyaruguru
+    - Ruhango
+  Eastern:
+    - Bugesera
+    - Gatsibo
+    - Kayonza
+    - Kirehe
+    - Ngoma
+    - Nyagatare
+    - Rwamagana
+  Western:
+    - Karongi
+    - Ngororero
+    - Nyabihu
+    - Nyamasheke
+    - Rubavu
+    - Rusizi
+    - Rutsiro
+
+# Other ways people write province names. Matching ignores case.
+province_aliases:
+  Kigali City: [Kigali, City of Kigali, Umujyi wa Kigali]
+  Northern: [North, Northern Province, Amajyaruguru]
+  Southern: [South, Southern Province, Amajyepfo]
+  Eastern: [East, Eastern Province, Iburasirazuba]
+  Western: [West, Western Province, Iburengerazuba]

@@ -1,0 +1,156 @@
+# =============================================================================
+# Synthetic data generator settings (used ONLY by src/generate_synthetic.py)
+# =============================================================================
+# Everything in this file is INVENTED for demonstration. None of it describes
+# ARDE/KUBAHO's real programmes, projects, staff, donors or beneficiaries.
+# When real data arrives this file is no longer used.
+# =============================================================================
+
+seed: 2023                         # fixed so every run produces identical files
+
+# How many records to aim for (brief Section 6)
+volumes:
+  beneficiaries: 1500              # unique people (before duplicates are added)
+  activity_records: 3000           # approximate; spread over projects, districts, months
+  services_per_beneficiary: [1, 5] # each person receives between 1 and 5 services
+  donors: 25
+  opportunities: 30
+  paper_share_activities: 0.12     # share of activity records that only exist on paper
+  paper_share_beneficiaries: 0.15  # share of registrations that only exist on paper
+
+# -----------------------------------------------------------------------------
+# Rates at which problems are deliberately injected. Each rate is a share of the
+# eligible cells or rows (0.05 = 5%). Exact injected counts are written to
+# data/ground_truth/SYNTHETIC_injected_errors_summary.csv on every run.
+# -----------------------------------------------------------------------------
+injection_rates:
+  district_variant: 0.15           # NYAGATARE, Nyagatare District, nyagatare, extra spaces
+  district_typo: 0.04              # Nyagatre, Kayonzaa
+  district_wrong_province: 0.02    # district written next to the wrong province
+  sex_ambiguous_code_1: 0.025      # sex written as "1" (only some officers do this)
+  duplicate_beneficiary: 0.04      # same person registered twice with a different spelling
+  duplicate_activity_row: 0.015    # identical activity row entered twice
+  number_as_text: 0.10             # "1,250,000", "450 RWF", "45 " stored as text
+  negative_value: 0.008            # negative participants or cost
+  female_exceeds_total: 0.012      # e.g. 120% female participation
+  sum_mismatch: 0.03               # female + male does not equal total
+  date_out_of_window: 0.006        # year typos such as 2042 or 2203
+  late_entry: 0.08                 # entry date more than 30 days after the activity (officer files)
+  delayed_activity: 0.12           # true share of activities done well after their planned date
+  cancelled_activity: 0.03         # true share of activities cancelled
+  status_says_completed_but_late: 0.30   # share of LATE activities wrongly labelled "completed"
+  missing_required: 0.02           # required cell left blank (officer files)
+  missing_required_paper: 0.12     # required cell left blank (digitised paper file)
+  paper_transcription_error: 0.06  # O typed for 0, l for 1, swapped digits, letter slips
+  impossible_age: 0.006
+  impossible_household_size: 0.006
+  missing_target: 0.06             # target cell blank in an indicator report
+  accuracy_outlier: 0.02           # actual more than 3 x target
+  percent_over_100: 0.03           # a percentage indicator above 100
+  percent_as_fraction: 0.08        # 72% typed as 0.72
+  missing_monthly_report: 0.05     # a whole project/district/month report not submitted
+  blank_row: 0.02                  # empty rows scattered through officer files
+
+# -----------------------------------------------------------------------------
+# Fictional field staff. Codes only: staff names are personal data too.
+# Each officer has their own (inconsistent) way of laying out Excel files.
+# -----------------------------------------------------------------------------
+field_officers:
+  FO01: {districts: [Nyagatare, Kayonza], layout: A}
+  FO02: {districts: [Bugesera, Kirehe], layout: B}
+  FO03: {districts: [Nyamagabe, Huye], layout: C}
+  FO04: {districts: [Rulindo, Karongi], layout: D}
+paper_data_entry_clerk: DE01
+
+# -----------------------------------------------------------------------------
+# Fictional programmes, projects and activities
+# Districts are real Rwandan districts; their choice is arbitrary (TO BE CONFIRMED
+# WITH PARTNER: where ARDE/KUBAHO actually works).
+# -----------------------------------------------------------------------------
+programmes:
+  - programme_id: PRG01
+    name: Integrated WASH for Resilient Communities
+    thematic_area: WASH
+    funder_id: DNR01
+    start_date: 2023-07-01
+    end_date: 2026-12-31
+    status: active
+  - programme_id: PRG02
+    name: Climate-Resilient Agriculture and Livelihoods
+    thematic_area: Agriculture
+    funder_id: DNR02
+    start_date: 2023-07-01
+    end_date: 2026-12-31
+    status: active
+
+projects:
+  - project_id: PRJ01
+    programme_id: PRG01
+    name: Community Water Access
+    budget_rwf: 480000000
+    start_date: 2023-07-01
+    end_date: 2026-06-30
+    districts: [Nyagatare, Kayonza, Bugesera]
+    indicators: [WASH-01, WASH-04]
+  - project_id: PRJ02
+    programme_id: PRG01
+    name: Household and School Sanitation
+    budget_rwf: 310000000
+    start_date: 2024-01-01
+    end_date: 2026-12-31
+    districts: [Nyamagabe, Huye]
+    indicators: [WASH-02]
+  - project_id: PRJ03
+    programme_id: PRG01
+    name: Hygiene Behaviour Change
+    budget_rwf: 150000000
+    start_date: 2023-10-01
+    end_date: 2026-06-30
+    districts: [Kayonza, Nyamagabe, Rulindo]
+    indicators: [WASH-03]
+  - project_id: PRJ04
+    programme_id: PRG02
+    name: Climate-Smart Farmer Field Schools
+    budget_rwf: 260000000
+    start_date: 2023-07-01
+    end_date: 2026-06-30
+    districts: [Bugesera, Kirehe, Rulindo]
+    indicators: [AGR-01, AGR-03]
+  - project_id: PRJ05
+    programme_id: PRG02
+    name: Solar Irrigation and Cooperatives
+    budget_rwf: 520000000
+    start_date: 2023-07-01
+    end_date: 2026-12-31
+    districts: [Kirehe, Nyagatare, Karongi]
+    indicators: [AGR-02, AGR-04]
+
+# Activity catalogue. cost_rwf and participants are typical ranges per record.
+activities:
+  - {activity_id: ACT01, project_id: PRJ01, activity_name: Borehole drilling or rehabilitation, activity_type: construction, participants: [8, 30], cost_rwf: [1500000, 6000000], female_share: 0.45, service_type: water point access}
+  - {activity_id: ACT02, project_id: PRJ01, activity_name: Water user committee training, activity_type: training, participants: [10, 25], cost_rwf: [150000, 600000], female_share: 0.50, service_type: committee training}
+  - {activity_id: ACT03, project_id: PRJ01, activity_name: Safe water sensitisation meeting, activity_type: awareness, participants: [25, 90], cost_rwf: [60000, 250000], female_share: 0.58, service_type: awareness session}
+  - {activity_id: ACT04, project_id: PRJ02, activity_name: Household latrine construction, activity_type: construction, participants: [5, 20], cost_rwf: [400000, 2500000], female_share: 0.48, service_type: latrine support}
+  - {activity_id: ACT05, project_id: PRJ02, activity_name: School latrine block rehabilitation, activity_type: construction, participants: [10, 40], cost_rwf: [2000000, 7500000], female_share: 0.52, service_type: latrine support}
+  - {activity_id: ACT06, project_id: PRJ02, activity_name: Sanitation promotion meeting, activity_type: awareness, participants: [20, 80], cost_rwf: [50000, 200000], female_share: 0.60, service_type: awareness session}
+  - {activity_id: ACT07, project_id: PRJ03, activity_name: Hygiene promotion session, activity_type: training, participants: [15, 60], cost_rwf: [80000, 300000], female_share: 0.65, service_type: hygiene training}
+  - {activity_id: ACT08, project_id: PRJ03, activity_name: Handwashing station distribution, activity_type: distribution, participants: [20, 70], cost_rwf: [300000, 1200000], female_share: 0.60, service_type: handwashing kit}
+  - {activity_id: ACT09, project_id: PRJ03, activity_name: Community health club meeting, activity_type: meeting, participants: [15, 45], cost_rwf: [30000, 120000], female_share: 0.68, service_type: health club}
+  - {activity_id: ACT10, project_id: PRJ04, activity_name: Farmer field school session, activity_type: training, participants: [15, 35], cost_rwf: [100000, 400000], female_share: 0.47, service_type: farmer training}
+  - {activity_id: ACT11, project_id: PRJ04, activity_name: Climate-smart demonstration plot, activity_type: demonstration, participants: [10, 40], cost_rwf: [200000, 900000], female_share: 0.44, service_type: demonstration visit}
+  - {activity_id: ACT12, project_id: PRJ04, activity_name: Seed and input distribution, activity_type: distribution, participants: [30, 120], cost_rwf: [800000, 3500000], female_share: 0.50, service_type: input package}
+  - {activity_id: ACT13, project_id: PRJ05, activity_name: Solar irrigation installation, activity_type: construction, participants: [5, 25], cost_rwf: [3000000, 9000000], female_share: 0.35, service_type: irrigation access}
+  - {activity_id: ACT14, project_id: PRJ05, activity_name: Cooperative governance training, activity_type: training, participants: [12, 40], cost_rwf: [150000, 500000], female_share: 0.42, service_type: cooperative training}
+  - {activity_id: ACT15, project_id: PRJ05, activity_name: Irrigation user group meeting, activity_type: meeting, participants: [10, 35], cost_rwf: [30000, 100000], female_share: 0.40, service_type: user group meeting}
+
+# Monthly targets per project and district for report-based indicators
+# (the actual values are generated around these).
+indicator_targets:
+  WASH-01: {per_month: [150, 400]}   # people
+  WASH-02: {per_month: [15, 45]}     # latrines
+  WASH-03: {percent: [60, 80]}       # % households
+  WASH-04: {per_quarter: [1, 4]}     # committees
+  AGR-01: {per_month: [20, 60]}      # farmers per sex
+  AGR-02: {per_month: [2, 8]}        # hectares
+  AGR-03: {percent: [50, 70]}        # % farmers
+  AGR-04: {per_quarter: [1, 3]}      # cooperatives
