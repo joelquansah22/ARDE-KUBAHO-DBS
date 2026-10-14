@@ -33,3 +33,6 @@ salt.txt
 Thumbs.db
 .DS_Store
 ~$*.xlsx
+
+# Evaluation results recorded while using the prototype (kept locally, not in git)
+evaluation/report_generation_log.csv

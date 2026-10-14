@@ -6,9 +6,15 @@ dataset, MEAL indicators and a dashboard.
 > **Demonstration data.** Everything in this prototype currently runs on synthetic records,
 > not ARDE/KUBAHO data. Synthetic files always start with `SYNTHETIC_`.
 
-**Status: Phase 4 of 8** (templates, synthetic data, reading, cleaning and pseudonymising the
-records, data-quality checks, the data warehouse, exports for Power BI, and the MEAL indicators).
-The dashboard comes in Phase 5. A full user guide for staff comes in Phase 7.
+**Status: Phase 5 of 8** (templates, synthetic data, reading, cleaning and pseudonymising the
+records, data-quality checks, the data warehouse, exports for Power BI, the MEAL indicators and the
+dashboard). A full user guide for staff comes in Phase 7.
+
+## Open the dashboard
+
+Double-click `run_dashboard.bat` (Windows) or run `./run_dashboard.sh` (Mac/Linux), then open
+http://localhost:8501 in your browser. The first page is the **Executive summary**. The
+"Generate donor report" button is on the **Programme overview** page.
 
 ## First-time set-up (Windows)
 
