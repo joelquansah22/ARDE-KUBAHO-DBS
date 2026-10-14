@@ -84,7 +84,9 @@ COMPARE = {
 # A wrong value in one of these fields can make another field wrong too ("knock-on").
 DEPENDS_ON = {"village": {"district", "village", "sector"}, "sector": {"district", "village", "sector"},
               "cell": {"district", "village", "sector"}, "province": {"district", "province"},
-              "project": {"project", "activity"}, "age": {"age", "dob"}}
+              "project": {"project", "activity"}, "age": {"age", "dob"},
+              # An age worked out from the date of birth also needs the registration date.
+              "dob": {"dob", "reg_date"}}
 # Problems where the cell value is right and only a flag is the correct response.
 FLAG_ONLY = {"late_entry"}
 LAYOUT_ROW_CODES = {"blank_row": "blank_row_removed", "totals_row": "totals_row_removed",

@@ -113,9 +113,27 @@ columns, letters missing, nicknames such as `Jado`, `Manu`, `JC`, mostly without
 different people who share a name, district and sex. None of this changes the main set: its fingerprint
 is the same as before.
 
-**Rule:** do not change the cleaner or the mappings because of what this set contains until the team has
-reviewed the results (decision log D64). The pipeline step `score_cleaning.py` runs the unchanged pipeline
+Held-out 1 has now been seen: its findings drove the fixes in decision log D67 to D75, so it is no longer
+a fair test. It is still scored, as is and with a mapping overlay for FO05 (D79), to measure the fixes. The pipeline step `score_cleaning.py` runs the unchanged pipeline
 on it and reports it next to the main set in `docs/phase2_cleaning_scorecard.md`.
+
+## Held-out test set 2 (the headline test)
+
+```
+python src/generate_synthetic.py --holdout2            # create it in data/holdout2/
+python src/generate_synthetic.py --holdout2 --verify   # check your copy
+```
+
+Expected content fingerprint: `afd7098431eda4eff08d15076dde7b144934839dae1bb2e5eaa36a7464699f12`.
+
+`config/synthetic_holdout2.yaml` (seed 4243) was written after the held-out-1 fixes were designed and was
+generated only after that code was committed (`2754c99`). It has a different batch of mess: a sixth officer
+(FO06, Kirehe) whose layout is only partly recognisable; dates such as `Mar 12, 2024`, `12/Mar/2024`,
+`2024.03.12`, `12th March 2024`; district spellings such as `Nyaga tare`, `Huye, Southern Province`,
+`Akarere ka Kireh` and old names (Umutara, Kibungo); duplicates written with initials (`J. C.`), hyphens or an
+extra given name; and namesakes. **It must never be used to tune the cleaner**: any later fix needs a new seed.
+
+The main set and held-out 1 are unchanged by the held-out-2 code (their fingerprints still verify).
 
 ## Hand-made test files
 

@@ -40,4 +40,4 @@ holdout_mess:
   namesake_phone_missing: 0.50
   namesake_id_missing: 0.50
 
-expected_fingerprint: null
+expected_fingerprint: afd7098431eda4eff08d15076dde7b144934839dae1bb2e5eaa36a7464699f12

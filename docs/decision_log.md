@@ -167,6 +167,76 @@ The 3 misses that remain are real and still counted.
 8. New district spellings (including old names and abbreviations) were all fixed or flagged outside FO05: 100%.
 9. Pipeline run time was 145 seconds on 2026-10-14 (96 of them in scoring, which runs only on synthetic data). The cleaning hot spot is the village lookup, which filters a table once per row. A speed-up that leaves the output unchanged is proposed for Phase 3, verified against the scorecard.
 
+## Held-out fixes and re-scoring (2026-10-14)
+
+### Freezing the "before" figures
+
+| # | Decision | Reason |
+|---|---|---|
+| D66 | The scorecard as it stood at commit `5087cad` is frozen as `docs/phase2_scorecard_v1_holdout1.md` (SHA-256 of its content, line endings normalised: `d5ebed8311873ba8272a19d4eae4a68ee47a5bd6e3a59f75debb594113e5af35`). A test fails if it changes. The live scorecard (`docs/phase2_cleaning_scorecard.md`) is now version 2. | Team instruction: these are the "before" figures for the report. |
+
+### General fixes (not tailored to the held-out file)
+
+| # | Decision | Reason |
+|---|---|---|
+| D67 | **Unrecognised layout (fix a):** a sheet whose header row cannot be found is **skipped, never guessed**. The pipeline prints `SKIPPED <file> / <sheet>: layout not recognised ... Column headers found: ... Add them to config/source_mappings.yaml`, carries on with the other files, writes the list to `data/staging/skipped_sheets.csv`, and logs a sheet-level critical issue (`sheet_skipped_unrecognised_layout`). The Phase 3 data-quality report will list skipped files. | A maintainer can fix it in config from the message alone; a guessed mapping could silently put numbers in the wrong columns. |
+| D68 | **Header detection (fix b):** a row counts as the header only if at least 3 of its cells are known column names (`cleaning.header_min_matches`). | A single "No" in a data row matched the alias "No" (registration number) and was taken as the header. Every real layout so far has 5 or more matches. |
+| D69 | **Dates with month names (fix c):** day-month-year text such as `12 Mar 24`, `12 March 2024`, `12-Mar-2024`, `12th March 2024` is read using the list `cleaning.date_text_formats` in settings (plus `ordinal_suffixes`). A 2-digit year up to `two_digit_year_pivot` (30) is 20xx, above it 19xx (`5 Jan 57` = 1957). Month-first styles (`Mar 12, 2024`) are deliberately **not** in the list. | Team instruction: rules in config. Month-first dates are a different convention; adding them is a decision for the partner. |
+| D70 | **Ages (fix d):** age at registration is worked out from the date of birth only when **both** the date of birth and the registration date can be read. Otherwise the age is left empty and flagged `age_not_computable` (info level). There is no fallback to the as-of date. | The fallback made 5 people 2 to 3 years too old with no flag (the only false corrections in held-out 1). |
+| D71 | **Duplicates (fix e):** similar names are merged only when a phone number (within 1 digit) or a national ID confirms the match (`duplicate_matching.merge_requires_phone_or_id`). A name-only match is **never merged**; both registrations get a `possible_duplicate_person` warning and keep separate keys until a person confirms them. Nicknames remain a known limitation; there is no nickname list. | Team instruction. Different people who share a name, with no phone or ID, were being merged (13 of 56 namesake pairs in held-out 1). Cost: some true duplicates are no longer merged automatically and wait in the review queue instead. |
+| D72 | **Old district names (fix f):** `config/district_legacy_map.yaml`, marked **"To be confirmed with partner"**. No old name was found to be a clear one-to-one case: names such as Butare, Kibuye or Gikongoro meant both a town (now in one district) and a former province (now split over several), so the `one_to_one` list is empty. Ambiguous names are flagged for review (warning), never guessed; the pipeline uses a candidate district only when the row's village exists in exactly one of the candidates, and still sends the row for review. The candidate lists come from general knowledge and must be checked. | Team instruction. Guessing "Butare = Huye" would be wrong for any record from the other districts of the former province. |
+| D73 | **Totals rows (fix g):** the 1 missed totals row in held-out 1 (12.5%, 1 of 8) was the `Sum` row inside the FO05 file, which the pipeline had set aside; all 7 totals rows in readable files were removed. The rule itself was therefore not at fault, but it was made more general anyway: the first filled cell may be a totals word followed by more text (`Total (RWF)`, `Totals:`, `Sub-total`), provided every other filled cell in the row is a number. A row with other text (e.g. a project called "Total Sanitation Campaign") is never dropped. | Team instruction to find the cause and fix the general rule. |
+| D74 | **Missing target** is now a warning, not critical: the row is kept, and the indicator will show "no target set" instead of a % achieved (Phase 4). | Team decision. |
+| D75 | **Robustness:** a column missing from a sheet now reaches the cleaner as empty (None), never as NaN; a missing officer code no longer crashes the cleaner. | Root cause of the held-out-1 crash. |
+
+### Speed and separation of scoring
+
+| # | Decision | Reason |
+|---|---|---|
+| D76 | Village and district-from-village lookups use precomputed dictionaries. All 22 staging tables were compared with the previous output: **identical** (commit `8224522`). Cleaning time fell from about 30 s to about 5 s. | Team instruction: speed up and prove the output is unchanged. |
+| D77 | `python src/pipeline.py` now runs **production steps only** (ingest, clean, then validate, model and indicators as they are built). Synthetic generation, template building and scoring have their own commands; `python src/pipeline.py --score` runs scoring after the production run. | Team instruction: scoring is a test tool, not part of production. |
+
+### Scoring corrections (the scorer, not the cleaner)
+
+| # | Decision | Reason |
+|---|---|---|
+| D78 | When a sheet gives a date of birth, the cleaned age is now compared with the age worked out from the true date of birth and the true date **of that registration**. | The answer key's `age` for a second registration copies the first registration's age with a random +/-1. For one held-out-1 duplicate registered later, the cleaner's age (29) was right and the key (27) was wrong. The old comparison allowed +/-1, which hid this inconsistency on the main set. |
+
+### Test sets
+
+| # | Decision | Reason |
+|---|---|---|
+| D79 | Held-out 1 is scored twice: **as is** (FO05 skipped gracefully) and **with `config/mapping_overlays/holdout1_fo05.yaml`**, the column names a maintainer would add to `source_mappings.yaml` after reading the SKIPPED message. The overlay is not used in production. | Shows what a quick config fix (no code) achieves. |
+| D80 | **Held-out 2** (`config/synthetic_holdout2.yaml`, seed 4243) was written after the fixes were designed and generated only after the code was final. Its mess is a different batch: a sixth officer (FO06) whose layout is only partly recognisable, unseen date styles (`Mar 12, 2024`, `12/Mar/2024`, `2024.03.12`, `12th March 2024`; `12/Mar/2024` and `12th March 2024` turned out to be covered by the general D69 rule, `Mar 12, 2024` and `2024.03.12` are not), unseen district spellings (`Nyaga tare`, `Huye, Southern Province`, vowel changes, `Akarere ka Kireh`, old names Umutara and Kibungo), and duplicates written with initials, hyphens or an extra given name. **It is the headline figure and must never be used to tune the cleaner**; any later fix needs a new seed. | Team instruction. |
+
+### Results (scorecard v2, code at commit `2754c99`; held-out 2 generated afterwards)
+
+| Measure | Main set | Held-out 1 as is | Held-out 1 + FO05 mapping | **Held-out 2 (headline)** |
+|---|---|---|---|---|
+| Genuine errors fixed or flagged | 99.8% | 95.2% (v1: 93.6%) | 98.9% | **92.9%** (96.1% without the FO06 file) |
+| Officer habits | 100% | 92.8% (v1: 92.7%) | 100% | **87.5%** (100% without FO06) |
+| Namesakes kept apart | n/a | 91.8% (v1: 70.5%) | 100% | **100%** |
+| Error types below 90% | 0 | 5 | 1 | **6** |
+| Clean values wrongly changed | 0 | 0 (v1: 5) | 0 | **0** (7 more cells left empty as a knock-on, see D82) |
+| Duplicate precision / recall merged / merged or reviewed | 1.0 / 0.864 / 1.0 | 1.0 / 0.59 / 0.885 | 1.0 / 0.59 / 0.897 | **1.0 / 0.53 / 0.687** |
+| Review queue per month (average / busiest) | 7.9 / 16 | 11.5 / 24 | 12.1 / 25 | **8.2 / 13** |
+| Months over the one-hour budget | 0 | 0 | 0 | 0 |
+| Rows quarantined (36 months) | 240 | 269 | 275 | **1,093** |
+| Pipeline crashed | no | no (v1: yes) | no | no |
+
+Production pipeline: 11.6 s (ingest 5.5 s, clean 4.4 s). Scoring all four sets: about 6 minutes, separate from production.
+
+### Held-out 2 findings (recorded, NOT fixed; awaiting team review)
+
+| # | Finding |
+|---|---|
+| D81 | **A partly recognised layout passes silently.** FO06's activity sheet has 5 known column names (District, Sector, Cell, Village, Total), so it is read rather than skipped, but the activity date, activity, project, female/male, cost and status columns are unknown. Result: 364 activity rows quarantined for missing required values, and no message beyond `sheet_inventory.csv`. FO06's register is read, but its registration number is unknown, so its Services sheet (also skipped) cannot be linked. This file alone pulls genuine errors from 96.1% to 92.9% and habits from 100% to 87.5%. Possible general rule: print the same loud message for a sheet whose required fields are unmapped (and perhaps skip it). |
+| D82 | **Month-first and year-first dotted dates are not read** (`Mar 12, 2024`, `2024.03.12`): 496 rows quarantined as unreadable. Month-first was left out on purpose (D69); `2024.03.12` is unambiguous and could be added to `date_text_formats`. `12/Mar/2024` and `12th March 2024` were read correctly by the new config rule. Knock-on: on 7 FO02 registrations the registration date was unreadable, so age was correctly left empty and flagged (D70); the scorer counts these 7 as knock-ons, not wrong changes (D83). |
+| D83 | Scoring correction: an age worked out from the date of birth depends on the registration date, so a blank age on a row whose registration date carries an injected problem is classed as a knock-on. All 7 cases were checked by hand: every one had an unreadable registration date. |
+| D84 | **Duplicates written with initials or an extra given name** (`J. C. Uwimana`) are mostly not found: recall merged-or-reviewed 0.687 (26 pairs missed). Precision stays 1.0 and every namesake pair was kept apart. Like nicknames, initials are a known limitation unless the team wants an initials rule. |
+| D85 | Late entries 83% and sum mismatches 89.5% are knock-ons of D81 and D82 (the dates or female/male columns could not be read, so the checks could not run). |
+| D86 | The monthly review queue stays within one hour on every set (busiest month 25 rows, about 50 minutes). Quarantine on held-out 2 averages about 30 rows a month, driven by D81 and D82. |
+
 ## Open items to confirm with ARDE/KUBAHO and supervisors (brief Section 15)
 
 These do not block the prototype.
@@ -183,6 +253,8 @@ These do not block the prototype.
 - [ ] Duplicate-matching threshold, checked on a hand-labelled sample of real registrations (D43)
 - [ ] Kinyarwanda column names and values used in the mappings (D23, D36)
 - [ ] Add a planned-date field to the paper activity form (D56)
+- [ ] Old district names and their candidate districts (D72, config/district_legacy_map.yaml)
+- [ ] Whether month-first dates ("Mar 12, 2024") are ever used by staff (D69, D82)
 - [ ] Minutes per review-queue row, checked with the MEAL officer (D60)
 - [ ] Reporting schedule for indicator reports (D25)
 - [ ] USD to RWF exchange rate to use in reports (`currency.usd_to_rwf`, now 1,450)
