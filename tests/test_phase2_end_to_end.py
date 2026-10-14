@@ -130,4 +130,4 @@ def test_scorer_notices_a_wrongly_changed_value(staged, tmp_path):
 
 def test_duplicate_matching_is_precise(score):
     configured = score["duplicates"][score["duplicates"]["configured"] == "yes"].iloc[0]  # first row = full rules
-    assert configured["precision"] >= 0.95 and configured["recall"] >= 0.9
+    assert configured["precision"] >= 0.95 and configured["recall_merged_or_reviewed"] >= 0.95

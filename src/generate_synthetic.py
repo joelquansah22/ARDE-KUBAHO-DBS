@@ -150,11 +150,18 @@ NICKNAMES = {"Jean Claude": "JC", "Emmanuel": "Manu", "Jean de Dieu": "Jado", "I
              "Theoneste": "Theo", "Alexis": "Alex", "Samuel": "Sam", "Patrick": "Pato", "Francine": "Fanny",
              "Liliane": "Lili", "Fabrice": "Fab", "Jean Pierre": "JP", "Marie": "Mary", "Aline": "Alina"}
 OLD_DISTRICT_NAMES = {"Huye": "Butare", "Nyamagabe": "Gikongoro", "Karongi": "Kibuye"}
+# Held-out set 2 only (also unconfirmed old names).
+OLD_DISTRICT_NAMES_2 = {"Nyagatare": "Umutara", "Kirehe": "Kibungo", "Kayonza": "Kibungo"}
+SECOND_NAMES_2 = ["Marie", "Claire", "Paul", "Pierre", "Rose", "Damascene", "Grace", "Patrick"]
 
 DATE_ISSUE = {
     "d_mon_yy": ("date_new_format", "fix"),        # held-out set only: 12 Mar 24
     "d_month_yyyy": ("date_new_format", "fix"),    # held-out set only: 12 March 2024
     "dotted": ("date_new_format", "fix"),          # held-out set only: 12.03.2024
+    "mon_d_yyyy": ("date_new_format", "fix"),      # held-out 2 only: Mar 12, 2024
+    "d_slash_mon_yyyy": ("date_new_format", "fix"),  # held-out 2 only: 12/Mar/2024
+    "ymd_dotted": ("date_new_format", "fix"),      # held-out 2 only: 2024.03.12
+    "ordinal_long": ("date_new_format", "fix"),    # held-out 2 only: 12th March 2024
     "dmy": ("date_dmy_text", "fix"),
     "month_year": ("date_month_year_text", "fix_or_flag"),
     "serial": ("date_excel_serial", "fix"),
@@ -238,6 +245,15 @@ def render_date(d: dt.date | None, style: str):
         return f"{d.day} {calendar.month_name[d.month]} {d.year}"   # 12 March 2024
     if style == "dotted":
         return d.strftime("%d.%m.%Y")                               # 12.03.2024
+    if style == "mon_d_yyyy":
+        return f"{calendar.month_abbr[d.month]} {d.day}, {d.year}"  # Mar 12, 2024
+    if style == "d_slash_mon_yyyy":
+        return f"{d.day:02d}/{calendar.month_abbr[d.month]}/{d.year}"  # 12/Mar/2024
+    if style == "ymd_dotted":
+        return d.strftime("%Y.%m.%d")                               # 2024.03.12
+    if style == "ordinal_long":
+        suffix = "th" if 11 <= d.day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(d.day % 10, "th")
+        return f"{d.day}{suffix} {calendar.month_name[d.month]} {d.year}"  # 12th March 2024
     raise ValueError(style)
 
 
@@ -621,6 +637,9 @@ class World:
 
     def harder_variant(self, p: dict) -> tuple[str, str, str]:
         """Held-out set only: harder ways the same person's name is written twice."""
+        hm = self.cfg.get("holdout_mess") or {}
+        if hm.get("dup_variant_kinds"):
+            return self.harder_variant_2(p, hm["dup_variant_kinds"])
         surname, given = p["surname"], p["given_name"]
         op = self.rand.pick(["swap_first_last", "missing_letters", "nickname", "nickname", "surname_slip"])
         first = given.split(" ")[0] if given not in NICKNAMES else given
@@ -634,6 +653,20 @@ class World:
                 i = self.rand.int(1, len(surname) - 2)
                 surname = surname[:i] + surname[i + 1:]
             return surname, given, "two letters missing from the surname"
+        return letter_slip(self.rand, surname), given, "surname spelling"
+
+    def harder_variant_2(self, p: dict, kinds: list) -> tuple[str, str, str]:
+        """Held-out set 2 only: initials, hyphens, an extra given name, or a spelling slip."""
+        surname, given = p["surname"], p["given_name"]
+        op = self.rand.pick(kinds)
+        if op == "initials":
+            initials = " ".join(w[0] + "." for w in given.split(" "))
+            return surname, initials, f"given name written as initials ({initials})"
+        if op == "hyphen" and " " in given:
+            return surname, given.replace(" ", "-"), "given names joined with a hyphen"
+        if op == "extra_name":
+            extra = self.rand.pick([n for n in SECOND_NAMES_2 if n not in given])
+            return surname, f"{given} {extra}", f"extra given name ({extra}) added"
         return letter_slip(self.rand, surname), given, "surname spelling"
 
     def namesakes(self, people: list[dict], hm: dict, phones: set) -> list[dict]:
@@ -837,6 +870,17 @@ ACTIVITY_LAYOUTS = {
                  ("sector", "Sector"), ("village", "Village"), ("status", "Status"),
                  ("total", "Total participants"), ("female", "Of which women"), ("male", "Of which men"),
                  ("cost", "Cost RWF"), ("officer", "FO")]),
+    # Held-out set 2 only: an officer whose layout is PARTLY recognisable.
+    "F": dict(
+        title="Field activity log (SYNTHETIC)", groups=None, per_fy_sheets=False, project_label="name",
+        status_style="mixed", date_styles={"mon_d_yyyy": 0.6, "dmy": 0.4},
+        entry_styles={"mon_d_yyyy": 0.6, "dmy": 0.4}, cost_always_text=True, totals_label="Total (RWF)",
+        kinyarwanda=False,
+        columns=[("date", "Event date"), ("planned_date", "Target date"), ("entry_date", "Data entry date"),
+                 ("project", "Project title"), ("activity", "Type of activity"), ("district", "District"),
+                 ("sector", "Sector"), ("cell", "Cell"), ("village", "Village"),
+                 ("status", "Implementation status"), ("female", "Females"), ("male", "Males"),
+                 ("total", "Total"), ("cost", "Expenditure (Frw)"), ("officer", "Recorded by")]),
     # Held-out set only: a fifth officer whose column names the pipeline has never seen.
     "E": dict(
         title=None, groups=None, per_fy_sheets=False, project_label="name", status_style="title",
@@ -894,6 +938,17 @@ REGISTER_LAYOUTS = {
                        ("household_size", "Household members"), ("disability", "Disability"),
                        ("district", "District"), ("sector", "Sector"), ("village", "Village"),
                        ("project", "Project"), ("reg_date", "Date")]),
+    # Held-out set 2 only: partly recognisable register layout.
+    "F": dict(title=None, name_style="surname_first", sex_style={"mixed": 1.0}, uses_dob=False,
+              phone_style="spaced", id_style="text", disability_style=("Y", "N"),
+              date_styles={"mon_d_yyyy": 0.6, "dmy": 0.4}, project_label="name", allow_code_1=True,
+              columns=[("reg_no", "Beneficiary ID"), ("name", "Names"), ("sex", "Sex"), ("age", "Age"),
+                       ("phone", "Telephone"), ("national_id", "National ID"), ("household_size", "Household size"),
+                       ("disability", "Disability"), ("district", "District"), ("sector", "Sector"),
+                       ("cell", "Cell"), ("village", "Village"), ("project", "Project title"),
+                       ("reg_date", "Date of registration")],
+              service_columns=[("reg_no", "Beneficiary ID"), ("activity", "Type of activity"),
+                               ("date", "Event date"), ("service_type", "Service received")]),
     # Held-out set only: a fifth officer whose column names the pipeline has never seen.
     "E": dict(title=None, name_style="given_first", sex_style={"F": 1.0}, uses_dob=False, phone_style="intl",
               id_style="text", disability_style=("Yes", "No"), date_styles={"d_mon_yy": 0.8, "dmy": 0.2},
@@ -954,7 +1009,7 @@ class MessyWriter:
             return
         style = self.rand.pick_style(styles)
         if self.hm and self.rand.chance(self.hm["new_date_format_rate"]):
-            style = self.rand.pick(["d_mon_yy", "d_month_yyyy", "dotted"])
+            style = self.rand.pick(self.hm.get("new_date_styles", ["d_mon_yy", "d_month_yyyy", "dotted"]))
         cells.values[fld] = render_date(d, style)
         if style in DATE_ISSUE:
             etype, expected = DATE_ISSUE[style]
@@ -962,6 +1017,8 @@ class MessyWriter:
 
     def new_district_variant(self, district: str) -> tuple[str, str, str]:
         """Held-out set only: district spellings the cleaner has never seen."""
+        if self.hm.get("district_variant_kinds"):
+            return self.new_district_variant_2(district)
         options = ["r_l_swap", "two_slips", "abbreviation", "dist_prefix", "k_g_swap"]
         if district in OLD_DISTRICT_NAMES:
             options.append("old_name")
@@ -987,6 +1044,27 @@ class MessyWriter:
             if value.casefold() not in self.all_districts_cf:
                 return value, "district_typo", "fix_or_flag"
             kind = "two_slips"
+        return district.upper(), "district_variant", "fix"
+
+    def new_district_variant_2(self, district: str) -> tuple[str, str, str]:
+        """Held-out set 2 only: a second, different batch of unseen district spellings."""
+        kinds = [k for k in self.hm["district_variant_kinds"] if k != "old_name" or district in OLD_DISTRICT_NAMES_2]
+        kind = self.rand.pick(kinds)
+        if kind == "old_name":
+            return OLD_DISTRICT_NAMES_2[district], "district_old_name", "fix_or_flag"
+        if kind == "with_province":
+            return f"{district}, {self.w.d2p[district]} Province", "district_variant", "fix_or_flag"
+        if kind == "space_inside":
+            i = self.rand.int(2, len(district) - 2)
+            return f"{district[:i]} {district[i:].lower()}", "district_typo", "fix_or_flag"
+        if kind == "prefix_typo":
+            return f"Akarere ka {letter_slip(self.rand, district)}", "district_typo", "fix_or_flag"
+        for _ in range(20):                      # vowel_change
+            vowels = [i for i, ch in enumerate(district) if ch.lower() in "aeiou" and i > 0]
+            i = self.rand.pick(vowels)
+            value = district[:i] + self.rand.pick([v for v in "aeiou" if v != district[i].lower()]) + district[i + 1:]
+            if value.casefold() not in self.all_districts_cf:
+                return value, "district_typo", "fix_or_flag"
         return district.upper(), "district_variant", "fix"
 
     def district_cell(self, cells: Cells, district: str, kinyarwanda: bool, fields: list):
@@ -1773,11 +1851,18 @@ def main():
     parser.add_argument("--truth-dir", type=Path, default=None, help="where to write the answer key")
     parser.add_argument("--verify", action="store_true", help="check existing files instead of generating")
     parser.add_argument("--holdout", action="store_true",
-                        help="the held-out test set (config/synthetic_holdout.yaml, written to data/holdout/)")
+                        help="held-out test set 1 (config/synthetic_holdout.yaml, written to data/holdout/)")
+    parser.add_argument("--holdout2", action="store_true",
+                        help="held-out test set 2 (config/synthetic_holdout2.yaml, written to data/holdout2/)")
     args = parser.parse_args()
-    config_name = "synthetic_holdout.yaml" if args.holdout else "synthetic.yaml"
-    raw_dir = args.raw_dir or (resolve_path("holdout_raw") if args.holdout else None)
-    truth_dir = args.truth_dir or (resolve_path("holdout_ground_truth") if args.holdout else None)
+    if args.holdout2:
+        config_name, prefix = "synthetic_holdout2.yaml", "holdout2_"
+    elif args.holdout:
+        config_name, prefix = "synthetic_holdout.yaml", "holdout_"
+    else:
+        config_name, prefix = "synthetic.yaml", ""
+    raw_dir = args.raw_dir or resolve_path(f"{prefix}raw")
+    truth_dir = args.truth_dir or resolve_path(f"{prefix}ground_truth")
     if args.verify:
         sys.exit(0 if verify(raw_dir, truth_dir, config_name) else 1)
     generate(raw_dir, truth_dir, config_name=config_name)

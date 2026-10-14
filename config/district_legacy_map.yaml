@@ -1,0 +1,40 @@
+# =============================================================================
+# Old (pre-2006) place names still used for districts
+# =============================================================================
+# STATUS: TO BE CONFIRMED WITH PARTNER. Nothing in this file has been checked with
+# ARDE/KUBAHO or an official source. The candidate lists below come from general
+# knowledge of the 2006 territorial reform and may be incomplete or wrong.
+#
+# Before 2006 Rwanda had 12 provinces and many smaller districts. Staff may still
+# write an old name such as "Butare". The trouble is that most old names meant
+# BOTH a town and a former province, and a former province is now split over
+# several districts. So an old name usually cannot be turned into one district
+# safely.
+#
+# How the pipeline uses this file (clean.py):
+#   one_to_one:  an old name that always means exactly one current district.
+#                It is replaced automatically (and logged).
+#   ambiguous:   an old name that could mean several current districts. It is
+#                NEVER guessed. The pipeline checks whether the row's village exists
+#                in exactly one of the candidate districts; if so it uses that
+#                district. Either way the row goes to the review queue (warning).
+#
+# To add a confirmed case, move it from "ambiguous" to "one_to_one".
+# =============================================================================
+
+status: "To be confirmed with partner"
+
+# No old name has been confirmed as a clear one-to-one case yet (see the note above).
+one_to_one: {}
+
+ambiguous:
+  Butare:     {candidates: [Huye, Gisagara, Nyanza, Nyaruguru], note: "Butare town is in Huye; former Butare province"}
+  Gikongoro:  {candidates: [Nyamagabe, Nyaruguru, Huye],        note: "Gikongoro town is in Nyamagabe; former Gikongoro province"}
+  Kibuye:     {candidates: [Karongi, Rutsiro, Ngororero],       note: "Kibuye town is in Karongi; former Kibuye province"}
+  Cyangugu:   {candidates: [Rusizi, Nyamasheke],                note: "Cyangugu town is in Rusizi; former Cyangugu province"}
+  Gisenyi:    {candidates: [Rubavu, Nyabihu, Rutsiro, Ngororero], note: "Gisenyi town is in Rubavu; former Gisenyi province"}
+  Ruhengeri:  {candidates: [Musanze, Burera, Gakenke, Nyabihu], note: "Ruhengeri town is in Musanze; former Ruhengeri province"}
+  Byumba:     {candidates: [Gicumbi, Gatsibo, Rulindo],         note: "Byumba town is in Gicumbi; former Byumba province"}
+  Kibungo:    {candidates: [Ngoma, Kirehe, Kayonza, Rwamagana], note: "Kibungo town is in Ngoma; former Kibungo province"}
+  Umutara:    {candidates: [Nyagatare, Gatsibo],                note: "former Umutara province"}
+  Gitarama:   {candidates: [Muhanga, Kamonyi, Ruhango, Nyanza], note: "Gitarama town is in Muhanga; former Gitarama province"}

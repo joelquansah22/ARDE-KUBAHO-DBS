@@ -44,13 +44,29 @@ def test_holdout_switches_do_not_change_the_main_config():
     assert "holdout_mess" not in main and "FO05" not in main["field_officers"]
 
 
-def test_scoring_survives_a_crash_and_sets_aside_unreadable_files(holdout, tmp_path, monkeypatch):
+def test_unrecognised_layout_is_skipped_without_crashing(holdout, tmp_path, monkeypatch):
     from score_cleaning import run_pipeline_on
     monkeypatch.setenv("ARDE_SALT_FILE", str(tmp_path.parent / "holdout_test_salt.txt"))
     run = run_pipeline_on(holdout["raw"], tmp_path / "staging")
-    if run["crash"]:
-        assert "SYNTHETIC_activity_monitoring_FO05.xlsx" in run["set_aside"]
-    assert (tmp_path / "staging" / "clean_activity.parquet").exists()
+    assert run["crash"] is None
+    assert "SYNTHETIC_activity_monitoring_FO05.xlsx" in set(run["skipped"]["source_file"])
+    assert run["skipped"]["headers_found"].str.contains("Date of event").any()
+    issues = pd.read_parquet(tmp_path / "staging" / "issues.parquet")
+    assert (issues["issue_code"] == "sheet_skipped_unrecognised_layout").any()
+
+
+def test_a_config_mapping_makes_the_unknown_layout_readable(holdout, tmp_path, monkeypatch):
+    from score_cleaning import run_pipeline_on
+    monkeypatch.setenv("ARDE_SALT_FILE", str(tmp_path.parent / "holdout_test_salt.txt"))
+    run = run_pipeline_on(holdout["raw"], tmp_path / "staging", ("mapping_overlays/holdout1_fo05.yaml",))
+    assert run["crash"] is None and len(run["skipped"]) == 0
+    acts = pd.read_parquet(tmp_path / "staging" / "clean_activity.parquet")
+    assert (acts["source_file"] == "SYNTHETIC_activity_monitoring_FO05.xlsx").sum() > 100
+
+
+def test_missing_target_is_a_warning_not_quarantine():
+    issues = assign_severity(_issues((2, "target", "missing_target", "flagged")), S)
+    assert issues["severity"].iloc[0] == "warning"
 
 
 # ---------------------------------------------------------------- severity

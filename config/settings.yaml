@@ -31,6 +31,10 @@ paths:
   holdout_ground_truth: data/holdout/ground_truth
   holdout_staging: data/holdout/staging
   holdout_manual: data/holdout/manual              # hand-made messy files from teammates
+  holdout_fo05_staging: data/holdout/staging_with_fo05_mapping   # held-out 1 re-run with the FO05 mapping overlay
+  holdout2_raw: data/holdout2/raw                  # held-out set 2 (fresh seed and mess; never used for tuning)
+  holdout2_ground_truth: data/holdout2/ground_truth
+  holdout2_staging: data/holdout2/staging
   templates: templates
   docs: docs
 
@@ -113,6 +117,9 @@ data_quality:
 # higher means names must be more alike before two records are treated as one person.
 duplicate_matching:
   name_similarity_threshold: 88
+  # Similar names alone are never enough to merge two people: a matching phone (within the
+  # digit limit below) or national ID is also needed. Name-only matches go to the review queue.
+  merge_requires_phone_or_id: true
   require_same_district: true      # only compare people registered in the same district
   require_same_sex: true           # only compare people of the same sex (when both are known)
   # Even when names are alike, two records are kept apart if any of these disagree:
@@ -129,6 +136,13 @@ cleaning:
   date_day_first: true             # 03/04/2024 means 3 April (Rwandan practice)
   excel_serial_range: [20000, 80000]   # whole numbers in a date column inside this range are Excel dates
   month_only_day: 1                # "March 2024" is stored as 1 March and flagged "day unknown"
+  # Day-month-year dates written with a month NAME, e.g. "12 Mar 24", "12 March 2024", "12-Mar-2024".
+  # Codes: %d day, %b short month name (Mar), %B full month name (March), %y 2-digit year, %Y 4-digit year.
+  date_text_formats: ["%d %b %y", "%d %B %y", "%d %b %Y", "%d %B %Y", "%d-%b-%y", "%d-%b-%Y",
+                      "%d-%B-%Y", "%d/%b/%y", "%d/%b/%Y", "%d.%b.%Y", "%d %b, %Y", "%d %B, %Y"]
+  ordinal_suffixes: [st, nd, rd, th]   # "12th March 2024" is read as "12 March 2024"
+  # A 2-digit year up to this number means 20xx, above it 19xx ("24" = 2024, "57" = 1957).
+  two_digit_year_pivot: 30
   # Words removed before matching a district, e.g. "Nyagatare District", "Akarere ka Huye".
   district_noise_words: [district, akarere ka, akarere, karere ka]
   district_fuzzy_min_score: 80     # closest district name accepted only above this score (0 to 100)
@@ -140,8 +154,14 @@ cleaning:
   letter_digit_fixes: {O: "0", o: "0", l: "1", I: "1"}
   # A percentage indicator typed between 0 and 1 (e.g. 0.72) is read as a fraction (72%).
   percent_fraction_max: 1.0
-  # Labels that mark a totals row at the bottom of a sheet (row is removed, not counted).
-  totals_labels: [total, totals, grand total, igiteranyo, sum]
+  # Labels that mark a totals row (row is removed, not counted). A row counts as a totals row if
+  # its first filled cell is one of these words, possibly followed by more text such as
+  # "Total (RWF)" or "Totals:", AND the rest of the row holds only numbers, formulas or blanks.
+  # Any row containing a formula such as =SUM(...) is also treated as a totals row.
+  totals_labels: [total, totals, grand total, sub total, subtotal, sub-total, igiteranyo, sum]
+  # A row counts as the header only if at least this many of its cells are known column names
+  # (config/source_mappings.yaml). A sheet with no such row is SKIPPED and reported, never guessed.
+  header_min_matches: 3
   probability_words_flag: [high, medium, low]   # words cannot be turned into a number: flagged
 
 # -----------------------------------------------------------------------------
@@ -194,8 +214,8 @@ flag_severity:
     - date_unreadable
     - number_unreadable
     - not_whole_number
+    - sheet_skipped_unrecognised_layout   # a whole sheet could not be read: see skipped_sheets.csv
     - missing_required
-    - missing_target
     - sex_unmapped
     - status_unmapped
     - disability_unmapped
@@ -214,6 +234,8 @@ flag_severity:
   warning:
     - possible_duplicate_person      # suspected duplicates below the certain-match level
     - accuracy_outlier               # actual more than 3 x target
+    - missing_target                 # row kept; the indicator shows "no target set" instead of % achieved
+    - district_legacy_name_ambiguous # an old (pre-2006) name that may mean several districts
     - sum_mismatch                   # female + male not equal to total (never auto-fixed)
     - district_province_mismatch
     - status_completed_but_late
@@ -225,6 +247,7 @@ flag_severity:
     - on_time_unverifiable
     - late_entry
     - late_entry_possible
+    - age_not_computable             # date of birth or registration date could not be read
     - report_missing                 # shown as reporting completeness (indicator CC-04)
   # A critical problem that the pipeline resolved another way becomes a warning, so a person
   # confirms it: e.g. an unrecognised district filled in from a village that exists in one district only.

@@ -56,7 +56,7 @@ COMPARE = {
         "officer": ("field_officer", "field_officer", "text"),
     },
     "registration": {
-        "sex": ("sex", "sex", "text"), "age": ("age", "age", "num"), "dob": ("age", "age", "age1"),
+        "sex": ("sex", "sex", "text"), "age": ("age", "age", "num"), "dob": ("age", "age_from_dob", "num"),
         "household_size": ("household_size", "household_size", "num"),
         "disability": ("disability", "disability", "text"), "province": ("province", "province", "text"),
         "district": ("district", "district", "text"), "sector": ("sector", "sector", "text"),
@@ -119,7 +119,8 @@ def md_table(df: pd.DataFrame) -> str:
 
 
 class Scorer:
-    def __init__(self, staging=None, truth=None, raw=None, docs=None):
+    def __init__(self, staging=None, truth=None, raw=None, docs=None, overlays: tuple[str, ...] = ()):
+        self.overlays = tuple(overlays)
         self.docs = docs or resolve_path("docs")
         self.staging = staging or resolve_path("staging")
         self.truth_dir = truth or resolve_path("ground_truth")
@@ -149,7 +150,7 @@ class Scorer:
             if r["action"] == "flagged":
                 self.flags[(p, r["field"])].add(r["issue_code"])
         self.missing_reports = set(self.issues.loc[self.issues["issue_code"] == "report_missing", "clean_value"])
-        self.header_row = {(r.source_file, r.source_sheet): int(r.header_row)
+        self.header_row = {(r.source_file, r.source_sheet): int(float(r.header_row))
                            for r in self.inventory.itertuples() if r.header_row}
         self.fields_in_sheet = {(r.source_file, r.source_sheet): set(r.fields_found.split(", "))
                                 for r in self.inventory.itertuples()}
@@ -161,9 +162,19 @@ class Scorer:
         t = lambda name: pd.read_csv(self.truth_dir / f"SYNTHETIC_truth_{name}.csv", dtype=str, keep_default_na=False)
         people, locs = t("people"), t("locations")
         regs = t("registrations").merge(
-            people[["person_id", "sex", "household_size", "disability", "district", "location_id", "project_id"]],
+            people[["person_id", "sex", "household_size", "disability", "district", "location_id", "project_id",
+                    "date_of_birth"]],
             on="person_id").merge(locs[["location_id", "province", "sector", "cell", "village"]], on="location_id")
         regs["disability"] = regs["disability"].map({"True": "yes", "False": "no"})
+        # True age at THIS registration, worked out from the date of birth. (The answer key's "age"
+        # column for a second registration copies the first one with a small random change, so it is
+        # not the right comparison when a sheet gives a date of birth.)
+        def age_at(dob, reg):
+            if not dob or not reg:
+                return ""
+            b, r = dt.date.fromisoformat(dob[:10]), dt.date.fromisoformat(reg[:10])
+            return str(r.year - b.year - ((r.month, r.day) < (b.month, b.day)))
+        regs["age_from_dob"] = [age_at(b, r) for b, r in zip(regs["date_of_birth"], regs["registration_date"])]
         self.truth_regs = regs
         frames = {"activity": t("activities"), "registration": regs, "service": t("services"),
                   "indicator_result": t("indicator_results"), "donor": t("donors"), "opportunity": t("opportunities")}
@@ -208,7 +219,11 @@ class Scorer:
             first_pos = self.pos(first["source_file"], first["source_sheet"], first["source_row"])
             a, b = self.clean_rows["registration"].get(p), self.clean_rows["registration"].get(first_pos)
             same = a is not None and b is not None and a["beneficiary_key"] == b["beneficiary_key"]
-            return ("fixed", "") if same else ("missed", "not matched to first registration")
+            if same:
+                return "fixed", "merged"
+            if "possible_duplicate_person" in self.flags.get((p, "name"), set()):
+                return "flagged", "not merged; sent to review"
+            return "missed", "not matched to first registration"
         if etype == "namesake_different_person":
             other = self.truth_regs[(self.truth_regs["person_id"] == r.true_value)
                                     & (self.truth_regs["is_duplicate"] == "False")].iloc[0]
@@ -216,8 +231,10 @@ class Scorer:
             a, b = self.clean_rows["registration"].get(p), self.clean_rows["registration"].get(other_pos)
             if a is None or b is None:
                 return "missed", "row missing from cleaned table"
-            return ("fixed", "kept apart") if a["beneficiary_key"] != b["beneficiary_key"] \
-                else ("missed", "different people merged")
+            if a["beneficiary_key"] == b["beneficiary_key"]:
+                return "missed", "different people merged"
+            reviewed = "possible_duplicate_person" in self.flags.get((p, "name"), set())
+            return "fixed", "kept apart; sent to review" if reviewed else "kept apart"
         if etype == "personal_data_individual_donor":
             row = self.clean_rows["donor"].get(p)
             ok = row is not None and str(row["donor_name"]).startswith("Individual donor") \
@@ -311,7 +328,7 @@ class Scorer:
 
     # ---------------------------------------------------------------- (d) duplicates
     def duplicate_matching(self) -> tuple[pd.DataFrame, list[float]]:
-        ids = ingest.load_registration_identities(self.raw, self.settings)
+        ids = ingest.load_registration_identities(self.raw, self.settings, self.overlays)
         person = {p: r["person_id"] for p, r in self.truth["registration"].items()}
         ids["person_id"] = [person.get(self.pos(f, s, r)) for f, s, r in
                             zip(ids["source_file"], ids["source_sheet"], ids["source_row"])]
@@ -328,8 +345,14 @@ class Scorer:
         variants = [("full rules (as used by the pipeline)", True, True),
                     ("names + vetoes, no ID rule", False, True),
                     ("names only, no vetoes, no ID rule", False, False)]
+        persons = ids["person_id"].tolist()
         for (variant, use_id, use_veto), t in [(v, t) for v in variants for t in thresholds]:
-            ids["cluster"] = ingest.cluster_identities(ids, t, self.settings, use_id, use_veto)
+            review: list = []
+            ids["cluster"] = ingest.cluster_identities(ids, t, self.settings, use_id, use_veto, review_pairs=review)
+            review = [(i, j) for i, j in review if ids["cluster"].iat[i] != ids["cluster"].iat[j]]
+            review_true = sum(1 for i, j in review if persons[i] and persons[i] == persons[j])
+            namesake_set = {frozenset(x) for x in namesake_pairs}
+            review_namesakes = sum(1 for i, j in review if frozenset((persons[i], persons[j])) in namesake_set)
             predicted = sum(comb(k, 2) for k in ids["cluster"].value_counts())
             tp = sum(comb(k, 2) for k in ids.groupby(["cluster", "person_id"]).size())
             merged_wrongly = int((ids.groupby("cluster")["person_id"].nunique() > 1).sum())
@@ -341,8 +364,11 @@ class Scorer:
                              precision=round(tp / predicted, 3) if predicted else None,
                              recall=round(tp / true_pairs, 3) if true_pairs else None,
                              clusters_mixing_different_people=merged_wrongly,
+                             pairs_sent_to_review=len(review), true_pairs_in_review=review_true,
+                             recall_merged_or_reviewed=round((tp + review_true) / true_pairs, 3) if true_pairs else None,
                              namesake_pairs_merged=f"{namesakes_merged} of {len(namesake_pairs)}" if namesake_pairs
-                             else "n/a"))
+                             else "n/a",
+                             namesake_pairs_reviewed=review_namesakes if namesake_pairs else "n/a"))
         # Name scores of the true duplicate pairs, to show where they fall against the thresholds.
         scores = []
         for _, g in ids.groupby("person_id"):
@@ -375,30 +401,33 @@ class Scorer:
 # ======================================================================================
 # Running the pipeline on a test set, and writing the scorecard
 # ======================================================================================
-def run_pipeline_on(raw, staging) -> dict:
-    """Run ingest + clean, UNCHANGED, on a test set.
+def run_pipeline_on(raw, staging, overlays: tuple[str, ...] = ()) -> dict:
+    """Run ingest + clean, unchanged, on a test set (optionally with extra mapping files).
 
-    If the pipeline crashes, the crash is recorded and the run is repeated with the files it
-    could not read set aside (their records then count as missed). Returns what happened.
+    Sheets the pipeline cannot recognise are skipped by ingest.py itself and listed in
+    skipped_sheets.csv. If the pipeline still crashes, the crash is recorded and the run is
+    repeated with the skipped files set aside, so a score is always produced.
     """
     staging.mkdir(parents=True, exist_ok=True)
     try:
-        ingest.run(raw, staging)
+        ingest.run(raw, staging, mapping_overlays=overlays)
         clean.run(staging)
-        return dict(raw=raw, crash=None, set_aside=[])
+        crash = None
     except Exception:
         crash = traceback.format_exc(limit=3)
-    inventory = pd.read_csv(staging / "sheet_inventory.csv", dtype=str, keep_default_na=False)
-    set_aside = sorted(set(inventory.loc[inventory["note"] == "header row not recognised", "source_file"]))
-    readable = staging.parent / "raw_readable_only"
-    shutil.rmtree(readable, ignore_errors=True)
-    readable.mkdir(parents=True)
-    for path in raw.glob("*.xlsx"):
-        if path.name not in set_aside:
-            shutil.copy2(path, readable / path.name)
-    ingest.run(readable, staging)
-    clean.run(staging)
-    return dict(raw=readable, crash=crash, set_aside=set_aside)
+        inventory = pd.read_csv(staging / "sheet_inventory.csv", dtype=str, keep_default_na=False)
+        bad = set(inventory.loc[inventory["note"].str.startswith("skipped"), "source_file"])
+        readable = staging.parent / f"{staging.name}_readable_only"
+        shutil.rmtree(readable, ignore_errors=True)
+        readable.mkdir(parents=True)
+        for path in raw.glob("*.xlsx"):
+            if path.name not in bad:
+                shutil.copy2(path, readable / path.name)
+        ingest.run(readable, staging, mapping_overlays=overlays)
+        clean.run(staging)
+        raw = readable
+    skipped = pd.read_csv(staging / "skipped_sheets.csv", dtype=str, keep_default_na=False)
+    return dict(raw=raw, crash=crash, skipped=skipped, overlays=tuple(overlays))
 
 
 def headline_lines(r: dict) -> list[str]:
@@ -561,9 +590,79 @@ def manual_lines() -> list[str]:
     res.to_csv(staging / "score_manual.csv", index=False)
     lines += [f"{len(files)} file(s), {len(key)} answer-key cells."]
     if run["crash"]:
-        lines += ["", f"**The pipeline crashed** on these files; files set aside: {', '.join(run['set_aside'])}."]
+        lines += ["", "**The pipeline crashed** on these files; see the error in the run log."]
+    if len(run["skipped"]):
+        lines += ["", f"Sheets skipped (layout not recognised): {', '.join(run['skipped']['source_file'])}."]
     lines += ["", md_table(res.groupby(["error_type", "outcome"]).size().reset_index(name="cells")), ""]
     return lines
+
+
+def queue_summary(staging) -> dict:
+    """Review-queue and quarantine figures for one test set (for the side-by-side table)."""
+    settings = load_settings()
+    status = pd.read_parquet(staging / "clean_row_status.parquet")
+    window = pd.period_range(settings["reporting_window"]["start"], settings["reporting_window"]["end"],
+                             freq="M").astype(str)
+    review = status[status["status"] == "review"].groupby("month").size().reindex(window, fill_value=0)
+    budget = settings["review_budget_minutes_per_month"] // settings["review_minutes_per_row"]
+    return dict(review_avg=round(review.mean(), 1), review_max=int(review.max()),
+                months_over=int((review > budget).sum()),
+                quarantined=int((status["status"] == "quarantine").sum()))
+
+
+def frozen_v1_figures() -> dict:
+    """Held-out-1 figures from the frozen v1 scorecard (the 'before' column)."""
+    path = resolve_path("docs") / "phase2_scorecard_v1_holdout1.md"
+    out = {}
+    if not path.exists():
+        return out
+    import re
+    text = path.read_text(encoding="utf-8")
+    for group in ("genuine_errors", "officer_habits", "matching_traps", "privacy"):
+        m = re.search(rf"\| {group} \| ([\d.]*) \| ([\d.]*) \|", text)
+        if m:
+            out[group] = m.group(2)
+    m = re.search(r"### Held-out results in full.*?False corrections: \*\*(\d+)\*\*", text, re.S)
+    if m:
+        out["false_corrections"] = m.group(1)
+    return out
+
+
+def summary_row(name: str, r: dict, run: dict, staging) -> dict:
+    groups = r["by_group"].set_index("group")["fixed_or_flagged_%"]
+    fc = r["false_corrections"]
+    wrong = int((fc["kind"] == "clean value wrongly changed").sum()) if len(fc) else 0
+    configured = r["duplicates"][(r["duplicates"]["configured"] == "yes")].iloc[0]
+    q = queue_summary(staging)
+    below = r["by_type"][r["by_type"]["below_90%"] == "YES"]
+    return {"set": name,
+            "genuine errors %": groups.get("genuine_errors"),
+            "officer habits %": groups.get("officer_habits"),
+            "namesakes kept apart %": groups.get("matching_traps", "n/a"),
+            "privacy %": groups.get("privacy"),
+            "types below 90%": len(below),
+            "false corrections": f"{wrong} of {r['compared']:,}",
+            "rows missing": r["lost"],
+            "duplicate precision": configured["precision"],
+            "duplicate recall (merged)": configured["recall"],
+            "duplicate recall (merged or reviewed)": configured["recall_merged_or_reviewed"],
+            "review queue per month (avg / busiest)": f"{q['review_avg']} / {q['review_max']}",
+            "months over 1 hour": q["months_over"],
+            "rows quarantined": q["quarantined"],
+            "sheets skipped": len(run["skipped"]),
+            "crashed": "YES" if run["crash"] else "no"}
+
+
+TEST_SETS = [
+    # (name, raw folder key, answer key folder key, staging folder key, mapping overlays, generator config)
+    ("Main set (seed 2023)", "raw", "ground_truth", "staging", (), None),
+    ("Held-out 1, as is (seed 7919)", "holdout_raw", "holdout_ground_truth", "holdout_staging", (),
+     "synthetic_holdout.yaml"),
+    ("Held-out 1 + FO05 mapping in config", "holdout_raw", "holdout_ground_truth", "holdout_fo05_staging",
+     ("mapping_overlays/holdout1_fo05.yaml",), "synthetic_holdout.yaml"),
+    ("Held-out 2 (seed 4243, fresh mess) - HEADLINE", "holdout2_raw", "holdout2_ground_truth", "holdout2_staging", (),
+     "synthetic_holdout2.yaml"),
+]
 
 
 def main():
@@ -571,84 +670,70 @@ def main():
     if not settings["synthetic_mode"]:
         print("Scoring needs the synthetic answer key; synthetic_mode is off, so nothing to do.")
         return
-    docs = resolve_path("docs")
-    main_result = Scorer().run()
+    import generate_synthetic
+    results = []
+    for name, raw_key, truth_key, staging_key, overlays, config in TEST_SETS:
+        raw, truth, staging = resolve_path(raw_key), resolve_path(truth_key), resolve_path(staging_key)
+        if not (raw / "SYNTHETIC_programme_master.xlsx").exists():
+            if config is None:
+                print(f"{name}: no data in {raw}; run python src/generate_synthetic.py first.")
+                return
+            print(f"{name}: generating it from config/{config} ...")
+            generate_synthetic.generate(raw, truth, quiet=True, config_name=config)
+        print(f"Scoring: {name}")
+        run = run_pipeline_on(raw, staging, overlays)
+        r = Scorer(staging, truth, run["raw"], overlays=overlays).run()
+        results.append(dict(name=name, run=run, result=r, staging=staging, config=config))
 
-    holdout = None
-    if (resolve_path("holdout_raw") / "SYNTHETIC_programme_master.xlsx").exists():
-        run = run_pipeline_on(resolve_path("holdout_raw"), resolve_path("holdout_staging"))
-        result = Scorer(resolve_path("holdout_staging"), resolve_path("holdout_ground_truth"), run["raw"]).run()
-        holdout = dict(run=run, result=result)
-
-    undetectable = main_result["undetectable"]
+    v1 = frozen_v1_figures()
+    side = pd.DataFrame([summary_row(x["name"], x["result"], x["run"], x["staging"]) for x in results]).set_index("set").T
+    undetectable = results[0]["result"]["undetectable"]
     lines = [
-        "# Phase 2 cleaning scorecard (synthetic data)", "",
-        f"*Generated by `src/score_cleaning.py` on {dt.date.today():%d %B %Y}. Do not edit by hand.*", "",
-        "Scores the pipeline (`ingest.py` + `clean.py`) against the synthetic answer keys. **Fixed** = the "
-        "cleaned value equals the true value. **Flagged** = the pipeline marked the cell or row for review. "
-        "**Missed** = neither.", "",
-        "## Known limitations", "",
-        f"- **{len(undetectable)} problems in the main set cannot be detected from the files and are excluded** "
-        "(accepted by the team on 14 October 2026):", "",
-        md_table(undetectable.groupby(["error_type", "detail"]).size().reset_index(name="count")), "",
-        "  The paper activity form should gain a **planned date** field (decision log D56); the misspelt names "
-        "can only be caught by checking the paper form itself.",
-        "- An ID stored as a number in Excel has already lost its 16th digit; it is flagged, but the digit cannot "
-        "be recovered (D57).",
-        "- The synthetic data was written by the same team that wrote the cleaner. The held-out set below is the "
-        "fairer test; real partner files will be the real one.", "",
-        "## Main set vs held-out set", "",
+        "# Phase 2 cleaning scorecard v2 (synthetic data)", "",
+        f"*Generated by `src/score_cleaning.py` on {dt.date.today():%d %B %Y}. Do not edit by hand. The 'before' "
+        "figures are frozen in `docs/phase2_scorecard_v1_holdout1.md` (commit 5087cad).*", "",
+        "**Fixed** = the cleaned value equals the true value. **Flagged** = the pipeline marked the cell or row "
+        "for review. **Missed** = neither. Problems that cannot be detected from the files are excluded.", "",
+        "## Side by side", "",
+        "**Held-out 2 is the headline figure**: a new seed and new kinds of mess, generated after the fixes and "
+        "never used for tuning. Held-out 1 has been seen (its findings drove the fixes), so it is no longer a "
+        "fair test; it is shown to measure the fixes.", "",
+        md_table(side.reset_index().rename(columns={"index": "measure"})), "",
     ]
-    if holdout:
-        a = main_result["by_group"].set_index("group")["fixed_or_flagged_%"]
-        b = holdout["result"]["by_group"].set_index("group")["fixed_or_flagged_%"]
-        comp = pd.DataFrame({"main set %": a, "held-out set %": b}).reset_index().rename(columns={"index": "group"})
-        lines += [md_table(comp), ""]
-    else:
-        lines += ["Held-out set not generated yet (`python src/generate_synthetic.py --holdout`).", ""]
-    lines += section_lines(main_result, "Main set (seed 2023)")
-    if holdout:
-        run = holdout["run"]
-        new_types = ["date_new_format", "district_old_name", "district_abbreviation", "namesake_different_person"]
-        hr = holdout["result"]["scored"]
-        new_mess = hr[hr["error_type"].isin(new_types) | hr["detail"].str.contains("not seen", na=False)
-                      | hr["source_file"].str.contains("FO05", na=False)]
-        lines += ["## Held-out set (seed 7919, new mess, pipeline unchanged)", "",
-                  "Generated by `config/synthetic_holdout.yaml`: a fifth officer (FO05) with column names the "
-                  "pipeline has never seen, dates such as `12 Mar 24`, new district spellings (`Rurindo`, "
-                  "`Nyag.`, `Butare`), harder duplicates (names swapped between columns, missing letters, "
-                  "nicknames, no phone) and different people who share a name, district and sex. "
-                  "**The cleaner was not changed for this set.**", ""]
+    if v1:
+        lines += ["Held-out 1 **before** the fixes (frozen v1): genuine errors "
+                  f"{v1.get('genuine_errors')}%, officer habits {v1.get('officer_habits')}%, namesakes kept apart "
+                  f"{v1.get('matching_traps')}%, false corrections {v1.get('false_corrections')}, and the pipeline "
+                  "crashed.", ""]
+    lines += [
+        "## Known limitations", "",
+        f"- {len(undetectable)} problems in the main set cannot be detected from the files (accepted 14 October 2026):",
+        "", md_table(undetectable.groupby(["error_type", "detail"]).size().reset_index(name="count")), "",
+        "- Nicknames (e.g. `Jado` for Jean de Dieu) are not recognised; there is deliberately no nickname list.",
+        "- Similar names with no phone or ID are never merged; they go to the review queue instead, so some true "
+        "duplicates stay as two people until a person confirms them.",
+        "- An ID stored as a number in Excel has lost its 16th digit; it is flagged, but cannot be recovered.",
+        "- A sheet whose column names are unknown is skipped and reported, not guessed: its records are missing "
+        "until a maintainer adds the column names to `config/source_mappings.yaml`.",
+        "- The synthetic data and the cleaner were written by the same team; real partner files are the real test.",
+        "",
+    ]
+    for x in results:
+        run = x["run"]
+        lines += [f"## {x['name']}", ""]
+        if run["overlays"]:
+            lines += [f"Run with the extra mapping file `config/{run['overlays'][0]}` (no code change).", ""]
         if run["crash"]:
-            lines += ["**The unchanged pipeline crashed on this set.** Error:", "", "```", run["crash"].strip(), "```", "",
-                      f"To still score it, the files whose header row the pipeline could not recognise were set "
-                      f"aside ({', '.join(run['set_aside'])}) and the run repeated. **Every record in those files "
-                      "counts as missed** and their duplicate pairs stay in the recall denominator, so these "
-                      "results are conservative.", ""]
-        lines += ["### How the new kinds of mess did", "",
-                  md_table(Scorer.tally(new_mess.assign(
-                      kind=new_mess["source_file"].str.contains("FO05", na=False).map(
-                          {True: "FO05 file (unseen layout)", False: "other files"})),
-                      ["kind", "error_type"])), ""]
-        if run["set_aside"]:
-            readable = hr[~hr["source_file"].isin(run["set_aside"])]
-            lines += ["### Held-out results without the set-aside files", "",
-                      "To separate the unreadable layout from everything else: the same scores, leaving out the "
-                      "problems inside the set-aside files.", "",
-                      md_table(Scorer.tally(readable, ["group"])), ""]
-        lines += section_lines(holdout["result"], "Held-out results in full", level="###")
+            lines += ["**The pipeline crashed.**", "", "```", run["crash"].strip(), "```", ""]
+        if len(run["skipped"]):
+            lines += ["Sheets skipped (layout not recognised; records counted as missed):", "",
+                      md_table(run["skipped"][["source_file", "source_sheet", "known_columns", "headers_found"]]), ""]
+        lines += section_lines(x["result"], f"Results: {x['name']}", level="###")
+        queue = review_queue_lines(x["staging"], f"Review queue and quarantine: {x['name']}")
+        lines += ["#" + l if l.startswith("## ") else ("#" + l if l.startswith("### ") else l) for l in queue]
     lines += manual_lines()
-    lines += review_queue_lines(resolve_path("staging"), "Flag severity and the monthly review queue (main set)")
-    if holdout:
-        hq = review_queue_lines(resolve_path("holdout_staging"), "Review queue on the held-out set")
-        lines += hq[:2] + [l for l in hq if l.startswith("- Rows to review") or l.startswith("- Months over")] + [""]
-    (docs / "phase2_cleaning_scorecard.md").write_text("\n".join(lines), encoding="utf-8")
-    print(main_result["by_group"].to_string(index=False))
-    if holdout:
-        print("Held-out set:")
-        print(holdout["result"]["by_group"].to_string(index=False))
-        if holdout["run"]["crash"]:
-            print("NOTE: the pipeline crashed on the held-out set; see the scorecard.")
+    (resolve_path("docs") / "phase2_cleaning_scorecard.md").write_text("\n".join(lines), encoding="utf-8")
+    print(side.to_string())
     print("Scorecard written to docs/phase2_cleaning_scorecard.md")
 
 

@@ -90,10 +90,23 @@ def to_text(value):
     return str(value)
 
 
-def alias_index(entity: str) -> dict[str, list[str]]:
+def load_mappings(overlays: tuple[str, ...] = ()) -> dict:
+    """config/source_mappings.yaml, plus any extra mapping files (their column names are added)."""
+    mappings = load_yaml("source_mappings.yaml")
+    for name in overlays:
+        extra = load_yaml(name)
+        mappings["files"] = extra.get("files", []) + mappings["files"]
+        for entity, fields in (extra.get("fields") or {}).items():
+            for fld, aliases in fields.items():
+                mappings["fields"][entity].setdefault(fld, [])
+                mappings["fields"][entity][fld] = mappings["fields"][entity][fld] + list(aliases)
+    return mappings
+
+
+def alias_index(entity: str, mappings: dict | None = None) -> dict[str, list[str]]:
     """{normalised header text: [fields it can mean]}"""
     index: dict[str, list[str]] = {}
-    for fld, aliases in load_yaml("source_mappings.yaml")["fields"][entity].items():
+    for fld, aliases in (mappings or load_mappings())["fields"][entity].items():
         for alias in aliases:
             index.setdefault(norm_key(alias), []).append(fld)
     return index
@@ -129,8 +142,8 @@ def assign_fields(headers: list, index: dict) -> tuple[dict[int, str], list[str]
     return assigned, unmapped
 
 
-def sheet_entity(file_name: str, sheet: str) -> str | None:
-    for spec in load_yaml("source_mappings.yaml")["files"]:
+def sheet_entity(file_name: str, sheet: str, mappings: dict | None = None) -> str | None:
+    for spec in (mappings or load_mappings())["files"]:
         if fnmatch.fnmatch(file_name.lower(), spec["pattern"].lower()):
             sheets = spec["sheets"]
             return sheets.get(sheet) or sheets.get("*")
@@ -140,13 +153,16 @@ def sheet_entity(file_name: str, sheet: str) -> str | None:
 class Reader:
     """Reads every mapped sheet into lists of raw records, with lineage."""
 
-    def __init__(self, raw_dir: Path, settings: dict):
+    def __init__(self, raw_dir: Path, settings: dict, mappings: dict | None = None):
         self.raw_dir, self.s = raw_dir, settings
+        self.mappings = mappings or load_mappings()
+        self.skipped: list[dict] = []
         self.records: dict[str, list[dict]] = {}
         self.refs: dict[str, pd.DataFrame] = {}
         self.inventory: list[dict] = []
         self.log = IssueLog()
-        self.totals = {norm_key(t) for t in settings["cleaning"]["totals_labels"]}
+        self.totals = {" ".join(re.sub(r"[^a-z ]", " ", norm_key(t)).split())
+                       for t in settings["cleaning"]["totals_labels"]}
 
     def read_all(self):
         for path in sorted(self.raw_dir.glob("*.xlsx")):
@@ -154,7 +170,7 @@ class Reader:
                 continue
             wb = load_workbook(path, read_only=True, data_only=False)
             for ws in wb.worksheets:
-                entity = sheet_entity(path.name, ws.title)
+                entity = sheet_entity(path.name, ws.title, self.mappings)
                 rows = list(ws.iter_rows(values_only=True))
                 if entity is None:
                     self.inventory.append(dict(source_file=path.name, source_sheet=ws.title, entity=None,
@@ -165,19 +181,48 @@ class Reader:
                     self.read_sheet(path.name, ws.title, entity, rows)
             wb.close()
 
+    def is_totals_row(self, row: tuple, first) -> bool:
+        """True if the first filled cell is a totals label ("TOTAL", "Total (RWF)", "Sub-total:")
+        and every other filled cell is a number. A row with any other text is never dropped."""
+        if not isinstance(first, str):
+            return False
+        words = re.sub(r"[^a-z ]", " ", norm_key(first)).split()
+        label = " ".join(words)
+        if not any(label == t or label.startswith(t + " ") for t in self.totals):
+            return False
+        others = [v for v in row if not is_blank(v) and v is not first]
+        return all(isinstance(v, (int, float)) or re.fullmatch(r"[\d\s,.\-]+", str(v)) for v in others)
+
     def read_reference(self, entity: str, rows: list[tuple]):
         header = [h for h in rows[0] if h is not None]
         data = [[to_text(v) for v in r[: len(header)]] for r in rows[1:] if any(v is not None for v in r)]
         self.refs[entity] = pd.DataFrame(data, columns=header)
 
     def read_sheet(self, file_name: str, sheet: str, entity: str, rows: list[tuple]):
-        index = alias_index(entity)
+        index = alias_index(entity, self.mappings)
         h, score = find_header(rows, index)
+        needed = self.s["cleaning"]["header_min_matches"]
+        base = dict(source_file=file_name, source_sheet=sheet)
+        if score < needed:
+            # Do not guess: skip the sheet, say exactly why, and carry on with the other files.
+            first = next((r for r in rows[:HEADER_SEARCH_ROWS] if any(not is_blank(v) for v in r)), ())
+            headers = [str(v).strip() for v in first if not is_blank(v)]
+            message = (f"SKIPPED {file_name} / {sheet}: layout not recognised (best row has {max(score, 0)} known "
+                       f"column name(s); {needed} needed). Column headers found: {', '.join(headers)}. "
+                       "Add them to config/source_mappings.yaml and run the pipeline again.")
+            print(message)
+            self.skipped.append(dict(source_file=file_name, source_sheet=sheet, entity=entity,
+                                     known_columns=max(score, 0), headers_found=", ".join(headers), message=message))
+            self.inventory.append(dict(source_file=file_name, source_sheet=sheet, entity=entity, header_row=None,
+                                       fields_found="", unmapped_columns=", ".join(headers),
+                                       note="skipped: layout not recognised"))
+            self.log.add(entity, {**base, "source_row": None}, None, "sheet_skipped_unrecognised_layout", FLAGGED,
+                         detail=message)
+            return
         assigned, unmapped = assign_fields(list(rows[h]) if rows else [], index)
         self.inventory.append(dict(source_file=file_name, source_sheet=sheet, entity=entity, header_row=h + 1,
                                    fields_found=", ".join(assigned.values()), unmapped_columns=", ".join(unmapped),
-                                   note="" if score >= 2 else "header row not recognised"))
-        base = dict(source_file=file_name, source_sheet=sheet)
+                                   note=""))
         for i in range(h):
             if any(not is_blank(v) for v in rows[i]):
                 self.log.add(entity, {**base, "source_row": i + 1}, None, "header_preamble_row_removed", REMOVED,
@@ -190,7 +235,7 @@ class Reader:
                 self.log.add(entity, rec, None, "blank_row_removed", REMOVED)
                 continue
             first = next((v for v in row if not is_blank(v)), None)
-            if any(isinstance(v, str) and v.startswith("=") for v in row) or norm_key(first) in self.totals:
+            if any(isinstance(v, str) and v.startswith("=") for v in row) or self.is_totals_row(row, first):
                 self.log.add(entity, rec, None, "totals_row_removed", REMOVED, detail=f"'{first}' row")
                 continue
             for col, fld in assigned.items():
@@ -250,12 +295,17 @@ def identity_frame(records: list[dict], settings: dict, log: IssueLog | None = N
             except ValueError:
                 age = None
         elif not is_blank(rec.get("dob")):
+            age_source = "dob"
             dob = parse_date(to_text(rec["dob"]), settings).value
-            ref = parse_date(to_text(rec.get("reg_date")), settings).value or settings["as_of_date"] or dt.date.today()
-            if dob:
+            ref = parse_date(to_text(rec.get("reg_date")), settings).value
+            if dob and ref:
                 age = ref.year - dob.year - ((ref.month, ref.day) < (dob.month, dob.day))
-                age_source = "dob"
                 log.add("registration", rec, "dob", "age_from_date_of_birth", FIXED, clean=age)
+            else:
+                # Age at registration needs BOTH dates. Never guess with another date.
+                log.add("registration", rec, "dob", "age_not_computable", FLAGGED,
+                        detail="date of birth could not be read" if not dob
+                        else "registration date could not be read, so age at registration is unknown")
         rows.append(dict(
             source_file=rec["source_file"], source_sheet=rec["source_sheet"], source_row=rec["source_row"],
             reg_no=None if is_blank(rec.get("reg_no")) else str(rec["reg_no"]).strip(),
@@ -273,12 +323,15 @@ def _digits_apart(a: str, b: str) -> int:
 
 
 def cluster_identities(ids: pd.DataFrame, threshold: float, settings: dict,
-                       use_id_rule: bool = True, use_vetoes: bool = True) -> np.ndarray:
+                       use_id_rule: bool = True, use_vetoes: bool = True,
+                       review_pairs: list | None = None) -> np.ndarray:
     """Group registrations that belong to the same person. Returns a cluster number per row.
 
     Two rows are joined when they have the same national ID, or when their names score
     at least `threshold` (0 to 100, word order ignored), they are in the same district
-    and of the same sex (when known), and their phone, ID and age do not clearly disagree.
+    and of the same sex (when known), their phone, ID and age do not clearly disagree,
+    AND a phone number or ID confirms the match. Similar names with nothing to confirm them
+    are not joined; they are added to review_pairs for a person to check.
 
     use_id_rule / use_vetoes can be switched off only to measure what each rule adds
     (score_cleaning.py does this); the pipeline always uses both.
@@ -337,6 +390,14 @@ def cluster_identities(ids: pd.DataFrame, threshold: float, settings: dict,
                 continue
             if ages[i] is not None and ages[j] is not None and abs(ages[i] - ages[j]) > rules["max_age_difference_years"]:
                 continue
+            confirmed = ((phones[i] and phones[j]
+                          and _digits_apart(phones[i], phones[j]) <= rules["max_phone_digit_difference"])
+                         or (nids[i] and nids[j] and nids[i][:id_digits] == nids[j][:id_digits]))
+            if rules.get("merge_requires_phone_or_id", True) and not confirmed:
+                # Similar names alone: not merged. Sent to the review queue instead.
+                if review_pairs is not None:
+                    review_pairs.append((i, j))
+                continue
             parent[find(i)] = find(j)
     return np.array([find(i) for i in range(n)])
 
@@ -383,10 +444,11 @@ def duplicate_certainty(ids: pd.DataFrame, settings: dict) -> dict:
     return result
 
 
-def load_registration_identities(raw_dir: Path | None = None, settings: dict | None = None) -> pd.DataFrame:
+def load_registration_identities(raw_dir: Path | None = None, settings: dict | None = None,
+                                 mapping_overlays: tuple[str, ...] = ()) -> pd.DataFrame:
     """Read only the registration identities (used by the scoring script to test thresholds)."""
     settings = settings or load_settings()
-    reader = Reader(Path(raw_dir or resolve_path("raw")), settings)
+    reader = Reader(Path(raw_dir or resolve_path("raw")), settings, load_mappings(tuple(mapping_overlays)))
     reader.read_all()
     return identity_frame(reader.records.get("registration", []), settings)
 
@@ -394,7 +456,8 @@ def load_registration_identities(raw_dir: Path | None = None, settings: dict | N
 # ======================================================================================
 # Main
 # ======================================================================================
-def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict | None = None) -> dict:
+def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict | None = None,
+        mapping_overlays: tuple[str, ...] = ()) -> dict:
     settings = settings or load_settings()
     raw_dir = Path(raw_dir or resolve_path("raw"))
     staging = Path(staging or resolve_path("staging"))
@@ -403,16 +466,23 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
     mappings = load_yaml("source_mappings.yaml")
     personal = mappings["personal_fields"]
 
-    reader = Reader(raw_dir, settings)
+    reader = Reader(raw_dir, settings, load_mappings(tuple(mapping_overlays)))
     reader.read_all()
     log = reader.log
 
     # ---- beneficiaries: match duplicates, then pseudonymise
     regs = reader.records.get("registration", [])
     ids = identity_frame(regs, settings, log)
-    clusters = cluster_identities(ids, settings["duplicate_matching"]["name_similarity_threshold"], settings)
+    review_pairs: list = []
+    clusters = cluster_identities(ids, settings["duplicate_matching"]["name_similarity_threshold"], settings,
+                                  review_pairs=review_pairs)
     ids = assign_keys(ids, clusters, salt, settings["duplicate_matching"]["compare_id_digits"])
     certainty = duplicate_certainty(ids, settings)
+    review_partners: dict[int, int] = {}
+    for i, j in review_pairs:
+        if clusters[i] != clusters[j]:
+            review_partners[i] = review_partners.get(i, 0) + 1
+            review_partners[j] = review_partners.get(j, 0) + 1
     for rec, row in zip(regs, ids.itertuples()):
         rec["beneficiary_key"], rec["registration_key"] = row.beneficiary_key, row.registration_key
         rec["age"] = None if row.age is None or pd.isna(row.age) else str(row.age)
@@ -428,6 +498,10 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
             log.add("registration", rec, "name", "possible_duplicate_person", FLAGGED,
                     detail=f"probably the same person as {row.duplicate_group_size - 1} other registration(s); "
                            "same beneficiary_key given - please confirm")
+    for idx, count in review_partners.items():
+        log.add("registration", regs[idx], "name", "possible_duplicate_person", FLAGGED,
+                detail=f"similar name to {count} other registration(s) in the same district, but no phone or ID "
+                       "to confirm it; NOT merged - please check")
     reg_lookup = {(r["source_file"], norm_key(r.get("reg_no") or "")): (r["registration_key"], r["beneficiary_key"])
                   for r in regs}
     for rec in reader.records.get("service", []):
@@ -469,8 +543,12 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
     for entity, df in reader.refs.items():
         df.to_parquet(staging / f"{entity}.parquet", index=False)
     log.frame().to_parquet(staging / "ingest_issues.parquet", index=False)
+    pd.DataFrame(reader.skipped, columns=["source_file", "source_sheet", "entity", "known_columns",
+                                          "headers_found", "message"]).to_csv(staging / "skipped_sheets.csv",
+                                                                              index=False)
     pd.DataFrame(reader.inventory).to_csv(staging / "sheet_inventory.csv", index=False)
-    return dict(tables=written, inventory=pd.DataFrame(reader.inventory), issues=log.frame())
+    return dict(tables=written, inventory=pd.DataFrame(reader.inventory), issues=log.frame(),
+                skipped=pd.DataFrame(reader.skipped))
 
 
 def main():

@@ -1,0 +1,47 @@
+# =============================================================================
+# Test overlay: the mapping a maintainer would add for officer FO05 (held-out set 1)
+# =============================================================================
+# FO05 is FICTIONAL (synthetic held-out data). This file is NOT used by the
+# production pipeline. score_cleaning.py uses it for one run, to show what a
+# quick config fix achieves: these lines are exactly what someone would paste
+# into config/source_mappings.yaml after reading the "SKIPPED ... Column headers
+# found: ..." message. No code change is involved.
+# =============================================================================
+
+fields:
+  activity:
+    date: [Date of event]
+    planned_date: [Scheduled for]
+    entry_date: [Captured on]
+    project: [Programme/Project]
+    activity: [Activity type]
+    district: [Location (District)]
+    sector: [Location (Sector)]
+    cell: [Location (Cell)]
+    village: [Village name]
+    status: [Progress]
+    female: [No. of women]
+    male: [No. of men]
+    total: [Attendance]
+    cost: [Amount spent]
+    officer: [Staff]
+  registration:
+    reg_no: [Beneficiary code]
+    name: [Names of beneficiary]
+    sex: [M/F]
+    age: [Age (years)]
+    phone: [Mobile]
+    national_id: [NID number]
+    household_size: [Family size]
+    disability: [Living with disability]
+    district: [Location (District)]
+    sector: [Location (Sector)]
+    cell: [Location (Cell)]
+    village: [Village name]
+    project: [Programme/Project]
+    reg_date: [Date enrolled]
+  service:
+    reg_no: [Beneficiary code]
+    activity: [Activity type]
+    date: [Date of event]
+    service_type: [Support given]

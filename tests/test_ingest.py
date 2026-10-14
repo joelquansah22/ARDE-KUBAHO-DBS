@@ -43,12 +43,19 @@ def _people(*rows):
                         columns=cols)
 
 
-def test_spelling_variants_of_one_person_are_matched():
+def test_spelling_variants_confirmed_by_phone_are_merged():
     ids = _people(("uwimana marie claire", "0781234567", None, "female", "Kirehe", 30),
-                  ("uwimnaa marie claire", "0781234567", None, "female", "Kirehe", 31),
-                  ("marie claire uwimana", None, None, "female", "Kirehe", 30))
-    clusters = ingest.cluster_identities(ids, 88, S)
-    assert len(set(clusters)) == 1
+                  ("uwimnaa marie claire", "0781234567", None, "female", "Kirehe", 31))
+    assert len(set(ingest.cluster_identities(ids, 88, S))) == 1
+
+
+def test_name_only_match_is_sent_to_review_not_merged():
+    ids = _people(("uwimana marie claire", "0781234567", None, "female", "Kirehe", 30),
+                  ("marie claire uwimana", None, None, "female", "Kirehe", 30))      # no phone, no ID
+    review = []
+    clusters = ingest.cluster_identities(ids, 88, S, review_pairs=review)
+    assert len(set(clusters)) == 2
+    assert review == [(0, 1)]
 
 
 def test_same_name_different_people_are_kept_apart():

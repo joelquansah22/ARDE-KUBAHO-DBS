@@ -1,0 +1,43 @@
+# =============================================================================
+# HELD-OUT test set 2 (used ONLY by: python src/generate_synthetic.py --holdout2)
+# =============================================================================
+# Written on 14 October 2026, AFTER the held-out-1 fixes were designed and BEFORE
+# this data was generated or looked at. It is the headline test: it must never be
+# used to tune the cleaner. Any later fix needs yet another new seed.
+#
+# Starts from config/synthetic.yaml (not from held-out 1), with a new seed and a
+# second batch of mess, different in kind from held-out 1.
+# Everything here is invented.
+# =============================================================================
+
+extends: synthetic.yaml
+
+seed: 4243
+
+# A sixth officer (FO06, layout F) takes over Kirehe from FO02. Layout F is PARTLY
+# recognisable: District, Sector, Cell, Village, Total, Sex, Age... are known names,
+# but "Event date", "Type of activity", "Females", "Beneficiary ID" and others are not.
+field_officers:
+  FO02: {districts: [Bugesera], layout: B}
+  FO06: {districts: [Kirehe], layout: F}
+
+injection_rates:
+  duplicate_beneficiary: 0.05
+
+holdout_mess:
+  new_date_format_rate: 0.08
+  # Not seen before: "Mar 12, 2024" (month first), "12/Mar/2024", "2024.03.12", "12th March 2024"
+  new_date_styles: [mon_d_yyyy, d_slash_mon_yyyy, ymd_dotted, ordinal_long]
+  district_new_variant_rate: 0.06
+  # "Nyaga tare", "Huye, Southern Province", vowel changes, "Akarere ka Kireh", old names Umutara/Kibungo
+  district_variant_kinds: [space_inside, with_province, vowel_change, prefix_typo, old_name]
+  # Duplicates: initials ("J. C."), hyphenated given names, an extra given name, spelling slips
+  dup_variant_kinds: [initials, hyphen, extra_name, surname_slip]
+  dup_phone_missing: 0.50
+  dup_id_kept: 0.30
+  namesake_rate: 0.04
+  namesake_close_age: 0.50
+  namesake_phone_missing: 0.50
+  namesake_id_missing: 0.50
+
+expected_fingerprint: null

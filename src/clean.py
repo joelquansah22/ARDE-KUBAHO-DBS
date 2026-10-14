@@ -27,6 +27,7 @@ import datetime as dt
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 import pandas as pd
 from rapidfuzz import fuzz, process
@@ -75,6 +76,29 @@ def _month_from_name(text: str) -> int | None:
     return MONTHS.get(text.lower())
 
 
+def _parse_text_date(text: str, rules: dict) -> dt.date | None:
+    """Read day-month-year dates written with a month name ("12 Mar 24", "12th March 2024").
+
+    The accepted styles are listed in settings.yaml (cleaning: date_text_formats). A 2-digit
+    year is placed in the 2000s up to two_digit_year_pivot, otherwise in the 1900s.
+    """
+    if not re.search(r"[A-Za-z]", text) or not re.match(r"\d", text):
+        return None
+    suffixes = "|".join(rules.get("ordinal_suffixes", []))
+    cleaned = re.sub(rf"^(\d{{1,2}})({suffixes})\b", r"\1", text, flags=re.IGNORECASE) if suffixes else text
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    for fmt in rules.get("date_text_formats", []):
+        try:
+            d = dt.datetime.strptime(cleaned, fmt).date()
+        except ValueError:
+            continue
+        if "%y" in fmt:
+            yy = d.year % 100
+            d = d.replace(year=(2000 if yy <= rules.get("two_digit_year_pivot", 30) else 1900) + yy)
+        return d
+    return None
+
+
 def parse_date(raw, settings: dict | None = None, period: bool = False) -> DateResult:
     """Read a date typed in any of the formats seen in the files.
 
@@ -109,6 +133,9 @@ def parse_date(raw, settings: dict | None = None, period: bool = False) -> DateR
                 d = dt.date(1899, 12, 30) + dt.timedelta(days=serial)
                 return DateResult(d.replace(day=1) if period else d, "date_serial_converted", FIXED, period)
             return DateResult(None, "date_unreadable", FLAGGED)
+        d = _parse_text_date(text, rules)
+        if d:
+            return DateResult(d.replace(day=1) if period else d, "date_text_converted", FIXED, period)
         m = re.fullmatch(r"([A-Za-z]+)[\s\-/,]+(\d{2}|\d{4})", text)
         if m and _month_from_name(m[1]):
             year = int(m[2]) + (2000 if len(m[2]) == 2 else 0)
@@ -169,6 +196,14 @@ def _strip_noise(text: str, words: list[str]) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+@lru_cache(maxsize=None)
+def load_legacy_districts() -> dict:
+    """Old district names (config/district_legacy_map.yaml), keyed by their normalised spelling."""
+    cfg = load_yaml("district_legacy_map.yaml")
+    return {"one_to_one": {norm_key(k): v for k, v in (cfg.get("one_to_one") or {}).items()},
+            "ambiguous": {norm_key(k): v["candidates"] for k, v in (cfg.get("ambiguous") or {}).items()}}
+
+
 def standardise_district(raw, settings: dict | None = None) -> CodeResult:
     """Return the official district name for 'NYAGATARE', 'Nyagatare District', 'Nyagatre', ..."""
     settings = settings or load_settings()
@@ -180,6 +215,14 @@ def standardise_district(raw, settings: dict | None = None) -> CodeResult:
     if text in lookup:
         changed = str(raw) != lookup[text]
         return CodeResult(lookup[text], "district_standardised" if changed else None, FIXED if changed else None)
+    legacy = load_legacy_districts()
+    if text in legacy["one_to_one"]:
+        new = legacy["one_to_one"][text]
+        return CodeResult(new, "district_legacy_name_mapped", FIXED, f"old name '{norm_text(raw)}' = {new}")
+    if text in legacy["ambiguous"]:
+        candidates = legacy["ambiguous"][text]
+        return CodeResult(None, "district_legacy_name_ambiguous", FLAGGED,
+                          f"old name '{norm_text(raw)}' could be {', '.join(candidates)}")
     best = process.extract(text, list(lookup), scorer=fuzz.ratio, limit=2)
     min_score = settings["cleaning"]["district_fuzzy_min_score"]
     if best and best[0][1] >= min_score and (len(best) == 1 or best[0][1] - best[1][1] >= 5):
@@ -259,7 +302,8 @@ class IssueLog:
         if code is None:
             return
         self.rows.append(dict(entity=entity, source_file=rec["source_file"], source_sheet=rec["source_sheet"],
-                              source_row=int(rec["source_row"]), field=fld, issue_code=code, action=action,
+                              source_row=None if rec.get("source_row") is None else int(rec["source_row"]),
+                              field=fld, issue_code=code, action=action,
                               raw_value=None if raw is None else str(raw),
                               clean_value=None if clean is None else str(clean), detail=detail))
 
@@ -389,8 +433,17 @@ class Cleaner:
         return dict(location_id=row["location_id"], sector=row["sector"], cell=row["cell"], village=row["village"])
 
     def _district(self, entity, rec, has_province: bool):
-        district = self._code(entity, rec, "district", standardise_district(rec.get("district"), self.s))
-        if district is None and not is_blank(rec.get("village")):
+        result = standardise_district(rec.get("district"), self.s)
+        district = self._code(entity, rec, "district", result)
+        if result.code == "district_legacy_name_ambiguous" and not is_blank(rec.get("village")):
+            candidates = load_legacy_districts()["ambiguous"][
+                _strip_noise(norm_key(rec["district"]), self.s["cleaning"]["district_noise_words"])]
+            found = self.ref.districts_of_village.get(norm_key(rec["village"]), set()) & set(candidates)
+            if len(found) == 1:
+                district = next(iter(found))
+                self.log.add(entity, rec, "district", "district_legacy_resolved_by_village", FIXED, rec.get("district"),
+                             district, f"village {rec['village']} is in {district}; please confirm")
+        elif district is None and not is_blank(rec.get("village")):
             # Work out the district from the village when that village name exists in only one
             # district. The original problem (missing or unrecognised district) stays flagged.
             candidates = self.ref.districts_of_village.get(norm_key(rec["village"]), set())
@@ -494,7 +547,7 @@ class Cleaner:
                 planned_date_is_approximate=planned.approx, entry_date=entry.value, status=status,
                 participants_female=female, participants_male=male, participants_total=total, cost_rwf=cost,
                 entry_lag_days=(entry.value - date.value).days if entry.value and date.value else None,
-                on_time=on_time, field_officer=norm_text(rec.get("officer")).upper() if rec.get("officer") else None,
+                on_time=on_time, field_officer=(norm_text(rec.get("officer")) or "").upper() or None,
                 entered_by=rec.get("entered_by")))
         return pd.DataFrame(out)
 
@@ -773,7 +826,10 @@ def run(staging=None) -> dict:
     """Clean every staged table. Returns the cleaned tables (used by tests and scoring)."""
     staging = staging or resolve_path("staging")
     cleaner = Cleaner(staging)
-    read = lambda name: pd.read_parquet(staging / f"ingested_{name}.parquet")
+    def read(name):
+        # A column that a sheet does not have arrives empty (None), never as NaN.
+        df = pd.read_parquet(staging / f"ingested_{name}.parquet")
+        return df.astype(object).where(df.notna(), None)
     tables = {
         "activity": cleaner.clean_activities(read("activity")),
         "registration": cleaner.clean_registrations(read("registration")),
