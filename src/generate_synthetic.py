@@ -143,7 +143,18 @@ STAFF_OWNERS = ["ED01", "PM01", "PM02", "MEAL01", "FIN01"]
 REPORT_COMMENTS = ["late submission", "figures to be verified", "includes catch-up from last month",
                    "awaiting sector data", ""]
 
+# Held-out set only: nicknames, and old (pre-2006) names still used for some districts.
+NICKNAMES = {"Jean Claude": "JC", "Emmanuel": "Manu", "Jean de Dieu": "Jado", "Innocent": "Inno",
+             "Jean Bosco": "Bosco", "Pacifique": "Paci", "Olivier": "Oli", "Josiane": "Josy",
+             "Esperance": "Espe", "Clementine": "Clemy", "Immaculee": "Imma", "Jacqueline": "Jacky",
+             "Theoneste": "Theo", "Alexis": "Alex", "Samuel": "Sam", "Patrick": "Pato", "Francine": "Fanny",
+             "Liliane": "Lili", "Fabrice": "Fab", "Jean Pierre": "JP", "Marie": "Mary", "Aline": "Alina"}
+OLD_DISTRICT_NAMES = {"Huye": "Butare", "Nyamagabe": "Gikongoro", "Karongi": "Kibuye"}
+
 DATE_ISSUE = {
+    "d_mon_yy": ("date_new_format", "fix"),        # held-out set only: 12 Mar 24
+    "d_month_yyyy": ("date_new_format", "fix"),    # held-out set only: 12 March 2024
+    "dotted": ("date_new_format", "fix"),          # held-out set only: 12.03.2024
     "dmy": ("date_dmy_text", "fix"),
     "month_year": ("date_month_year_text", "fix_or_flag"),
     "serial": ("date_excel_serial", "fix"),
@@ -221,6 +232,12 @@ def render_date(d: dt.date | None, style: str):
         return f"{calendar.month_name[d.month]} {d.year}"  # text March 2024 (day lost)
     if style == "serial":
         return to_excel_serial(d)                     # plain number 45363
+    if style == "d_mon_yy":
+        return f"{d.day} {calendar.month_abbr[d.month]} {d:%y}"     # 12 Mar 24
+    if style == "d_month_yyyy":
+        return f"{d.day} {calendar.month_name[d.month]} {d.year}"   # 12 March 2024
+    if style == "dotted":
+        return d.strftime("%d.%m.%Y")                               # 12.03.2024
     raise ValueError(style)
 
 
@@ -557,6 +574,9 @@ class World:
                 household_size=int(min(15, max(1, self.rand.poisson(4.5)))),
                 disability=self.rand.chance(0.06), registration_date=reg_date,
                 on_paper=self.rand.chance(vol["paper_share_beneficiaries"])))
+        hm = self.cfg.get("holdout_mess") or {}
+        if hm:
+            people += self.namesakes(people, hm, phones)
         self.people = people
 
         # Registration rows: one per person, plus a second row for duplicated people.
@@ -571,26 +591,86 @@ class World:
                 other = "PAPER" if home != "PAPER" else self.officer_of[p["district"]]
                 where = home if self.rand.chance(0.6) else other
                 surname, given, change = p["surname"], p["given_name"], ""
-                op = self.rand.pick(["surname_slip", "given_slip", "order_swap", "surname_slip"])
-                if op == "surname_slip":
-                    surname, change = letter_slip(self.rand, surname), "surname spelling"
-                elif op == "given_slip":
-                    given, change = letter_slip(self.rand, given), "given-name spelling"
+                if hm:
+                    surname, given, change = self.harder_variant(p)
+                    phone_roll = self.rand.uniform(0, 1)
+                    phone = (None if (phone_roll < hm["dup_phone_missing"] or not p["phone"]) else p["phone"]
+                             if phone_roll < 0.85 else p["phone"][:-1] + str((int(p["phone"][-1]) + 1) % 10))
                 else:
-                    change = "name order swapped"
-                phone_roll = self.rand.uniform(0, 1)
-                phone = (p["phone"] if phone_roll < 0.6 else None if phone_roll < 0.8
-                         else p["phone"][:-1] + str((int(p["phone"][-1]) + 1) % 10))
+                    op = self.rand.pick(["surname_slip", "given_slip", "order_swap", "surname_slip"])
+                    if op == "surname_slip":
+                        surname, change = letter_slip(self.rand, surname), "surname spelling"
+                    elif op == "given_slip":
+                        given, change = letter_slip(self.rand, given), "given-name spelling"
+                    else:
+                        change = "name order swapped"
+                    phone_roll = self.rand.uniform(0, 1)
+                    phone = (p["phone"] if phone_roll < 0.6 else None if phone_roll < 0.8
+                             else p["phone"][:-1] + str((int(p["phone"][-1]) + 1) % 10))
                 room = max(1, min(300, (self.window_end - p["registration_date"]).days))
                 later = p["registration_date"] + dt.timedelta(days=self.rand.int(min(20, room), room))
                 regs.append(dict(person_id=p["person_id"], file_key=where, is_duplicate=True,
                                  surname=surname, given_name=given,
                                  registration_date=min(later, self.window_end), phone=phone,
-                                 national_id=p["national_id"] if self.rand.chance(0.5) else None,
+                                 national_id=p["national_id"] if self.rand.chance(
+                                     hm["dup_id_kept"] if hm else 0.5) else None,
                                  age=p["age"] + self.rand.pick([0, 0, 1, -1]), dup_change=change))
         for i, r in enumerate(regs, 1):
             r["registration_id"] = f"REG{i:05d}"
         self.registrations = regs
+
+    def harder_variant(self, p: dict) -> tuple[str, str, str]:
+        """Held-out set only: harder ways the same person's name is written twice."""
+        surname, given = p["surname"], p["given_name"]
+        op = self.rand.pick(["swap_first_last", "missing_letters", "nickname", "nickname", "surname_slip"])
+        first = given.split(" ")[0] if given not in NICKNAMES else given
+        if op == "nickname" and (given in NICKNAMES or first in NICKNAMES):
+            nick = NICKNAMES.get(given) or NICKNAMES[first]
+            return surname, nick, f"nickname ({given} written as {nick})"
+        if op == "swap_first_last":
+            return given, surname, "first and last names swapped between columns"
+        if op in ("missing_letters", "nickname"):
+            for _ in range(2):
+                i = self.rand.int(1, len(surname) - 2)
+                surname = surname[:i] + surname[i + 1:]
+            return surname, given, "two letters missing from the surname"
+        return letter_slip(self.rand, surname), given, "surname spelling"
+
+    def namesakes(self, people: list[dict], hm: dict, phones: set) -> list[dict]:
+        """Held-out set only: DIFFERENT people with exactly the same name, district and sex.
+
+        Some have a similar age and no phone or ID, so only careful matching keeps them apart.
+        """
+        extra = []
+        n = len(people)
+        for p in list(people):
+            if not self.rand.chance(hm["namesake_rate"]):
+                continue
+            n += 1
+            close_age = self.rand.chance(hm["namesake_close_age"])
+            age = (p["age"] + self.rand.pick([-2, -1, 1, 2])) if close_age else self.rand.int(18, 80)
+            age = min(80, max(18, age))
+            loc = p["location_id"] if self.rand.chance(0.5) else self.rand.pick(
+                self.locs_by_district[p["district"]])["location_id"]
+            phone = None
+            if not self.rand.chance(hm["namesake_phone_missing"]):
+                while True:
+                    phone = "07" + self.rand.pick("8923") + "".join(str(self.rand.int(0, 9)) for _ in range(7))
+                    if phone not in phones:
+                        phones.add(phone)
+                        break
+            reg_date = p["registration_date"] + dt.timedelta(days=self.rand.int(-60, 60))
+            reg_date = min(max(reg_date, self.window_start), self.window_end)
+            dob = dt.date(reg_date.year - age, 1, 1) + dt.timedelta(days=self.rand.int(0, 364))
+            national_id = None if self.rand.chance(hm["namesake_id_missing"]) else (
+                "1" + str(dob.year) + ("7" if p["sex"] == "female" else "8")
+                + "".join(str(self.rand.int(0, 9)) for _ in range(7)) + "0" + f"{self.rand.int(0, 99):02d}")
+            extra.append(dict(p, person_id=f"PER{n:05d}", location_id=loc, age=age, date_of_birth=dob,
+                              phone=phone, national_id=national_id, registration_date=reg_date,
+                              household_size=int(min(15, max(1, self.rand.poisson(4.5)))),
+                              disability=self.rand.chance(0.06), namesake_of=p["person_id"],
+                              on_paper=self.rand.chance(self.cfg["volumes"]["paper_share_beneficiaries"])))
+        return extra
 
     def build_services(self):
         lo, hi = self.cfg["volumes"]["services_per_beneficiary"]
@@ -757,6 +837,16 @@ ACTIVITY_LAYOUTS = {
                  ("sector", "Sector"), ("village", "Village"), ("status", "Status"),
                  ("total", "Total participants"), ("female", "Of which women"), ("male", "Of which men"),
                  ("cost", "Cost RWF"), ("officer", "FO")]),
+    # Held-out set only: a fifth officer whose column names the pipeline has never seen.
+    "E": dict(
+        title=None, groups=None, per_fy_sheets=False, project_label="name", status_style="title",
+        date_styles={"d_mon_yy": 0.8, "dmy": 0.2}, entry_styles={"d_mon_yy": 0.8, "dmy": 0.2},
+        cost_always_text=False, totals_label="Sum", kinyarwanda=False,
+        columns=[("date", "Date of event"), ("planned_date", "Scheduled for"), ("entry_date", "Captured on"),
+                 ("project", "Programme/Project"), ("activity", "Activity type"),
+                 ("district", "Location (District)"), ("sector", "Location (Sector)"), ("cell", "Location (Cell)"),
+                 ("village", "Village name"), ("status", "Progress"), ("female", "No. of women"),
+                 ("male", "No. of men"), ("total", "Attendance"), ("cost", "Amount spent"), ("officer", "Staff")]),
     "PAPER": dict(
         title="Digitised paper attendance sheets (typed from paper forms) - SYNTHETIC", groups=None,
         per_fy_sheets=False, project_label="name", status_style="mixed",
@@ -804,6 +894,18 @@ REGISTER_LAYOUTS = {
                        ("household_size", "Household members"), ("disability", "Disability"),
                        ("district", "District"), ("sector", "Sector"), ("village", "Village"),
                        ("project", "Project"), ("reg_date", "Date")]),
+    # Held-out set only: a fifth officer whose column names the pipeline has never seen.
+    "E": dict(title=None, name_style="given_first", sex_style={"F": 1.0}, uses_dob=False, phone_style="intl",
+              id_style="text", disability_style=("Yes", "No"), date_styles={"d_mon_yy": 0.8, "dmy": 0.2},
+              project_label="name", allow_code_1=False,
+              columns=[("reg_no", "Beneficiary code"), ("name", "Names of beneficiary"), ("sex", "M/F"),
+                       ("age", "Age (years)"), ("phone", "Mobile"), ("national_id", "NID number"),
+                       ("household_size", "Family size"), ("disability", "Living with disability"),
+                       ("district", "Location (District)"), ("sector", "Location (Sector)"),
+                       ("cell", "Location (Cell)"), ("village", "Village name"), ("project", "Programme/Project"),
+                       ("reg_date", "Date enrolled")],
+              service_columns=[("reg_no", "Beneficiary code"), ("activity", "Activity type"),
+                               ("date", "Date of event"), ("service_type", "Support given")]),
     "PAPER": dict(title="Digitised paper registration forms - SYNTHETIC", name_style="paper",
                   sex_style={"mixed": 1.0}, uses_dob=False, phone_style="plain", id_style="text",
                   disability_style=("Y", "N"),
@@ -821,6 +923,7 @@ class MessyWriter:
 
     def __init__(self, world: World, raw_dir: Path):
         self.w, self.raw_dir = world, raw_dir
+        self.hm = world.cfg.get("holdout_mess") or {}   # extra, unseen mess: held-out set only
         self.rand = world.rand
         self.rates = world.cfg["injection_rates"]
         self.log = InjectionLog()
@@ -850,15 +953,53 @@ class MessyWriter:
             cells.values[fld] = None
             return
         style = self.rand.pick_style(styles)
+        if self.hm and self.rand.chance(self.hm["new_date_format_rate"]):
+            style = self.rand.pick(["d_mon_yy", "d_month_yyyy", "dotted"])
         cells.values[fld] = render_date(d, style)
         if style in DATE_ISSUE:
             etype, expected = DATE_ISSUE[style]
             cells.note(fld, etype, d.isoformat(), cells.values[fld], expected)
 
+    def new_district_variant(self, district: str) -> tuple[str, str, str]:
+        """Held-out set only: district spellings the cleaner has never seen."""
+        options = ["r_l_swap", "two_slips", "abbreviation", "dist_prefix", "k_g_swap"]
+        if district in OLD_DISTRICT_NAMES:
+            options.append("old_name")
+        kind = self.rand.pick(options)
+        if kind == "old_name":
+            return OLD_DISTRICT_NAMES[district], "district_old_name", "fix_or_flag"
+        if kind == "abbreviation":
+            return f"{district[:4]}.", "district_abbreviation", "fix_or_flag"
+        if kind == "dist_prefix":
+            return f"Dist. {district}", "district_variant", "fix"
+        for _ in range(20):
+            if kind == "r_l_swap" and ("r" in district.lower() or "l" in district.lower()):
+                i = next(i for i, ch in enumerate(district.lower()) if ch in "rl")
+                ch = district[i]
+                swap = {"r": "l", "l": "r", "R": "L", "L": "R"}[ch]
+                value = district[:i] + swap + district[i + 1:]
+            elif kind == "k_g_swap" and any(c in district.lower() for c in "kg"):
+                i = next(i for i, ch in enumerate(district.lower()) if ch in "kg")
+                swap = {"k": "g", "g": "k", "K": "G", "G": "K"}[district[i]]
+                value = district[:i] + swap + district[i + 1:]
+            else:
+                value = letter_slip(self.rand, letter_slip(self.rand, district))
+            if value.casefold() not in self.all_districts_cf:
+                return value, "district_typo", "fix_or_flag"
+            kind = "two_slips"
+        return district.upper(), "district_variant", "fix"
+
     def district_cell(self, cells: Cells, district: str, kinyarwanda: bool, fields: list):
-        roll = self.rand.uniform(0, 1)
+        if self.hm and self.rand.chance(self.hm["district_new_variant_rate"]):
+            value, etype, expected = self.new_district_variant(district)
+            cells.note("district", etype, district, value, expected, detail="spelling not seen in the main set")
+            roll = 2.0          # skip the usual variants below
+        else:
+            roll = self.rand.uniform(0, 1)
         typo, variant = self.rates["district_typo"], self.rates["district_variant"]
-        if roll < typo:
+        if roll > 1.0:
+            pass
+        elif roll < typo:
             value = district
             while value.casefold() in self.all_districts_cf:
                 value = letter_slip(self.rand, district)
@@ -869,7 +1010,7 @@ class MessyWriter:
                 forms.append(f"Akarere ka {district}")
             value = self.rand.pick(forms)
             cells.note("district", "district_variant", district, value, "fix")
-        else:
+        elif roll <= 1.0:
             value = district
         cells.values["district"] = value
         if "province" in fields:
@@ -1240,6 +1381,10 @@ class MessyWriter:
             cells = self.registration_cells(reg, person, layout, fields, is_paper)
             reg_no[reg["registration_id"]] = f"{prefix}-{n:04d}"
             cells.values["reg_no"] = reg_no[reg["registration_id"]]
+            if person.get("namesake_of") and not reg["is_duplicate"]:
+                cells.note("name" if "name" in fields else "surname", "namesake_different_person",
+                           person["namesake_of"], cells.values.get("name") or cells.values.get("surname"),
+                           "keep_apart", detail="a different person with the same name, district and sex")
             if reg["is_duplicate"]:
                 cells.note("name" if "name" in fields else "surname", "duplicate_beneficiary",
                            reg["person_id"], cells.values.get("name") or cells.values.get("surname"),
@@ -1250,8 +1395,9 @@ class MessyWriter:
         # Services sheet: which registered person received which service, and when.
         ws2 = wb.create_sheet("Services")
         writer2 = SheetWriter(ws2, file_name, "service", self.log)
-        columns = [("reg_no", "Reg No" if not is_paper else "Form No."), ("activity", "Activity"),
-                   ("date", "Date"), ("service_type", "Service received")]
+        columns = layout.get("service_columns") or [
+            ("reg_no", "Reg No" if not is_paper else "Form No."), ("activity", "Activity"),
+            ("date", "Date"), ("service_type", "Service received")]
         writer2.header(columns)
         for s in sorted(services, key=lambda s: (s["date"], s["service_id"])):
             cells = Cells(values=dict(reg_no=reg_no[s["registration_id"]],
@@ -1465,9 +1611,26 @@ class MessyWriter:
 # ======================================================================================
 # 3. Orchestration and answer key
 # ======================================================================================
-def generate(raw_dir: Path | None = None, truth_dir: Path | None = None, quiet: bool = False) -> dict:
+def load_synthetic_config(name: str = "synthetic.yaml") -> dict:
+    """Read a generator config. A config with 'extends: other.yaml' starts from that file and
+    replaces only the settings it lists (used by the held-out set)."""
+    cfg = load_yaml(name)
+    base_name = cfg.pop("extends", None)
+    if not base_name:
+        return cfg
+
+    def merge(base, extra):
+        for k, v in extra.items():
+            base[k] = merge(base[k], v) if isinstance(v, dict) and isinstance(base.get(k), dict) else v
+        return base
+
+    return merge(load_synthetic_config(base_name), cfg)
+
+
+def generate(raw_dir: Path | None = None, truth_dir: Path | None = None, quiet: bool = False,
+             config_name: str = "synthetic.yaml") -> dict:
     """Create all synthetic files. Returns a small summary dict (used by tests)."""
-    cfg, settings = load_yaml("synthetic.yaml"), load_settings()
+    cfg, settings = load_synthetic_config(config_name), load_settings()
     raw_dir = Path(raw_dir or resolve_path("raw"))
     truth_dir = Path(truth_dir or resolve_path("ground_truth"))
     raw_dir.mkdir(parents=True, exist_ok=True)
@@ -1592,9 +1755,9 @@ def content_fingerprint(raw_dir: Path, truth_dir: Path) -> str:
     return digest.hexdigest()
 
 
-def verify(raw_dir: Path | None = None, truth_dir: Path | None = None) -> bool:
+def verify(raw_dir: Path | None = None, truth_dir: Path | None = None, config_name: str = "synthetic.yaml") -> bool:
     """Check that the synthetic files on this computer match the expected fingerprint."""
-    expected = load_yaml("synthetic.yaml").get("expected_fingerprint")
+    expected = load_synthetic_config(config_name).get("expected_fingerprint")
     actual = content_fingerprint(Path(raw_dir or resolve_path("raw")), Path(truth_dir or resolve_path("ground_truth")))
     if actual == expected:
         print(f"OK: your synthetic data matches the expected version ({actual[:16]}...).")
@@ -1609,10 +1772,21 @@ def main():
     parser.add_argument("--raw-dir", type=Path, default=None, help="where to write the messy Excel files")
     parser.add_argument("--truth-dir", type=Path, default=None, help="where to write the answer key")
     parser.add_argument("--verify", action="store_true", help="check existing files instead of generating")
+    parser.add_argument("--holdout", action="store_true",
+                        help="the held-out test set (config/synthetic_holdout.yaml, written to data/holdout/)")
     args = parser.parse_args()
+    config_name = "synthetic_holdout.yaml" if args.holdout else "synthetic.yaml"
+    raw_dir = args.raw_dir or (resolve_path("holdout_raw") if args.holdout else None)
+    truth_dir = args.truth_dir or (resolve_path("holdout_ground_truth") if args.holdout else None)
     if args.verify:
-        sys.exit(0 if verify(args.raw_dir, args.truth_dir) else 1)
-    generate(args.raw_dir, args.truth_dir)
+        sys.exit(0 if verify(raw_dir, truth_dir, config_name) else 1)
+    generate(raw_dir, truth_dir, config_name=config_name)
+
+
+def generate_holdout() -> dict:
+    """Pipeline step: create the held-out test set in data/holdout/."""
+    return generate(resolve_path("holdout_raw"), resolve_path("holdout_ground_truth"),
+                    config_name="synthetic_holdout.yaml")
 
 
 if __name__ == "__main__":

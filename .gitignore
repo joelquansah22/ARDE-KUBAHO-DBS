@@ -10,6 +10,12 @@ venv/
 data/**
 !data/*/
 !data/*/.gitkeep
+# The hand-made test folder keeps its instructions and template (but never the files people add).
+!data/holdout/manual/
+!data/holdout/manual/README.md
+!data/holdout/manual/answer_key_template.csv
+!data/holdout/manual/raw/
+!data/holdout/manual/raw/.gitkeep
 
 # Secrets: the pseudonymisation salt lives OUTSIDE the repository (see config/settings.yaml),
 # but ignore any stray copy just in case.

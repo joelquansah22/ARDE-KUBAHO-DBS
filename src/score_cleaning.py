@@ -10,7 +10,15 @@ allowed to read data/ground_truth/. It answers four questions:
      clean values did the pipeline wrongly change?
   d. Duplicate beneficiaries: precision and recall at several matching thresholds.
 
-Results go to docs/phase2_cleaning_scorecard.md and data/staging/score_*.csv.
+It scores three things, each with the same tables:
+  - the main synthetic set (data/raw, already cleaned by the pipeline);
+  - the HELD-OUT set (data/holdout/raw): a different seed plus mess the cleaner has never
+    seen. The pipeline is run on it unchanged; if it crashes, the crash is reported and
+    files it could not read are set aside and counted as missed;
+  - hand-made files from teammates (data/holdout/manual), when there are any.
+It also reports flag severity: the size of the monthly review queue and the info-level measures.
+
+Results go to docs/phase2_cleaning_scorecard.md and score_*.csv in each staging folder.
 
 HOW TO RUN
     python src/score_cleaning.py      (after ingest.py and clean.py)
@@ -20,12 +28,15 @@ from __future__ import annotations
 
 import datetime as dt
 import math
+import shutil
+import traceback
 from collections import defaultdict
 from math import comb
 
 import pandas as pd
 from rapidfuzz import fuzz
 
+import clean
 import ingest
 from clean import is_blank, norm_key
 from common import load_settings, load_yaml, resolve_path
@@ -198,6 +209,15 @@ class Scorer:
             a, b = self.clean_rows["registration"].get(p), self.clean_rows["registration"].get(first_pos)
             same = a is not None and b is not None and a["beneficiary_key"] == b["beneficiary_key"]
             return ("fixed", "") if same else ("missed", "not matched to first registration")
+        if etype == "namesake_different_person":
+            other = self.truth_regs[(self.truth_regs["person_id"] == r.true_value)
+                                    & (self.truth_regs["is_duplicate"] == "False")].iloc[0]
+            other_pos = self.pos(other["source_file"], other["source_sheet"], other["source_row"])
+            a, b = self.clean_rows["registration"].get(p), self.clean_rows["registration"].get(other_pos)
+            if a is None or b is None:
+                return "missed", "row missing from cleaned table"
+            return ("fixed", "kept apart") if a["beneficiary_key"] != b["beneficiary_key"] \
+                else ("missed", "different people merged")
         if etype == "personal_data_individual_donor":
             row = self.clean_rows["donor"].get(p)
             ok = row is not None and str(row["donor_name"]).startswith("Individual donor") \
@@ -293,9 +313,15 @@ class Scorer:
     def duplicate_matching(self) -> tuple[pd.DataFrame, list[float]]:
         ids = ingest.load_registration_identities(self.raw, self.settings)
         person = {p: r["person_id"] for p, r in self.truth["registration"].items()}
-        ids["person_id"] = [person[self.pos(f, s, r)] for f, s, r in
+        ids["person_id"] = [person.get(self.pos(f, s, r)) for f, s, r in
                             zip(ids["source_file"], ids["source_sheet"], ids["source_row"])]
-        true_pairs = sum(comb(k, 2) for k in ids["person_id"].value_counts())
+        # True pairs are counted over EVERY registration in the answer key, including files the
+        # pipeline could not read, so unreadable files lower recall instead of being ignored.
+        all_regs = self.truth_regs[self.truth_regs["source_row"] != ""]
+        true_pairs = sum(comb(k, 2) for k in all_regs["person_id"].value_counts())
+        people = pd.read_csv(self.truth_dir / "SYNTHETIC_truth_people.csv", dtype=str, keep_default_na=False)
+        namesake_of = dict(zip(people["person_id"], people.get("namesake_of", pd.Series([""] * len(people)))))
+        namesake_pairs = [(a, b) for a, b in namesake_of.items() if b]
         rows = []
         thresholds = sorted(set(self.settings["duplicate_matching"]["thresholds_to_compare"]
                                 + [self.settings["duplicate_matching"]["name_similarity_threshold"]]))
@@ -307,12 +333,16 @@ class Scorer:
             predicted = sum(comb(k, 2) for k in ids["cluster"].value_counts())
             tp = sum(comb(k, 2) for k in ids.groupby(["cluster", "person_id"]).size())
             merged_wrongly = int((ids.groupby("cluster")["person_id"].nunique() > 1).sum())
+            clusters_of = ids.groupby("person_id")["cluster"].agg(set).to_dict()
+            namesakes_merged = sum(1 for a, b in namesake_pairs if clusters_of.get(a, set()) & clusters_of.get(b, set()))
             rows.append(dict(rules=variant, threshold=t, configured="yes" if t == self.settings["duplicate_matching"][
                 "name_similarity_threshold"] else "", true_pairs=true_pairs, pairs_found=predicted,
                              correct_pairs=tp, wrong_pairs=predicted - tp, missed_pairs=true_pairs - tp,
                              precision=round(tp / predicted, 3) if predicted else None,
                              recall=round(tp / true_pairs, 3) if true_pairs else None,
-                             clusters_mixing_different_people=merged_wrongly))
+                             clusters_mixing_different_people=merged_wrongly,
+                             namesake_pairs_merged=f"{namesakes_merged} of {len(namesake_pairs)}" if namesake_pairs
+                             else "n/a"))
         # Name scores of the true duplicate pairs, to show where they fall against the thresholds.
         scores = []
         for _, g in ids.groupby("person_id"):
@@ -336,103 +366,289 @@ class Scorer:
         false_corr.to_csv(out / "score_false_corrections.csv", index=False)
         false_flag.to_csv(out / "score_false_flags.csv", index=False)
         dupes.to_csv(out / "score_duplicate_thresholds.csv", index=False)
-        result = dict(by_type=by_type, by_group=by_group, false_corrections=false_corr, compared=compared,
-                      false_flags=false_flag, lost=lost, spurious=spurious, duplicates=dupes,
-                      duplicate_scores=dup_scores, scored=scored)
-        self.write_markdown(result)
-        return result
+        undetectable = self.log[self.log["expected_handling"] == "undetectable"]
+        return dict(by_type=by_type, by_group=by_group, false_corrections=false_corr, compared=compared,
+                    false_flags=false_flag, lost=lost, spurious=spurious, duplicates=dupes,
+                    duplicate_scores=dup_scores, scored=scored, undetectable=undetectable)
 
-    def write_markdown(self, r: dict):
-        genuine = r["by_group"].set_index("group").loc["genuine_errors"]
-        fc = r["false_corrections"]
-        wrong = int((fc["kind"] == "clean value wrongly changed").sum()) if len(fc) else 0
-        knock = len(fc) - wrong
-        excluded = int((self.log["expected_handling"] == "undetectable").sum())
-        below = r["by_type"][r["by_type"]["below_90%"] == "YES"]
-        missed = r["scored"][r["scored"]["outcome"] == "missed"]
-        thresholds = load_settings()["duplicate_matching"]
-        lines = [
-            "# Phase 2 cleaning scorecard (synthetic data)",
-            "",
-            f"*Generated by `src/score_cleaning.py` on {dt.date.today():%d %B %Y}. Do not edit by hand.*",
-            "",
-            "Scores the pipeline (`ingest.py` + `clean.py`) against the synthetic answer key. "
-            f"{excluded} problems that cannot be detected from the files are excluded: "
-            + ", ".join(f"{n} {t.replace('_', ' ')}" for t, n in
-                        self.log[self.log["expected_handling"] == "undetectable"]["error_type"].value_counts().items())
-            + " (see docs/decision_log.md).",
-            "",
-            "**Fixed** = the cleaned value equals the true value. **Flagged** = the pipeline marked the cell or "
-            "row for review. **Missed** = neither.",
-            "",
-            "## Headline",
-            "",
-            f"- Genuine errors fixed or flagged: **{genuine['fixed_or_flagged_%']}%** "
-            f"({int(genuine['fixed'] + genuine['flagged']):,} of {int(genuine['total']):,}). Target 95%: "
-            f"**{'met' if genuine['fixed_or_flagged_%'] >= 95 else 'NOT met'}**.",
-            f"- Error types below 90%: **{len(below)}**"
-            + (f" ({', '.join(below['error_type'])})" if len(below) else "") + ".",
-            f"- False corrections: **{wrong}** clean values wrongly changed, out of {r['compared']:,} clean cells "
-            f"compared ({100 * wrong / max(1, r['compared']):.3f}%). A further {knock} cells were wrong only as a "
-            "knock-on from an injected error on the same row.",
-            f"- Rows lost: {r['lost']}. Rows in the cleaned tables that should not be there: {r['spurious']}.",
-            "",
-            "## (b) Totals by group",
-            "",
-            md_table(r["by_group"]),
-            "",
-            "## (a) Fixed, flagged and missed by error type",
-            "",
-            md_table(r["by_type"]),
-            "",
-            "## (c) False corrections",
-            "",
-            "Every cleaned cell that had no injected problem was compared with its true value.",
-            "",
-        ]
-        if len(fc):
-            summary = fc.groupby(["kind", "entity", "field"]).size().reset_index(name="cells")
-            lines += [md_table(summary), "", "Examples:", "",
-                      md_table(fc.head(15)[["entity", "field", "source_file", "source_row", "raw_value",
-                                            "clean_value", "true_value", "kind"]]), ""]
+
+# ======================================================================================
+# Running the pipeline on a test set, and writing the scorecard
+# ======================================================================================
+def run_pipeline_on(raw, staging) -> dict:
+    """Run ingest + clean, UNCHANGED, on a test set.
+
+    If the pipeline crashes, the crash is recorded and the run is repeated with the files it
+    could not read set aside (their records then count as missed). Returns what happened.
+    """
+    staging.mkdir(parents=True, exist_ok=True)
+    try:
+        ingest.run(raw, staging)
+        clean.run(staging)
+        return dict(raw=raw, crash=None, set_aside=[])
+    except Exception:
+        crash = traceback.format_exc(limit=3)
+    inventory = pd.read_csv(staging / "sheet_inventory.csv", dtype=str, keep_default_na=False)
+    set_aside = sorted(set(inventory.loc[inventory["note"] == "header row not recognised", "source_file"]))
+    readable = staging.parent / "raw_readable_only"
+    shutil.rmtree(readable, ignore_errors=True)
+    readable.mkdir(parents=True)
+    for path in raw.glob("*.xlsx"):
+        if path.name not in set_aside:
+            shutil.copy2(path, readable / path.name)
+    ingest.run(readable, staging)
+    clean.run(staging)
+    return dict(raw=readable, crash=crash, set_aside=set_aside)
+
+
+def headline_lines(r: dict) -> list[str]:
+    genuine = r["by_group"].set_index("group").loc["genuine_errors"]
+    fc = r["false_corrections"]
+    wrong = int((fc["kind"] == "clean value wrongly changed").sum()) if len(fc) else 0
+    below = r["by_type"][r["by_type"]["below_90%"] == "YES"]
+    return [
+        f"- Genuine errors fixed or flagged: **{genuine['fixed_or_flagged_%']}%** "
+        f"({int(genuine['fixed'] + genuine['flagged']):,} of {int(genuine['total']):,}). Target 95%: "
+        f"**{'met' if genuine['fixed_or_flagged_%'] >= 95 else 'NOT met'}**.",
+        f"- Error types below 90%: **{len(below)}**" + (f" ({', '.join(below['error_type'])})" if len(below) else "")
+        + ".",
+        f"- False corrections: **{wrong}** clean values wrongly changed, out of {r['compared']:,} clean cells "
+        f"compared ({100 * wrong / max(1, r['compared']):.3f}%); {len(fc) - wrong} more were wrong only as a "
+        "knock-on from an injected error on the same row.",
+        f"- Rows in the answer key missing from the cleaned tables: {r['lost']}. "
+        f"Rows that should not be there: {r['spurious']}.",
+    ]
+
+
+def section_lines(r: dict, title: str, level: str = "##") -> list[str]:
+    """Tables (a) to (d) for one test set."""
+    fc = r["false_corrections"]
+    sub_level = level + "#"
+    thresholds = load_settings()["duplicate_matching"]
+    scores = r["duplicate_scores"]
+    missed = r["scored"][r["scored"]["outcome"] == "missed"]
+    lines = [f"{level} {title}", "", *headline_lines(r), "",
+             f"{sub_level} (b) Totals by group", "", md_table(r["by_group"]), "",
+             f"{sub_level} (a) Fixed, flagged and missed by error type", "", md_table(r["by_type"]), "",
+             f"{sub_level} (c) False corrections", "",
+             "Every cleaned cell that had no injected problem was compared with its true value.", ""]
+    if len(fc):
+        lines += [md_table(fc.groupby(["kind", "entity", "field"]).size().reset_index(name="cells")), "",
+                  "Examples:", "", md_table(fc.head(10)[["entity", "field", "source_file", "source_row", "raw_value",
+                                                        "clean_value", "true_value", "kind"]]), ""]
+    else:
+        lines += ["None found.", ""]
+    ff = r["false_flags"]
+    lines += ["Flags on rows with no injected problem at all (for information; a flag does not change a value):",
+              "", md_table(ff.groupby("issue_code").size().reset_index(name="rows")) if len(ff) else "None.", "",
+              f"{sub_level} (d) Duplicate beneficiaries: matching threshold", "",
+              "Pairs of registrations of the same person. Precision = share of matched pairs that are right; "
+              "recall = share of true pairs found. Same national ID = always matched; otherwise names must score at "
+              "least the threshold, in the same district and of the same sex, and are kept apart if phones differ "
+              f"by more than {thresholds['max_phone_digit_difference']} digit, IDs differ, or ages differ by more "
+              f"than {thresholds['max_age_difference_years']} years. The two lower variants switch rules off only "
+              "to show what each rule contributes.", "",
+              md_table(r["duplicates"]), "",
+              (f"Name scores of the {len(scores)} true duplicate pairs read by the pipeline: lowest {min(scores):.0f}, "
+               + ", ".join(f"{sum(x < t for x in scores)} below {t}" for t in thresholds["thresholds_to_compare"])
+               + ".") if scores else "", "",
+              f"{sub_level} Missed problems", ""]
+    if len(missed):
+        summary = missed.groupby(["error_type", "outcome_note"]).size().reset_index(name="count") \
+            .sort_values("count", ascending=False)
+        lines += [md_table(summary.head(25)), "",
+                  md_table(missed[["error_type", "source_file", "source_sheet", "source_row", "field", "true_value",
+                                   "messy_value", "outcome_note"]].head(25)), ""]
+        if len(missed) > 25:
+            lines += [f"... {len(missed) - 25} more in score_injected_errors.csv.", ""]
+    else:
+        lines += ["None.", ""]
+    return lines
+
+
+def review_queue_lines(staging, title: str) -> list[str]:
+    """Flag severity: monthly review-queue size, its drivers, quarantine and info measures."""
+    s = load_settings()
+    status = pd.read_parquet(staging / "clean_row_status.parquet")
+    issues = pd.read_parquet(staging / "issues.parquet")
+    info = pd.read_parquet(staging / "clean_dq_info_metrics.parquet")
+    per_row = s["review_minutes_per_row"]
+    budget = s["review_budget_minutes_per_month"]
+    review = status[status["status"] == "review"]
+    window = pd.period_range(s["reporting_window"]["start"], s["reporting_window"]["end"], freq="M").astype(str)
+    monthly = review.groupby("month").size().reindex(window, fill_value=0)
+    over = monthly[monthly * per_row > budget]
+    drivers = (review.assign(code=review["warning_codes"].str.split(", ")).explode("code")
+               .groupby("code").size().sort_values(ascending=False))
+    quarantine = status[status["status"] == "quarantine"]
+    q_monthly = quarantine.groupby("month").size().reindex(window, fill_value=0)
+    q_drivers = (quarantine.assign(code=quarantine["critical_codes"].str.split(", ")).explode("code")
+                 .groupby("code").size().sort_values(ascending=False))
+    sev = issues[issues["severity"].notna()].groupby("severity").size()
+    lines = [f"## {title}", "",
+             "Each flag has one of three levels (`flag_severity` in config/settings.yaml): **critical** = row "
+             "quarantined until the source file is corrected; **warning** = row used, but goes to the MEAL "
+             "officer's review queue; **info** = counted as a data-quality measure, no one acts on a row. A row "
+             "with any critical flag is quarantined and not also counted in the review queue.", "",
+             f"Flags by level: critical {sev.get('critical', 0):,}, warning {sev.get('warning', 0):,}, "
+             f"info {sev.get('info', 0):,}.", "",
+             "### Review queue (warnings) per month", "",
+             f"At {per_row} minutes a row (an assumption to check with the MEAL officer), the budget of "
+             f"{budget} minutes a month allows {budget // per_row} rows.", "",
+             f"- Rows to review over {len(window)} months: **{int(monthly.sum())}**; per month: average "
+             f"**{monthly.mean():.1f}**, median {monthly.median():.0f}, busiest month {int(monthly.max())} "
+             f"({monthly.idxmax()}), about {monthly.mean() * per_row:.0f} minutes a month on average.",
+             f"- Months over the one-hour budget: **{len(over)}**"
+             + (f" ({', '.join(over.index)})" if len(over) else "") + ".",
+             f"- Rows with no month (e.g. donor records): {int(review['month'].isna().sum())}.", "",
+             "What drives the review queue (a row can have more than one reason):", "",
+             md_table(drivers.rename("rows").reset_index().assign(
+                 per_month=lambda d: (d["rows"] / len(window)).round(1))), "",
+             "Rows to review by month:", "",
+             md_table(pd.DataFrame({"month": monthly.index, "rows to review": monthly.values,
+                                    "minutes": monthly.values * per_row,
+                                    "quarantined": q_monthly.values})), "",
+             "### Quarantined rows (critical)", "",
+             f"- Rows quarantined: **{len(quarantine)}** (per month: average {q_monthly.mean():.1f}, "
+             f"busiest {int(q_monthly.max())}). These are fixed in the source Excel file, not in the queue.", "",
+             md_table(q_drivers.rename("rows").reset_index()), "",
+             "### Info-level measures (for the dashboard, not for review)", "",
+             md_table(info[["metric", "percent", "numerator", "denominator", "note"]]), ""]
+    return lines
+
+
+def manual_lines() -> list[str]:
+    """Score hand-made files in data/holdout/manual/ against the answer key the teammate wrote."""
+    folder = resolve_path("holdout_manual")
+    raw = folder / "raw"
+    key_file = folder / "answer_key.csv"
+    files = [p for p in raw.glob("*.xlsx") if not p.name.startswith("~$")] if raw.exists() else []
+    lines = ["## Hand-made test files (data/holdout/manual)", ""]
+    if not files or not key_file.exists():
+        return lines + ["No hand-made files yet. See data/holdout/manual/README.md.", ""]
+    master = resolve_path("raw") / "SYNTHETIC_programme_master.xlsx"
+    if not any("programme_master" in p.name for p in files) and master.exists():
+        shutil.copy2(master, raw / master.name)
+    staging = folder / "staging"
+    run = run_pipeline_on(raw, staging)
+    key = pd.read_csv(key_file, dtype=str, keep_default_na=False)
+    inventory = pd.read_csv(staging / "sheet_inventory.csv", dtype=str, keep_default_na=False)
+    entity_of = {(r.source_file, r.source_sheet): r.entity for r in inventory.itertuples()}
+    issues = pd.read_parquet(staging / "issues.parquet")
+    flags = defaultdict(set)
+    for r in issues[issues["action"] == "flagged"].dropna(subset=["source_row"]).itertuples():
+        flags[(r.source_file, r.source_sheet, int(r.source_row), r.field)].add(r.issue_code)
+    tables = {e: pd.read_parquet(staging / f"clean_{e}.parquet") for e in COMPARE}
+    rows = {e: {(r["source_file"], r["source_sheet"], int(r["source_row"])): r for r in df.to_dict("records")}
+            for e, df in tables.items()}
+    manual_compare = {e: {**spec, "village": ("village", None, "text")} for e, spec in COMPARE.items()}
+    results = []
+    for k in key.itertuples():
+        pos = (k.source_file, k.source_sheet, int(float(k.source_row)))
+        entity = entity_of.get((k.source_file, k.source_sheet))
+        spec = manual_compare.get(entity, {}).get(k.field)
+        row = rows.get(entity, {}).get(pos)
+        same = bool(spec and row is not None and equal(row.get(spec[0]), k.true_value, spec[2]))
+        flagged = bool(flags.get((*pos, k.field)))
+        if not k.error_type:
+            outcome = "unchanged (correct)" if same else "FALSE CORRECTION"
         else:
-            lines += ["None found.", ""]
-        ff = r["false_flags"]
-        lines += ["Flags on rows with no injected problem at all (shown for information; a flag sends a row for "
-                  "review, it does not change a value):", ""]
-        lines += [md_table(ff.groupby("issue_code").size().reset_index(name="rows")) if len(ff) else "None.", ""]
-        scores = r["duplicate_scores"]
-        lines += [
-            "## (d) Duplicate beneficiaries: matching threshold",
-            "",
-            "Pairs of registrations belonging to the same person. Precision = share of matched pairs that are "
-            "right; recall = share of true pairs found. Records with the same national ID are always matched. "
-            "Otherwise names must score at least the threshold, be in the same district and of the same "
-            f"sex, and are kept apart if phones differ by more than {thresholds['max_phone_digit_difference']} "
-            f"digit, IDs differ, or ages differ by more than {thresholds['max_age_difference_years']} years.",
-            "",
-            md_table(r["duplicates"]),
-            "",
-            f"Name scores of the {len(scores)} true duplicate pairs: lowest {min(scores):.0f}, "
-            + ", ".join(f"{sum(s < t for s in scores)} below {t}" for t in thresholds["thresholds_to_compare"]) + ".",
-            "",
-            "## Missed problems (all)",
-            "",
-        ]
-        lines += [md_table(missed[["error_type", "source_file", "source_sheet", "source_row", "field", "true_value",
-                                   "messy_value", "outcome_note"]].head(60)) if len(missed) else "None.", ""]
-        if len(missed) > 60:
-            lines += [f"... and {len(missed) - 60} more in data/staging/score_injected_errors.csv", ""]
-        (self.docs / "phase2_cleaning_scorecard.md").write_text("\n".join(lines), encoding="utf-8")
+            outcome = "fixed" if same else "flagged" if flagged else "missed"
+        results.append(dict(source_file=k.source_file, source_row=pos[2], field=k.field,
+                            error_type=k.error_type or "(clean cell)", true_value=k.true_value,
+                            clean_value=None if row is None or not spec else row.get(spec[0]), outcome=outcome))
+    res = pd.DataFrame(results)
+    res.to_csv(staging / "score_manual.csv", index=False)
+    lines += [f"{len(files)} file(s), {len(key)} answer-key cells."]
+    if run["crash"]:
+        lines += ["", f"**The pipeline crashed** on these files; files set aside: {', '.join(run['set_aside'])}."]
+    lines += ["", md_table(res.groupby(["error_type", "outcome"]).size().reset_index(name="cells")), ""]
+    return lines
 
 
 def main():
-    if not load_settings()["synthetic_mode"]:
+    settings = load_settings()
+    if not settings["synthetic_mode"]:
         print("Scoring needs the synthetic answer key; synthetic_mode is off, so nothing to do.")
         return
-    r = Scorer().run()
-    print(r["by_group"].to_string(index=False))
-    print(f"False corrections: {len(r['false_corrections'])} of {r['compared']} cells compared")
+    docs = resolve_path("docs")
+    main_result = Scorer().run()
+
+    holdout = None
+    if (resolve_path("holdout_raw") / "SYNTHETIC_programme_master.xlsx").exists():
+        run = run_pipeline_on(resolve_path("holdout_raw"), resolve_path("holdout_staging"))
+        result = Scorer(resolve_path("holdout_staging"), resolve_path("holdout_ground_truth"), run["raw"]).run()
+        holdout = dict(run=run, result=result)
+
+    undetectable = main_result["undetectable"]
+    lines = [
+        "# Phase 2 cleaning scorecard (synthetic data)", "",
+        f"*Generated by `src/score_cleaning.py` on {dt.date.today():%d %B %Y}. Do not edit by hand.*", "",
+        "Scores the pipeline (`ingest.py` + `clean.py`) against the synthetic answer keys. **Fixed** = the "
+        "cleaned value equals the true value. **Flagged** = the pipeline marked the cell or row for review. "
+        "**Missed** = neither.", "",
+        "## Known limitations", "",
+        f"- **{len(undetectable)} problems in the main set cannot be detected from the files and are excluded** "
+        "(accepted by the team on 14 October 2026):", "",
+        md_table(undetectable.groupby(["error_type", "detail"]).size().reset_index(name="count")), "",
+        "  The paper activity form should gain a **planned date** field (decision log D56); the misspelt names "
+        "can only be caught by checking the paper form itself.",
+        "- An ID stored as a number in Excel has already lost its 16th digit; it is flagged, but the digit cannot "
+        "be recovered (D57).",
+        "- The synthetic data was written by the same team that wrote the cleaner. The held-out set below is the "
+        "fairer test; real partner files will be the real one.", "",
+        "## Main set vs held-out set", "",
+    ]
+    if holdout:
+        a = main_result["by_group"].set_index("group")["fixed_or_flagged_%"]
+        b = holdout["result"]["by_group"].set_index("group")["fixed_or_flagged_%"]
+        comp = pd.DataFrame({"main set %": a, "held-out set %": b}).reset_index().rename(columns={"index": "group"})
+        lines += [md_table(comp), ""]
+    else:
+        lines += ["Held-out set not generated yet (`python src/generate_synthetic.py --holdout`).", ""]
+    lines += section_lines(main_result, "Main set (seed 2023)")
+    if holdout:
+        run = holdout["run"]
+        new_types = ["date_new_format", "district_old_name", "district_abbreviation", "namesake_different_person"]
+        hr = holdout["result"]["scored"]
+        new_mess = hr[hr["error_type"].isin(new_types) | hr["detail"].str.contains("not seen", na=False)
+                      | hr["source_file"].str.contains("FO05", na=False)]
+        lines += ["## Held-out set (seed 7919, new mess, pipeline unchanged)", "",
+                  "Generated by `config/synthetic_holdout.yaml`: a fifth officer (FO05) with column names the "
+                  "pipeline has never seen, dates such as `12 Mar 24`, new district spellings (`Rurindo`, "
+                  "`Nyag.`, `Butare`), harder duplicates (names swapped between columns, missing letters, "
+                  "nicknames, no phone) and different people who share a name, district and sex. "
+                  "**The cleaner was not changed for this set.**", ""]
+        if run["crash"]:
+            lines += ["**The unchanged pipeline crashed on this set.** Error:", "", "```", run["crash"].strip(), "```", "",
+                      f"To still score it, the files whose header row the pipeline could not recognise were set "
+                      f"aside ({', '.join(run['set_aside'])}) and the run repeated. **Every record in those files "
+                      "counts as missed** and their duplicate pairs stay in the recall denominator, so these "
+                      "results are conservative.", ""]
+        lines += ["### How the new kinds of mess did", "",
+                  md_table(Scorer.tally(new_mess.assign(
+                      kind=new_mess["source_file"].str.contains("FO05", na=False).map(
+                          {True: "FO05 file (unseen layout)", False: "other files"})),
+                      ["kind", "error_type"])), ""]
+        if run["set_aside"]:
+            readable = hr[~hr["source_file"].isin(run["set_aside"])]
+            lines += ["### Held-out results without the set-aside files", "",
+                      "To separate the unreadable layout from everything else: the same scores, leaving out the "
+                      "problems inside the set-aside files.", "",
+                      md_table(Scorer.tally(readable, ["group"])), ""]
+        lines += section_lines(holdout["result"], "Held-out results in full", level="###")
+    lines += manual_lines()
+    lines += review_queue_lines(resolve_path("staging"), "Flag severity and the monthly review queue (main set)")
+    if holdout:
+        hq = review_queue_lines(resolve_path("holdout_staging"), "Review queue on the held-out set")
+        lines += hq[:2] + [l for l in hq if l.startswith("- Rows to review") or l.startswith("- Months over")] + [""]
+    (docs / "phase2_cleaning_scorecard.md").write_text("\n".join(lines), encoding="utf-8")
+    print(main_result["by_group"].to_string(index=False))
+    if holdout:
+        print("Held-out set:")
+        print(holdout["result"]["by_group"].to_string(index=False))
+        if holdout["run"]["crash"]:
+            print("NOTE: the pipeline crashed on the held-out set; see the scorecard.")
     print("Scorecard written to docs/phase2_cleaning_scorecard.md")
 
 

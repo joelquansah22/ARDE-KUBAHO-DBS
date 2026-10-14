@@ -27,6 +27,10 @@ paths:
   warehouse: data/warehouse/arde.duckdb
   exports: data/exports            # CSV/Parquet star schema for Power BI
   ground_truth: data/ground_truth  # synthetic answer key; NEVER read by the pipeline
+  holdout_raw: data/holdout/raw                    # held-out synthetic test set (see synthetic_holdout.yaml)
+  holdout_ground_truth: data/holdout/ground_truth
+  holdout_staging: data/holdout/staging
+  holdout_manual: data/holdout/manual              # hand-made messy files from teammates
   templates: templates
   docs: docs
 
@@ -167,3 +171,71 @@ donor_pipeline:
     private: [private, private sector, company]
     individual: [individual, individual (diaspora), private individual]
   deadline_windows_days: [30, 60, 90]
+
+# -----------------------------------------------------------------------------
+# What happens to each kind of flag (three levels)
+# -----------------------------------------------------------------------------
+#   critical: the row is QUARANTINED (kept aside, not used in results) until the
+#             source file is corrected. Impossible values, missing required fields,
+#             codes that cannot be mapped.
+#   warning:  the row is used, but goes to the MEAL officer's REVIEW QUEUE.
+#   info:     logged and counted as a data-quality measure on the dashboard
+#             (e.g. "89% of records entered within 30 days"); no one needs to act on a row.
+# A flag not listed below is treated as a warning, so nothing slips through unseen.
+flag_severity:
+  critical:
+    - negative_value
+    - female_exceeds_total
+    - impossible_age
+    - impossible_household_size
+    - percent_over_100
+    - date_outside_project_window
+    - entry_before_activity
+    - date_unreadable
+    - number_unreadable
+    - not_whole_number
+    - missing_required
+    - missing_target
+    - sex_unmapped
+    - status_unmapped
+    - disability_unmapped
+    - province_unmapped
+    - stage_unmapped
+    - donor_type_unmapped
+    - district_unrecognised
+    - village_unrecognised
+    - project_unrecognised
+    - activity_unrecognised
+    - indicator_unrecognised
+    - donor_not_in_donor_list
+    - service_unknown_registration
+    - probability_word
+    - probability_out_of_range
+  warning:
+    - possible_duplicate_person      # suspected duplicates below the certain-match level
+    - accuracy_outlier               # actual more than 3 x target
+    - sum_mismatch                   # female + male not equal to total (never auto-fixed)
+    - district_province_mismatch
+    - status_completed_but_late
+  info:
+    - date_day_unknown
+    - id_stored_as_number
+    - id_invalid
+    - phone_invalid
+    - on_time_unverifiable
+    - late_entry
+    - late_entry_possible
+    - report_missing                 # shown as reporting completeness (indicator CC-04)
+  # A critical problem that the pipeline resolved another way becomes a warning, so a person
+  # confirms it: e.g. an unrecognised district filled in from a village that exists in one district only.
+  downgrade_when_resolved:
+    district_unrecognised: district_filled_from_village
+    missing_required: district_filled_from_village
+
+# Duplicates the pipeline is certain about are merged without review (info); the rest are warnings.
+# Certain = same national ID, or same phone number AND names scoring at least this much.
+duplicate_certain_name_score: 95
+
+# Review queue sizing: minutes the MEAL officer needs per row in the queue (a planning assumption).
+review_minutes_per_row: 2
+review_budget_minutes_per_month: 60

@@ -184,6 +184,9 @@ error_groups:
     - merged_header_row
     - totals_row
     - blank_row
+    - date_new_format           # held-out set only
+    - district_old_name         # held-out set only (e.g. Butare for Huye)
+    - district_abbreviation     # held-out set only
   genuine_errors:
     - duplicate_beneficiary
     - duplicate_activity_row
@@ -204,6 +207,9 @@ error_groups:
     - status_completed_but_late
     - date_out_of_window
     - sex_ambiguous_code_1
+  # Not errors: different people who share a name. Correct handling = keep them apart.
+  matching_traps:
+    - namesake_different_person
   privacy:
     - personal_data_individual_donor
     - personal_data_contact

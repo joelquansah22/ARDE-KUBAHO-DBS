@@ -7,10 +7,15 @@ Each template has:
   - a hidden "Lists" sheet that holds the dropdown values.
 
 HOW TO RUN
-    python src/build_templates.py
+    python src/build_templates.py            (only rebuilds if something changed)
+    python src/build_templates.py --force    (always rebuilds)
 """
 
 from __future__ import annotations
+
+import hashlib
+import json
+import sys
 
 from openpyxl import Workbook
 from openpyxl.comments import Comment
@@ -111,11 +116,36 @@ def build_template(file_name: str, spec: dict, lists: dict) -> None:
     print(f"Wrote {out}")
 
 
-def main():
+STAMP_FILE = ".build_stamp"
+
+
+def content_stamp(cfg: dict) -> str:
+    """A code that changes only when what the templates contain changes: templates.yaml itself
+    and the values behind its dropdown lists (districts, projects, activities, officers, stages)."""
+    resolved = {name: resolve_list(spec) for name, spec in cfg["lists"].items()}
+    text = json.dumps({"templates": cfg["templates"], "lists": resolved}, sort_keys=True, default=str)
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def main(force: bool = False) -> bool:
+    """Rebuild the templates only when their content has changed. Returns True if rebuilt.
+
+    Rebuilding on every run would give the .xlsx files a new save time each time, so git
+    would always show them as changed.
+    """
     cfg = load_yaml("templates.yaml")
+    folder = resolve_path("templates")
+    stamp = content_stamp(cfg)
+    stamp_path = folder / STAMP_FILE
+    all_present = all((folder / name).exists() for name in cfg["templates"])
+    if not force and all_present and stamp_path.exists() and stamp_path.read_text().strip() == stamp:
+        print("Templates are up to date (templates.yaml and its lists have not changed).")
+        return False
     for file_name, spec in cfg["templates"].items():
         build_template(file_name, spec, cfg["lists"])
+    stamp_path.write_text(stamp + "\n", encoding="utf-8")
+    return True
 
 
 if __name__ == "__main__":
-    main()
+    main(force="--force" in sys.argv)

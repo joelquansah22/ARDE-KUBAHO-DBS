@@ -20,3 +20,8 @@ def test_templates_have_headers_and_dropdowns():
 def test_sex_dropdown_has_no_numeric_codes():
     values = build_templates.resolve_list(load_yaml("templates.yaml")["lists"]["sex"])
     assert values == ["Female", "Male"]
+
+
+def test_templates_are_not_rebuilt_when_nothing_changed():
+    build_templates.main()
+    assert build_templates.main() is False

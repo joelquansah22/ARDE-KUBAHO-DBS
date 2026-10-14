@@ -1,0 +1,4 @@
+source_file,source_sheet,source_row,field,true_value,error_type,notes
+SYNTHETIC_MANUAL_activity_monitoring_JQ.xlsx,Activities,5,date,2024-03-12,odd_date,typed as "12th of March"
+SYNTHETIC_MANUAL_activity_monitoring_JQ.xlsx,Activities,5,district,Nyagatare,district_typo,typed as "Nyagtare dist"
+SYNTHETIC_MANUAL_activity_monitoring_JQ.xlsx,Activities,6,total,25,,unchanged cell: must stay 25

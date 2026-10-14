@@ -358,6 +358,31 @@ def assign_keys(ids: pd.DataFrame, clusters: np.ndarray, salt: bytes, id_digits:
     return ids
 
 
+def duplicate_certainty(ids: pd.DataFrame, settings: dict) -> dict:
+    """For each matched group, say whether the match is 'certain' or only 'suspected'.
+
+    Certain: every record in the group is linked to another one by the same national ID,
+    or by the same phone number with names scoring at least duplicate_certain_name_score.
+    Certain matches are merged without review; suspected ones go to the review queue.
+    """
+    id_digits = settings["duplicate_matching"]["compare_id_digits"]
+    min_score = settings["duplicate_certain_name_score"]
+    result = {}
+    for cluster, group in ids[ids["duplicate_group_size"] > 1].groupby("cluster"):
+        rows = group.to_dict("records")
+        linked = set()
+        for i, a in enumerate(rows):
+            for j, b in enumerate(rows):
+                if i >= j:
+                    continue
+                same_id = not is_blank(a["national_id"]) and not is_blank(b["national_id"])                     and a["national_id"][:id_digits] == b["national_id"][:id_digits]
+                same_phone = not is_blank(a["phone"]) and a["phone"] == b["phone"]                     and fuzz.token_sort_ratio(a["name"], b["name"]) >= min_score
+                if same_id or same_phone:
+                    linked |= {i, j}
+        result[cluster] = "certain" if len(linked) == len(rows) else "suspected"
+    return result
+
+
 def load_registration_identities(raw_dir: Path | None = None, settings: dict | None = None) -> pd.DataFrame:
     """Read only the registration identities (used by the scoring script to test thresholds)."""
     settings = settings or load_settings()
@@ -387,14 +412,22 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
     ids = identity_frame(regs, settings, log)
     clusters = cluster_identities(ids, settings["duplicate_matching"]["name_similarity_threshold"], settings)
     ids = assign_keys(ids, clusters, salt, settings["duplicate_matching"]["compare_id_digits"])
+    certainty = duplicate_certainty(ids, settings)
     for rec, row in zip(regs, ids.itertuples()):
         rec["beneficiary_key"], rec["registration_key"] = row.beneficiary_key, row.registration_key
         rec["age"] = None if row.age is None or pd.isna(row.age) else str(row.age)
         rec["age_source"] = row.age_source
-        if row.duplicate_group_size > 1:
+        # Not personal: only whether an ID was given and how it was typed (for data-quality measures).
+        rec["has_national_id"] = not is_blank(rec.get("national_id"))
+        rec["id_stored_as_text"] = rec["has_national_id"] and not isinstance(rec.get("national_id"), (int, float))
+        if row.duplicate_group_size > 1 and certainty[row.cluster] == "certain":
+            log.add("registration", rec, "name", "duplicate_merged_certain", FIXED,
+                    detail=f"same person as {row.duplicate_group_size - 1} other registration(s) "
+                           "(same ID, or same phone and name); same beneficiary_key given")
+        elif row.duplicate_group_size > 1:
             log.add("registration", rec, "name", "possible_duplicate_person", FLAGGED,
-                    detail=f"matched with {row.duplicate_group_size - 1} other registration(s); "
-                           "same beneficiary_key given")
+                    detail=f"probably the same person as {row.duplicate_group_size - 1} other registration(s); "
+                           "same beneficiary_key given - please confirm")
     reg_lookup = {(r["source_file"], norm_key(r.get("reg_no") or "")): (r["registration_key"], r["beneficiary_key"])
                   for r in regs}
     for rec in reader.records.get("service", []):

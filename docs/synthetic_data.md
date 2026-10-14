@@ -95,3 +95,29 @@ so the scoring script can compare it with the cleaned table.
 `python src/score_cleaning.py` (also run by `pipeline.py` while `synthetic_mode` is on) compares the
 cleaned tables with the answer key and writes `docs/phase2_cleaning_scorecard.md`. Problems are grouped
 in `config/synthetic.yaml` (`error_groups`) into **officer habits**, **genuine errors** and **privacy**.
+
+## Held-out test set
+
+```
+python src/generate_synthetic.py --holdout            # create it in data/holdout/
+python src/generate_synthetic.py --holdout --verify   # check your copy
+```
+
+Expected content fingerprint: `1f90c10f3c03ff3426aeb3851de7077dc27ed15649b376fdf07bf48a73674928`.
+
+`config/synthetic_holdout.yaml` starts from the main settings with a different seed (7919) and adds
+mess the cleaner was not built for: a fifth officer (FO05, Huye) with column names the pipeline has
+never seen; dates like `12 Mar 24`, `12 March 2024`, `12.03.2024`; new district spellings (`Rurindo`,
+`Gayonza`, `Nyag.`, `Dist. Huye`, old names such as `Butare`); harder duplicates (names swapped between
+columns, letters missing, nicknames such as `Jado`, `Manu`, `JC`, mostly without phone or ID); and 61
+different people who share a name, district and sex. None of this changes the main set: its fingerprint
+is the same as before.
+
+**Rule:** do not change the cleaner or the mappings because of what this set contains until the team has
+reviewed the results (decision log D64). The pipeline step `score_cleaning.py` runs the unchanged pipeline
+on it and reports it next to the main set in `docs/phase2_cleaning_scorecard.md`.
+
+## Hand-made test files
+
+See `data/holdout/manual/README.md`. Teammates add their own messy files and an answer key; the scorer
+picks them up automatically.

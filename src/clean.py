@@ -540,7 +540,9 @@ class Cleaner:
                 age=age, age_band=band, household_size=hh, disability=disability, province=province,
                 district=district, location_id=loc["location_id"], sector=loc["sector"], cell=loc["cell"],
                 village=loc["village"], project_id=project_id, registration_date=reg_date.value,
-                registration_date_is_approximate=reg_date.approx))
+                registration_date_is_approximate=reg_date.approx,
+                has_national_id=rec.get("has_national_id") == "True",
+                id_stored_as_text=rec.get("id_stored_as_text") == "True"))
         return pd.DataFrame(out)
 
     def clean_services(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -668,6 +670,97 @@ class Cleaner:
         return pd.DataFrame(out)
 
 
+# ======================================================================================
+# Severity, review queue and info-level measures
+# ======================================================================================
+def assign_severity(issues: pd.DataFrame, settings: dict) -> pd.DataFrame:
+    """Give every flag a severity: critical (row quarantined), warning (review queue) or info.
+
+    Changes and removals made automatically have no severity (they need no one's attention).
+    """
+    rules = settings["flag_severity"]
+    level = {code: sev for sev in ("critical", "warning", "info") for code in rules[sev]}
+    issues = issues.copy()
+    flagged = issues["action"] == FLAGGED
+    issues["severity"] = None
+    issues.loc[flagged, "severity"] = issues.loc[flagged, "issue_code"].map(level).fillna("warning")
+    # A critical district problem that the pipeline resolved from the village becomes a warning.
+    row_key = (issues["source_file"].astype(str) + "|" + issues["source_sheet"].astype(str) + "|"
+               + issues["source_row"].astype(str))
+    for code, resolver in rules.get("downgrade_when_resolved", {}).items():
+        resolved_rows = set(row_key[issues["issue_code"] == resolver])
+        mask = (flagged & (issues["issue_code"] == code) & row_key.isin(resolved_rows)
+                & (issues["field"] == "district"))
+        issues.loc[mask, "severity"] = "warning"
+    return issues
+
+
+# Which date decides the month in which a row reaches the MEAL officer.
+ROW_MONTH = {
+    "activity": ["entry_date", "date", "planned_date"], "registration": ["registration_date"],
+    "service": ["date"], "indicator_result": ["period"], "opportunity": ["next_action_date", "deadline"],
+    "donor": [],
+}
+
+
+def row_status(tables: dict, issues: pd.DataFrame) -> pd.DataFrame:
+    """One line per source row with a critical or warning flag.
+
+    status = quarantine (any critical flag) or review (warnings only). A quarantined row is
+    corrected in the source file, so it is not also counted in the review queue.
+    """
+    flagged = issues[issues["severity"].isin(["critical", "warning"]) & issues["source_row"].notna()]
+    rows = []
+    for (entity, f, sh, r), g in flagged.groupby(["entity", "source_file", "source_sheet", "source_row"]):
+        critical = sorted(set(g.loc[g["severity"] == "critical", "issue_code"]))
+        warning = sorted(set(g.loc[g["severity"] == "warning", "issue_code"]))
+        rows.append(dict(entity=entity, source_file=f, source_sheet=sh, source_row=int(r),
+                         status="quarantine" if critical else "review",
+                         critical_codes=", ".join(critical), warning_codes=", ".join(warning)))
+    out = pd.DataFrame(rows, columns=["entity", "source_file", "source_sheet", "source_row", "status",
+                                      "critical_codes", "warning_codes"])
+    month = {}
+    for entity, cols in ROW_MONTH.items():
+        df = tables.get(entity)
+        if df is None or not len(df):
+            continue
+        for rec in df.to_dict("records"):
+            d = next((rec[c] for c in cols if c in rec and not is_blank(rec[c])), None)
+            month[(entity, rec["source_file"], rec["source_sheet"], int(rec["source_row"]))] = \
+                f"{d.year}-{d.month:02d}" if d else None
+    out["month"] = [month.get((e, f, sh, r)) for e, f, sh, r in
+                    zip(out["entity"], out["source_file"], out["source_sheet"], out["source_row"])]
+    return out
+
+
+def info_metrics(tables: dict, issues: pd.DataFrame, settings: dict) -> pd.DataFrame:
+    """Data-quality measures shown on the dashboard instead of rows to review."""
+    acts, regs = tables["activity"], tables["registration"]
+    late = settings["data_quality"]["late_entry_days"]
+    rows = []
+
+    def add(metric, num, den, note):
+        rows.append(dict(metric=metric, numerator=int(num), denominator=int(den),
+                         percent=round(100 * num / den, 1) if den else None, note=note))
+
+    timed = acts[acts["entry_lag_days"].notna() & ~acts["date_is_approximate"].astype(bool)]
+    add(f"Timeliness: activity records entered within {late} days", (timed["entry_lag_days"] <= late).sum(),
+        len(timed), "activities with an exact date and an entry date")
+    dated = acts[acts["date"].notna()]
+    add("Activity dates with a known day", (~dated["date_is_approximate"].astype(bool)).sum(), len(dated),
+        "the rest were typed as a month only")
+    judged = acts[acts["status"].isin(["completed", "delayed", "cancelled"])]
+    add("Activities whose on-time status can be checked", judged["on_time"].notna().sum(), len(judged),
+        "needs exact activity and planned dates")
+    with_id = regs[regs["has_national_id"].astype(bool)]
+    add("National IDs typed as text (all 16 digits kept)", with_id["id_stored_as_text"].astype(bool).sum(),
+        len(with_id), "an ID stored as a number loses its last digit, which cannot be recovered")
+    rc = tables["report_completeness"]
+    add("Reporting completeness: expected monthly reports received", rc["submitted"].sum(), len(rc),
+        "indicator CC-04")
+    return pd.DataFrame(rows)
+
+
 def run(staging=None) -> dict:
     """Clean every staged table. Returns the cleaned tables (used by tests and scoring)."""
     staging = staging or resolve_path("staging")
@@ -688,8 +781,10 @@ def run(staging=None) -> dict:
                                      raw_value=None, clean_value=f"{row.project_id}|{row.district}|{row.period}",
                                      detail=f"no report for {row.project_id} {row.district} {row.period:%b %Y}"))
     ingest_issues = pd.read_parquet(staging / "ingest_issues.parquet")
-    issues = pd.concat([ingest_issues, cleaner.log.frame()], ignore_index=True)
+    issues = assign_severity(pd.concat([ingest_issues, cleaner.log.frame()], ignore_index=True), cleaner.s)
     tables["issues"] = issues
+    tables["row_status"] = row_status(tables, issues)
+    tables["dq_info_metrics"] = info_metrics(tables, issues, cleaner.s)
     for name, df in tables.items():
         df.to_parquet(staging / (f"clean_{name}.parquet" if name != "issues" else "issues.parquet"), index=False)
     return tables

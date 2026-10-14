@@ -112,6 +112,61 @@ Anything about the real ARDE/KUBAHO organisation is marked **to be confirmed wit
 | D54 | 14 "completed but late" problems in the **paper file** are now marked `undetectable`, because the paper form has no planned date. Together with the 5 misspelt names, **19 problems are excluded** (not 5, as in Phase 1). | Honest denominator: nothing in the file can reveal them. The 3 similar cases in officer files, where both dates are month-only and in the same month, are still counted, and are missed. |
 | D55 | The generator no longer blanks a value that another injected problem depends on (e.g. the activity date of a late entry), nor the date or total of a cancelled activity. | Those double injections hid the first problem, and a cancelled activity legitimately has no date or participants. |
 
+## Phase 2 follow-up: checks requested before Phase 3 (2026-10-14)
+
+### Were the generator fixes D52 to D55 really bug fixes?
+
+Checked by rebuilding the generator as it was before D52, D54 and D55, generating that dataset, and running
+the **current, unchanged** cleaner on it. Every difference between the two error logs was traced to its cause.
+On the pre-fix data the same cleaner scored 97.5% on genuine errors (31 missed); on the fixed data, 99.8% (3 missed).
+
+| Fix | What changed in the error log | Kind of generator bug | Had the cleaner been catching these? |
+|---|---|---|---|
+| D52 | 9 `late_entry` entries removed (7 cancelled activities, 2 delayed activities not yet done) | **Logged but not present**: none of the 9 activities has an activity date, and the brief measures timeliness from the activity date | No: all 9 were missed |
+| D53 | No data change (a `field` column was added to the log) | Not applicable | Not applicable |
+| D54 | 14 `status_completed_but_late` entries in the paper file relabelled `undetectable` | **Not a bug fix; a relabelling.** The errors are real, but the paper file has no planned date, so nothing in it can reveal them | No: all 14 were missed |
+| D55 (part 1) | 1 `missing_required` removed (blank total on a cancelled activity) | **Logged but not present**: a cancelled activity legitimately has no participants | No: missed |
+| D55 (part 2) | 4 `late_entry` entries kept, but their activity date is no longer blanked by a second injection | **Present but hidden**: the late entries were real, but the evidence (the activity date) had been removed | No before (missed), yes after (all 4 flagged) |
+| D55 (side effect) | Changing which cells get blanked shifted the random choices for later cells: 11 entries moved and 12 appeared elsewhere (same kinds of error) | Not applicable | Caught in both versions (none missed) |
+
+**Conclusion, stated plainly:** D52 and D55 part 1 removed errors that were logged but did not exist.
+**The requested confirmation does not hold for D54 and D55 part 2.** D54 took 14 real errors that the cleaner
+was missing out of the denominator (accepted by the team as undetectable). D55 part 2 changed the data so that
+4 real errors the cleaner had been missing became detectable; the cleaner was not changed and now flags them.
+The 3 misses that remain are real and still counted.
+
+### Recommendations and rules agreed
+
+| # | Decision | Reason |
+|---|---|---|
+| D56 | **Recommendation for the partner: the paper activity form should gain a "planned date" field.** | Without it, an activity written as "completed" that was actually late cannot be detected (14 cases in the main set, 10 in the held-out set), and on-time completion (indicator CC-02) cannot be calculated for paper-only activities. |
+| D57 | **Template recommendation: ID and phone columns must be formatted as text.** `build_templates.py` already does this (number format `@` on every text column). An ID typed into a column formatted as a number keeps only 15 digits; **the 16th digit is lost and cannot be recovered** by the pipeline. Such IDs are flagged (info level), matched on their first 15 digits, and counted in the measure "National IDs typed as text" (81.9% in the main set). | Excel stores numbers with 15 significant digits. |
+| D58 | **Three flag levels** (`flag_severity` in settings): **critical** = row quarantined (impossible values, missing required fields, codes that cannot be mapped, including districts and villages); **warning** = review queue (suspected duplicates, actual > 3x target, sum mismatches, district/province mismatch, "completed" but late); **info** = counted only (day unknown, ID stored as number, on-time not verifiable, late entry, missing monthly report). A flag not listed is treated as a warning, so nothing new is silently ignored. A district that is unrecognised but resolved from its village is downgraded from critical to warning. | Team instruction. `missing_target` is classed as critical (a required field), which quarantines indicator rows without a target; the team may prefer warning, since the actual value is still usable. |
+| D59 | Duplicates have two levels: **certain** (every record in the group shares a national ID, or a phone number with names scoring 95 or more) are merged without review (logged, no flag); all other matches are **suspected** and go to the review queue. In the main set: 43 groups certain (86 rows), 23 suspected (46 rows). | Only the uncertain cases need a person's judgement. |
+| D60 | Review-queue size is planned at 2 minutes a row (`review_minutes_per_row`; to be checked with the MEAL officer), against a budget of 60 minutes a month. **Main set: 240 rows over 36 months, 6.7 a month on average (about 13 minutes), busiest month 15; no month over budget. Held-out set: 9.4 a month, busiest 22; no month over budget.** Biggest drivers: sum mismatches (2.8 a month) and "completed" but late (2.0 a month). Quarantine: 286 rows (7.8 a month), mostly missing required values. | Team instruction (about one hour a month). |
+| D61 | Info-level flags become dashboard measures: timeliness (88.8% of activity records entered within 30 days), dates with a known day (90.3%), on-time status checkable (74.1%), IDs typed as text (81.9%), reporting completeness (96.2%). Written to `clean_dq_info_metrics.parquet`. | Team instruction: measures, not rows to review. |
+| D62 | The Excel templates are rebuilt only when `templates.yaml` or the values behind its dropdown lists change (a content stamp is kept in `templates/.build_stamp`). `python src/build_templates.py --force` always rebuilds. | Rebuilding every run gave the files a new save time, so git always showed them as changed. |
+
+### Held-out test set
+
+| # | Decision | Reason |
+|---|---|---|
+| D63 | A held-out set is generated with a different seed (7919) by `config/synthetic_holdout.yaml` into `data/holdout/`. It adds mess the cleaner was not designed for: a fifth officer (FO05) with unseen column names, dates such as `12 Mar 24`, `12 March 2024` and `12.03.2024`, unseen district spellings (r/l and k/g swaps, two slips, abbreviations, `Dist.` prefix, old names Butare, Gikongoro, Kibuye), harder duplicates (names swapped between columns, two letters missing, nicknames, half with no phone, most with no ID) and 61 **namesakes**: different people sharing a name, district and sex (half within 2 years of age, half without phone or ID). All of it is switched on only by that config: the main set's fingerprint is unchanged. | Team instruction: test on data the cleaner was not tuned on. |
+| D64 | **Rule: the cleaner is not changed because of the held-out results until the team has reviewed them.** If the pipeline crashes on the held-out set, the scorer records the crash, sets aside the files whose header row could not be recognised, and re-runs; every record in those files counts as missed and their duplicate pairs stay in the recall denominator (conservative). Any later fix must be re-scored on the main set and on a **new** held-out seed, since this one will then have been seen. | Keeps the held-out result honest. |
+| D65 | `data/holdout/manual/` holds hand-made messy files from teammates, with an `answer_key.csv` (template provided). The scorer picks them up automatically. Only the README and the template are committed. | Team instruction: mess that nobody on the cleaning side imagined. |
+
+### Held-out findings (recorded, NOT yet fixed; awaiting team review)
+
+1. **The unchanged pipeline crashes.** The FO05 activity file has no recognisable column names, so every field is empty, and `clean.py` fails on an empty officer code (`'NoneType' object has no attribute 'upper'`).
+2. **Header detection can pick a data row.** In the FO05 register, a "No" answer in the disability column matches the alias "No" (registration number), so a data row was taken as the header.
+3. **Unseen column names are reported but not mapped**, so the whole FO05 layout is lost (all 536 FO05 records missed: 163 activities, 92 registrations, 281 services). The fix for real data is a mapping entry in `source_mappings.yaml`, not code.
+4. **New date styles are not read:** `12 Mar 24` and `12 March 2024` are flagged as unreadable (critical, so the row is quarantined) instead of being converted; `12.03.2024` works. An unreadable date also hides the row's late-entry and on-time checks.
+5. **Silent wrong ages (the only false corrections, 5 cells):** when the registration date cannot be read, the age is worked out from the date of birth at the as-of date instead, making people 2 to 3 years too old with no flag.
+6. **Namesakes:** 13 of 56 readable namesake pairs were wrongly merged (duplicate precision 0.83 at threshold 88, against 1.0 on the main set). They have no phone or ID and similar ages, so no veto applies.
+7. **Harder duplicates:** recall 0.885 at 88 (0.92 at 80). Nicknames (`Jado` for Jean de Dieu) score below every threshold tried.
+8. New district spellings (including old names and abbreviations) were all fixed or flagged outside FO05: 100%.
+9. Pipeline run time was 145 seconds on 2026-10-14 (96 of them in scoring, which runs only on synthetic data). The cleaning hot spot is the village lookup, which filters a table once per row. A speed-up that leaves the output unchanged is proposed for Phase 3, verified against the scorecard.
+
 ## Open items to confirm with ARDE/KUBAHO and supervisors (brief Section 15)
 
 These do not block the prototype.
@@ -127,5 +182,7 @@ These do not block the prototype.
 - [ ] Definitions of "on time" (7 days) and "late entry" (30 days), kept as configurable defaults (D10, D11)
 - [ ] Duplicate-matching threshold, checked on a hand-labelled sample of real registrations (D43)
 - [ ] Kinyarwanda column names and values used in the mappings (D23, D36)
+- [ ] Add a planned-date field to the paper activity form (D56)
+- [ ] Minutes per review-queue row, checked with the MEAL officer (D60)
 - [ ] Reporting schedule for indicator reports (D25)
 - [ ] USD to RWF exchange rate to use in reports (`currency.usd_to_rwf`, now 1,450)

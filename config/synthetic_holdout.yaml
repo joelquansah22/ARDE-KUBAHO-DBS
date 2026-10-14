@@ -1,0 +1,38 @@
+# =============================================================================
+# HELD-OUT test set (used ONLY by: python src/generate_synthetic.py --holdout)
+# =============================================================================
+# Starts from config/synthetic.yaml and changes only what is listed here.
+# Purpose: check the cleaner on data it was NOT tuned on. Rules for the team:
+#   - do not change clean.py, ingest.py or source_mappings.yaml because of what
+#     this set contains until the results have been reviewed and recorded;
+#   - any later fix must be re-scored on the main set AND on a NEW held-out seed.
+# Everything here is invented, like the main synthetic set.
+# =============================================================================
+
+extends: synthetic.yaml
+
+seed: 7919                          # different from the main set (2023)
+
+# A fifth field officer (FO05, layout E) takes over Huye from FO03. Layout E uses
+# column names the pipeline has never seen and dates like "12 Mar 24".
+field_officers:
+  FO03: {districts: [Nyamagabe], layout: C}
+  FO05: {districts: [Huye], layout: E}
+
+injection_rates:
+  duplicate_beneficiary: 0.05      # slightly more duplicates than the main set
+
+# New kinds of mess, switched on only for this set.
+holdout_mess:
+  new_date_format_rate: 0.08       # any date may be written "12 Mar 24", "12 March 2024" or "12.03.2024"
+  district_new_variant_rate: 0.06  # Rurindo, Bugesela, "Dist. Huye", "Kiré." , Butare (old name for Huye)...
+  # Harder duplicates: names swapped between columns, letters missing, nicknames (Manu, Jado, JC...)
+  dup_phone_missing: 0.50          # half of the second registrations have no phone
+  dup_id_kept: 0.30                # and most have no national ID
+  # Different people who share a name, district and sex (they must NOT be merged)
+  namesake_rate: 0.04
+  namesake_close_age: 0.50         # half are within 2 years of age of their namesake
+  namesake_phone_missing: 0.50
+  namesake_id_missing: 0.50
+
+expected_fingerprint: 1f90c10f3c03ff3426aeb3851de7077dc27ed15649b376fdf07bf48a73674928

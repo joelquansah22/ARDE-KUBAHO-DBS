@@ -19,9 +19,10 @@ from common import load_settings
 STEPS = [
     ("Build Excel entry templates", "build_templates", "main", 1),
     ("Generate synthetic data", "generate_synthetic", "generate", 1),
+    ("Generate held-out test set", "generate_synthetic", "generate_holdout", 2),
     ("Ingest and pseudonymise", "ingest", "main", 2),
     ("Clean and standardise", "clean", "main", 2),
-    ("Score cleaning against the answer key (synthetic only)", "score_cleaning", "main", 2),
+    ("Score cleaning on the main, held-out and hand-made sets (synthetic only)", "score_cleaning", "main", 2),
     ("Validate data quality", "validate", "main", 3),
     ("Build star schema", "model", "main", 3),
     ("Compute indicators", "indicators", "main", 4),
