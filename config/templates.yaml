@@ -69,32 +69,47 @@ templates:
 
   donor_opportunity_template.xlsx:
     instructions:
-      - "Donors sheet: one row per donor. For individual donors, the name is pseudonymised by the pipeline."
-      - "Opportunities sheet: one row per funding opportunity. Amounts in RWF, numbers only."
-      - "Probability is a percentage between 0% and 100%."
-      - "(Phase 1 draft. This template is finished in Phase 6.)"
+      - "Who fills this in: the person who follows up funding (e.g. the executive director or a programme manager). Update it at least once a month and before each management meeting."
+      - "Donors sheet: one row per donor ORGANISATION. Fill in the Donors sheet first: the Donor column on the Opportunities sheet is a dropdown of the names typed there."
+      - "Individual donors: type them as donors with Type = individual. The dashboard never shows their name, only 'Individual donor #001'. Contact person, email and phone are never shown on the dashboard."
+      - "Opportunities sheet: one row per funding opportunity (a call, a proposal, a renewal). Keep the row when it is won or lost: change the Stage."
+      - "Stages, in order: Identified (we know about it) - Qualified (we fit and decided to go) - Concept note - Proposal submitted - then the OUTCOME: Awarded or Declined."
+      - "Probability: your honest guess that it will be awarded, as a percentage (type 40% or 0.4). The dashboard multiplies the amount requested by it (the 'weighted' value). Declined = 0%; Awarded = 100%."
+      - "Amounts in RWF, numbers only (no 'RWF', no commas). When the Stage is Awarded, fill in the Awarded amount."
+      - "Thematic fit: pick WASH, Agriculture or both ('WASH; Agriculture'). An opportunity that fits both is split half and half between the themes on the dashboard."
+      - "Next action and its date: the one thing to do next, and by when. Dates in the past show in red here and in the 'Overdue next actions' list on the dashboard."
+      - "Colours on the Opportunities sheet: red = next action overdue; amber = deadline within 30 days; orange = Awarded with no awarded amount."
+    example_heading: "Example rows (for illustration only: type real rows on the Opportunities sheet)"
+    examples:
+      - [Opp ID, Opportunity title, Donor, Thematic fit, Stage, Deadline, Requested amount (RWF), Awarded amount (RWF), Probability, Owner, Next action, Next action date]
+      - [OPP001, Safe water for schools - Kayonza, Example Foundation, WASH, Concept note, 30/09/2026, 150000000, "", 30%, ED, Send concept note, 15/08/2026]
+      - [OPP002, Climate-smart farming phase 2, Example Bilateral Agency, Agriculture, Awarded, 01/03/2026, 200000000, 180000000, 100%, PM01, Sign grant agreement, 10/07/2026]
+    highlights:
+      - {sheet: Opportunities, column: Next action date, when: "AND(ISNUMBER({cell}),{cell}<TODAY(),{col:Stage}<>\"Awarded\",{col:Stage}<>\"Declined\")", colour: F8CBAD, meaning: next action overdue}
+      - {sheet: Opportunities, column: Deadline, when: "AND(ISNUMBER({cell}),{cell}>=TODAY(),{cell}<=TODAY()+30)", colour: FFE699, meaning: deadline within 30 days}
+      - {sheet: Opportunities, column: Awarded amount (RWF), when: "AND({col:Stage}=\"Awarded\",{cell}=\"\")", colour: F4B183, meaning: awarded but no amount}
     sheets:
       Donors:
-        - {header: Donor ID, required: true, type: text}
-        - {header: Donor name, required: true, type: text}
+        - {header: Donor ID, required: true, type: text, note: "Any short code, e.g. D001. Never reuse a code."}
+        - {header: Donor name, required: true, type: text, note: "Organisation name, as you want it on the Opportunities sheet"}
         - {header: Type, required: true, list: donor_types}
         - {header: Country, required: false, type: text}
-        - {header: Thematic interests, required: false, type: text}
+        - {header: Thematic interests, required: false, type: text, note: "e.g. WASH, climate, women's livelihoods"}
         - {header: Contact person, required: false, type: text, note: "Personal data: never shown on the dashboard"}
         - {header: Email, required: false, type: text, note: "Personal data: never shown on the dashboard"}
         - {header: Phone, required: false, type: text, note: "Personal data: never shown on the dashboard"}
         - {header: Notes, required: false, type: text}
       Opportunities:
-        - {header: Opp ID, required: true, type: text}
+        - {header: Opp ID, required: true, type: text, note: "Any short code, e.g. OPP001. Never reuse a code."}
         - {header: Opportunity title, required: true, type: text}
-        - {header: Donor, required: true, type: text, note: "Exactly as written on the Donors sheet"}
+        - {header: Donor, required: true, list_from: {sheet: Donors, header: Donor name}, note: "Pick from the names on the Donors sheet"}
         - {header: Thematic fit, required: true, list: themes}
         - {header: Stage, required: true, list: stages}
-        - {header: Deadline, required: false, type: date}
+        - {header: Deadline, required: false, type: date, note: "Submission deadline (dd/mm/yyyy)"}
         - {header: Requested amount (RWF), required: true, type: number}
-        - {header: Awarded amount (RWF), required: false, type: number}
-        - {header: Probability, required: true, type: number, note: "0% to 100%"}
-        - {header: Owner, required: true, type: text}
+        - {header: Awarded amount (RWF), required: false, type: number, note: "Fill in when the Stage is Awarded"}
+        - {header: Probability, required: true, type: percent, note: "0% to 100%. Declined = 0%, Awarded = 100%"}
+        - {header: Owner, required: true, type: text, note: "Initials or staff code of the person following it up"}
         - {header: Next action, required: false, type: text}
         - {header: Next action date, required: false, type: date}
 
@@ -108,5 +123,5 @@ lists:
   activities: {from: synthetic_activities}    # replace with the real activity list in Phase 8
   officers: {from: synthetic_officers}        # replace with the real officer codes in Phase 8
   donor_types: [bilateral, multilateral, foundation, government, private, individual]
-  themes: [WASH, Agriculture, "WASH; Agriculture", Environment, Livelihoods]
+  themes: [WASH, Agriculture, "WASH; Agriculture"]   # match donor_pipeline.themes in settings.yaml
   stages: {from: donor_pipeline_stages}

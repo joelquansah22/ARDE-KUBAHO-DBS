@@ -51,7 +51,7 @@ with c2:
     st.markdown("### Thematic fit with current programmes")
     gaps, cutoff = measures.pipeline_gaps(run, opps, today, ui.SETTINGS)
     by_theme = measures.pipeline_by_theme(opps, ui.SETTINGS)
-    ending_label = f"Budgets of projects ending by {cutoff:%b %Y}"
+    ending_label = f"Annual budget of projects ending by {cutoff:%b %Y}"
     fig = go.Figure()
     fig.add_bar(x=by_theme["theme"], y=by_theme["weighted"] / divisor, name="Weighted open pipeline",
                 marker_color="#1f6f8b", text=[ui.money(v, short=True) for v in by_theme["weighted"]])
@@ -64,12 +64,18 @@ with c2:
     st.plotly_chart(fig, width="stretch")
     n_projects = int(gaps["projects"].sum())
     all_projects = len(ui.query("SELECT project_id FROM dim_project"))
+    n_projects = int(gaps["projects"].sum())
     st.caption(f"Opportunities that fit two themes are split equally between them, so the themes add up to the "
-               f"{ui.money(open_['weighted'].sum(), short=True)} total. {n_projects} of {all_projects} projects end by "
-               f"{cutoff:%d %b %Y} (within {cfg['ending_within_months']} months)"
-               + (", so this equals all current project budgets." if n_projects == all_projects else ".")
-               + " The gap (budgets ending minus weighted pipeline) is shown on the Executive summary; "
-               "its definition is to be confirmed with the partner.")
+               f"{ui.money(open_['weighted'].sum(), short=True)} total. {n_projects} projects end by {cutoff:%d %b %Y} "
+               f"(within {cfg['ending_within_months']} months); their annual budget is the budget divided by the "
+               "project's length in years, i.e. what one more year of the work would cost.")
+    ui.html_table(pd.DataFrame({
+        "Theme": gaps["theme"], "Projects ending": gaps["projects"],
+        "Annual budget": [ui.money(x, short=True) for x in gaps["ending_budget"]],
+        "Weighted open pipeline": [ui.money(x, short=True) for x in gaps["weighted"]],
+        "Pipeline gap": [ui.money(g, short=True) if g > 0 else "covered" for g in gaps["gap"]]}), "pipeline_gaps")
+    st.caption("Pipeline gap = annual budget of projects ending within 12 months minus the weighted open pipeline for "
+               "the theme. **Draft definition, to be confirmed with ARDE/KUBAHO.**")
 
 st.markdown("### Upcoming deadlines")
 tabs = st.tabs([f"Next {d} days" for d in cfg["deadline_windows_days"]])

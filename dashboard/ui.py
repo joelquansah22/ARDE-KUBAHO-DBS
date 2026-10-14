@@ -170,6 +170,8 @@ def money(rwf, currency: str | None = None, short: bool = False) -> str:
     if rwf is None or pd.isna(rwf):
         return "–"
     value = float(rwf) / (SETTINGS["currency"]["usd_to_rwf"] if currency == "USD" else 1)
+    if short and abs(value) >= 1_000_000_000:
+        return f"{currency} {value / 1_000_000_000:,.2f}bn"
     if short and abs(value) >= 1_000_000:
         return f"{currency} {value / 1_000_000:,.1f}m"
     return f"{currency} {value:,.0f}"
@@ -243,10 +245,7 @@ def pending_note(people: dict, f) -> str:
     reached in the selection."""
     import measures
     register = measures.pending_in_register(query)
-    note = f"includes {people['pending']} people pending duplicate review ({register} in the whole register)"
-    if people.get("unknown_district") and not f.district:
-        note += f"; {people['unknown_district']} with no known district (registration quarantined)"
-    return note
+    return f"includes {people['pending']} people pending duplicate review ({register} in the whole register)"
 
 
 def month_axis(fig, title: str = "") -> None:
@@ -325,6 +324,12 @@ h4 {font-size: 1.0rem !important; margin: 0.2rem 0 0.3rem 0 !important;}
 .answer ul {margin: 0.1rem 0 0.2rem 1rem; padding: 0; font-size: 0.82rem;}
 .answer li {margin-bottom: 0.1rem;}
 .small {font-size: 0.82rem;}
+@media print {
+  [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"], .stDownloadButton,
+  [data-testid="stBaseButton-secondary"] {display: none !important;}
+  .block-container {padding: 0 !important;}
+  table.tbl {font-size: 0.7rem;}
+}
 .tbl-wrap {overflow-x: auto; margin-bottom: 0.3rem;}
 table.tbl {border-collapse: collapse; width: 100%; font-size: 0.8rem; table-layout: auto;}
 table.tbl th {background: #f6f8fa; text-align: left; padding: 0.3rem 0.45rem; border-bottom: 2px solid #d0d7de;

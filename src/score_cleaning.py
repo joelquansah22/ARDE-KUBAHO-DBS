@@ -30,9 +30,11 @@ import datetime as dt
 import math
 import shutil
 import traceback
+from pathlib import Path
 from collections import defaultdict
 from math import comb
 
+import numpy as np
 import pandas as pd
 from rapidfuzz import fuzz
 
@@ -704,94 +706,149 @@ def frozen_side_table(name: str) -> pd.DataFrame:
     return pd.DataFrame(body, columns=header).set_index("measure")
 
 
-def score_reconciliation(truth_dir, db) -> dict | None:
+def reconciliation_levels() -> dict:
+    """The comparison level of each like-for-like indicator (catalogue: derived.reconcile)."""
+    levels = {}
+    for ind in load_yaml("indicator_catalogue.yaml")["indicators"]:
+        derived = (ind.get("calculation") or {}).get("derived") or {}
+        if ind.get("availability", "available") == "available" and derived.get("like_for_like"):
+            levels[ind["code"]] = {"period": "month", "by": "total", **derived.get("reconcile", {})}
+    return levels
+
+
+def score_reconciliation(truth_dir, db, staging=None) -> dict | None:
     """How well the reconciliation finds the discrepancies planted in the synthetic reports.
 
-    Scored at the reporting grain (project, district, month and, for AGR-01, sex) for every report row that was
-    submitted. Every flag on a row with no planted discrepancy is explained, where possible, by an injected data
-    problem: on the report side (the cleaned reported value differs from what the officer meant to report), or on
-    the records side (the derived value differs from the true value, e.g. because of quarantined rows).
+    Scored at each indicator's COMPARISON LEVEL (catalogue derived.reconcile, D162): a comparison unit is one project,
+    district and month (or quarter), all people together. A unit is "planted" if any submitted report row in it carries
+    a planted over- or under-report; its size is the net planted difference in the unit. Every flag on a unit with no
+    planted discrepancy is explained, where possible, by an injected data problem: on the report side (the cleaned
+    reported value differs from what the officers meant to report), or on the records side (the derived value differs
+    from the true value, e.g. because of quarantined rows).
+
+    Also lists the planted discrepancies that are smaller than the minimum difference ON THEIR OWN: these cannot be
+    detected at any level unless they happen to add up with others in the same unit (a known limitation).
     """
     import duckdb
+
+    import indicators as ind_module
     planted_file = truth_dir / "SYNTHETIC_planted_discrepancies.csv"
     if not planted_file.exists():
         return None
+    settings = load_settings()
+    min_diff = settings["indicators"].get("reconciliation_min_difference", 0)
+    levels = reconciliation_levels()
     truth = pd.read_csv(truth_dir / "SYNTHETIC_truth_indicator_results.csv", keep_default_na=False, dtype=str)
-    truth = truth[(truth["discrepancy"].notna()) & truth["indicator_code"].isin(["WASH-01", "AGR-01"])
-                  & (truth["submitted"] == "True")].copy()
-    truth["disaggregation"] = truth["sex"].map(lambda x: f"sex={x.lower()}" if x else "total")
-    truth["period"] = truth["period"].str[:7]
-    con = duckdb.connect(str(db), read_only=True)
-    rec = con.execute("""SELECT * FROM indicator_reconciliation
-                         WHERE project_id <> 'All' AND district <> 'All'""").df()
-    con.close()
-    keys = ["indicator_code", "project_id", "district", "period", "disaggregation"]
-    m = truth.merge(rec, on=keys, how="left")
-    m["kind"] = m["discrepancy"].replace("", "none")
+    truth = truth[truth["indicator_code"].isin(list(levels)) & (truth["submitted"] == "True")].copy()
     for c in ("actual_value", "true_value"):
-        m[c] = pd.to_numeric(m[c])
+        truth[c] = pd.to_numeric(truth[c])
+    truth["kind"] = truth["discrepancy"].replace("", "none")
+    truth["period_date"] = pd.to_datetime(truth["period"]).dt.date
+    truth["unit_period"] = truth["period"].str[:7]
+    quarterly = truth["indicator_code"].map(lambda c: levels[c]["period"] == "quarter")
+    if quarterly.any():
+        label, _ = ind_module.period_columns(truth.loc[quarterly, "period_date"], "quarter",
+                                             settings["fiscal_year"]["start_month"])
+        truth.loc[quarterly, "unit_period"] = label.values
+    truth["net"] = truth["actual_value"] - truth["true_value"]
+    is_planted = truth["kind"].isin(["over_report", "under_report"])
+    truth["planted_net"] = truth["net"].where(is_planted, 0.0)
+    unit_keys = ["indicator_code", "project_id", "district", "unit_period"]
+    g = truth.groupby(unit_keys)
+    units = pd.DataFrame(dict(
+        meant_reported=g["actual_value"].sum(), true_value=g["true_value"].sum(),
+        planted_rows=g["kind"].agg(lambda k: int(k.isin(["over_report", "under_report"]).sum())),
+        rounding_rows=g["kind"].agg(lambda k: int((k == "rounding").sum())),
+        planted_net=g["planted_net"].sum())).reset_index().rename(columns={"unit_period": "period"})
+
+    con = duckdb.connect(str(db), read_only=True)
+    rec = con.execute("SELECT * FROM indicator_reconciliation WHERE comparison_level").df()
+    con.close()
+    m = units.merge(rec, on=["indicator_code", "project_id", "district", "period"], how="left")
     m["flag"] = m["flag"].fillna(False).astype(bool)
+    m["kind"] = np.where(m["planted_rows"] > 0, "planted", np.where(m["rounding_rows"] > 0, "rounding", "none"))
+    m["planted_size"] = m["planted_net"].abs()
 
     def outcome(r):
-        if r.kind in ("over_report", "under_report"):
+        if r.kind == "planted":
             if r.flag:
                 return "caught"
-            return "missed (report row quarantined)" if pd.isna(r.reported) else "missed"
+            if pd.isna(r.reported):
+                return "missed (report quarantined)"
+            return "missed (smaller than the minimum)" if r.planted_size < min_diff else "missed"
         if not r.flag:
             return "correctly within tolerance"
-        if not pd.isna(r.reported) and abs(r.reported - r.actual_value) > 1e-9:
+        if not pd.isna(r.reported) and abs(r.reported - r.meant_reported) > 1e-9:
             return "flag explained: report-side data error"
         if abs((0 if pd.isna(r.derived) else r.derived) - r.true_value) > 1e-9:
             return "flag explained: records-side data issue"
         return "false alarm (unexplained)"
 
     m["outcome"] = [outcome(r) for r in m.itertuples()]
-    planted = m[m["kind"].isin(["over_report", "under_report"])]
+    planted = m[m["kind"] == "planted"]
+    big = planted[planted["planted_size"] >= min_diff]
     flags = m[m["flag"]]
     caught = int((planted["outcome"] == "caught").sum())
-    unexplained = int((m["outcome"] == "false alarm (unexplained)").sum())
-    rounding = m[m["kind"] == "rounding"]
-    # Since Phase 6 a gap must also be at least reconciliation_min_difference apart (D153). Planted discrepancies
-    # smaller than that are below the follow-up threshold BY DESIGN, so they are scored separately.
-    min_diff = load_settings()["indicators"].get("reconciliation_min_difference", 0)
-    size = (m["actual_value"] - m["true_value"]).abs()
-    big = planted[size.loc[planted.index] >= min_diff]
     caught_big = int((big["outcome"] == "caught").sum())
+    rounding = m[m["kind"] == "rounding"]
+    # Planted report rows too small to be detected on their own, at any level.
+    rows = truth[is_planted].merge(m[unit_keys[:-1] + ["period", "outcome"]].rename(columns={"period": "unit_period"}),
+                                   on=unit_keys, how="left")
+    rows["size"] = rows["net"].abs()
+    small = rows[rows["size"] < min_diff]
     summary = dict(
-        report_rows=len(m), planted=len(planted), caught=caught,
+        levels={c: f"{v['period']} ({v['by']})" for c, v in levels.items()},
+        units=len(m), planted_units=len(planted), caught=caught,
         catch_rate=round(100 * caught / len(planted), 1) if len(planted) else None,
         min_difference=min_diff, planted_at_least_min=len(big), caught_at_least_min=caught_big,
         catch_rate_at_least_min=round(100 * caught_big / len(big), 1) if len(big) else None,
-        flags=len(flags), flags_on_planted=int(flags["kind"].isin(["over_report", "under_report"]).sum()),
+        flags=len(flags), flags_on_planted=int((flags["kind"] == "planted").sum()),
         precision=round(100 * caught / len(flags), 1) if len(flags) else None,
-        explained_flags=int(m["outcome"].str.startswith("flag explained").sum()), false_alarms=unexplained,
+        explained_flags=int(m["outcome"].str.startswith("flag explained").sum()),
+        false_alarms=int((m["outcome"] == "false alarm (unexplained)").sum()),
         rounding_planted=len(rounding),
-        rounding_within=int((rounding["outcome"] == "correctly within tolerance").sum()))
-    table = (m.groupby(["indicator_code", "kind", "outcome"]).size().rename("report rows").reset_index())
-    m.to_csv(resolve_path("staging") / "score_reconciliation_rows.csv", index=False)
-    return dict(summary=summary, table=table, rows=m)
+        rounding_within=int((rounding["outcome"] == "correctly within tolerance").sum()),
+        planted_report_rows=int(is_planted.sum()), too_small_rows=len(small),
+        too_small_rows_in_caught_units=int((small["outcome"] == "caught").sum()))
+    table = m.groupby(["indicator_code", "kind", "outcome"]).size().rename("comparisons").reset_index()
+    small_list = small[["indicator_code", "project_id", "district", "period", "sex", "kind", "true_value",
+                        "actual_value", "size", "outcome"]].rename(columns={"outcome": "its comparison unit"})
+    out = Path(staging or resolve_path("staging"))
+    m.to_csv(out / "score_reconciliation_units.csv", index=False)
+    small_list.to_csv(out / "score_reconciliation_too_small.csv", index=False)
+    return dict(summary=summary, table=table, rows=m, too_small=small_list)
 
 
-def reconciliation_lines(r: dict) -> list[str]:
+def reconciliation_lines(r: dict, title: str = "main set") -> list[str]:
     s = r["summary"]
-    return ["## Reconciliation scoring (main set)", "",
-            "The main set's WASH-01 and AGR-01 reports are worked out from the same true data as the activity and "
-            "register files, with discrepancies planted at known rates (decision log D132): two officers over-report "
-            "15 to 30% of the time, some months are under-reported by 20 to 50%, and a few figures have 1 to 5% rounding "
-            "differences that should stay within the tolerance. Scored on every submitted report row (project, district, "
-            "month and, for AGR-01, sex).", "",
-            f"- Planted discrepancies (over- and under-reporting) in submitted reports: **{s['planted']}**; flagged: "
+    levels = ", ".join(f"{c} by {lvl}" for c, lvl in s["levels"].items())
+    small = r["too_small"]
+    by_ind = small.groupby("indicator_code").size().to_dict()
+    return [f"## Reconciliation scoring ({title})", "",
+            "The WASH-01 and AGR-01 reports are worked out from the same true data as the activity and register files, "
+            "with discrepancies planted at known rates (decision log D132): two officers over-report 15 to 30% of the "
+            "time, some months are under-reported by 20 to 50%, and a few figures have 1 to 5% rounding differences "
+            "that should stay within the tolerance.", "",
+            f"Scored at each indicator's comparison level (catalogue `derived.reconcile`, D162): {levels}, by project "
+            f"and district. A gap needs more than the % tolerance AND at least {s['min_difference']} apart.", "",
+            f"- Comparisons scored: {s['units']}; with a planted discrepancy: **{s['planted_units']}**; flagged: "
             f"**{s['caught']} ({s['catch_rate']}%)**.",
-            f"- Of these, **{s['planted_at_least_min']}** are at least {s['min_difference']} apart (the minimum difference "
-            f"for a gap, settings: indicators.reconciliation_min_difference); flagged: **{s['caught_at_least_min']} "
-            f"({s['catch_rate_at_least_min']}%)**. The other {s['planted'] - s['planted_at_least_min']} are smaller than "
-            "the minimum, so they are not flagged by design (decision log D153).",
+            f"- Of these, **{s['planted_at_least_min']}** have a planted difference of at least {s['min_difference']}; "
+            f"flagged: **{s['caught_at_least_min']} ({s['catch_rate_at_least_min']}%)**.",
             f"- Flags raised: {s['flags']}; on a planted discrepancy: {s['flags_on_planted']} (precision {s['precision']}%).",
-            f"- Other flags explained by an injected data problem (an extra zero in a report, quarantined or "
-            f"duplicate records...): {s['explained_flags']}. **Unexplained false alarms: {s['false_alarms']}.**",
-            f"- Planted rounding differences that stayed within the tolerance: {s['rounding_within']} of "
-            f"{s['rounding_planted']}.", "",
-            md_table(r["table"]), ""]
+            f"- Other flags explained by an injected data problem: {s['explained_flags']}. "
+            f"**Unexplained false alarms: {s['false_alarms']}.**",
+            f"- Comparisons with only a planted rounding difference that stayed within the tolerance: "
+            f"{s['rounding_within']} of {s['rounding_planted']}.", "",
+            md_table(r["table"]), "",
+            "### Known limitation: planted discrepancies too small to detect", "",
+            f"Of {s['planted_report_rows']} planted report rows (the grain the officer reports: project, district, month "
+            f"and, for AGR-01, sex), **{s['too_small_rows']}** differ from the truth by less than {s['min_difference']} "
+            f"on their own ({', '.join(f'{k}: {v}' for k, v in by_ind.items())}). On its own, none of these can be "
+            f"detected at any level; {s['too_small_rows_in_caught_units']} of them sit in a comparison that was flagged "
+            "because it adds up with other planted differences. Full list: "
+            "`data/staging/score_reconciliation_too_small.csv`.", "",
+            md_table(small), ""]
 
 
 def score_set(key: str) -> dict:
@@ -807,15 +864,23 @@ def score_set(key: str) -> dict:
     run = run_pipeline_on(raw, staging, overlays)
     result = Scorer(staging, truth, run["raw"], overlays=overlays).run()
     reconciliation = None
-    if key == "main":
-        # The main set also goes through the rest of the production pipeline, to score the reconciliation.
+    if (truth / "SYNTHETIC_planted_discrepancies.csv").exists():
+        # Sets with planted reconciliation discrepancies (the main set; the Phase 7 final held-out round) also go
+        # through the rest of the production pipeline, to score the reconciliation. Only the main set writes to the
+        # real warehouse and docs; other sets get their own, inside their staging folder.
         import indicators
         import model
         import validate
-        validate.run(staging)
-        model.run(staging)
-        indicators.run()
-        reconciliation = score_reconciliation(truth, resolve_path("warehouse"))
+        own = None if key == "main" else staging
+        warehouse = resolve_path("warehouse") if own is None else own / "warehouse.duckdb"
+        exports = None if own is None else own / "exports"
+        docs = None if own is None else own / "docs"
+        if docs is not None:
+            docs.mkdir(parents=True, exist_ok=True)
+        validate.run(staging, docs)
+        model.run(staging, warehouse, exports, docs)
+        indicators.run(warehouse, exports, docs)
+        reconciliation = score_reconciliation(truth, warehouse, staging)
     return dict(key=key, name=name, run=run, result=result, staging=staging, reconciliation=reconciliation)
 
 
@@ -894,6 +959,9 @@ def main(argv: list[str] | None = None):
         lines += ["#" + l if l.startswith("## ") or l.startswith("### ") else l for l in queue]
     if results[0].get("reconciliation"):
         lines += reconciliation_lines(results[0]["reconciliation"])
+    for r in results[1:]:
+        if r.get("reconciliation"):
+            lines += reconciliation_lines(r["reconciliation"], r["name"])
     lines += manual_lines()
     (resolve_path("docs") / "phase2_cleaning_scorecard.md").write_text("\n".join(lines), encoding="utf-8")
     print(side.to_string())

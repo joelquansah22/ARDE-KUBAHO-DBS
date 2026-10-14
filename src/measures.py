@@ -155,26 +155,31 @@ def pipeline_by_theme(opps: pd.DataFrame, settings: dict) -> pd.DataFrame:
 
 def ending_projects(run, as_of: dt.date, settings: dict) -> tuple[pd.DataFrame, dt.date]:
     """Projects ending within the configured number of months of the as-of date (donor_pipeline.ending_within_months),
-    with their budgets and theme. Returns (table, the cut-off date)."""
+    with their budgets, their ANNUAL budget (budget divided by the project's length in years) and theme.
+    Returns (table, the cut-off date)."""
     months = settings["donor_pipeline"]["ending_within_months"]
     cutoff = (pd.Timestamp(as_of) + pd.DateOffset(months=months)).date()
-    ending = run("""SELECT p.project_id, p.name, p.budget_rwf, p.end_date, g.thematic_area AS theme
+    ending = run("""SELECT p.project_id, p.name, p.budget_rwf, p.start_date, p.end_date, g.thematic_area AS theme
                     FROM dim_project p JOIN dim_programme g USING (programme_id)
                     WHERE p.end_date <= ? ORDER BY p.end_date""", cutoff)
+    years = (pd.to_datetime(ending["end_date"]) - pd.to_datetime(ending["start_date"])).dt.days.add(1) / 365.25
+    ending["years"] = years.round(2)
+    ending["annual_budget"] = ending["budget_rwf"] / years
     return ending, cutoff
 
 
 def pipeline_gaps(run, opps: pd.DataFrame, as_of: dt.date, settings: dict) -> tuple[pd.DataFrame, dt.date]:
-    """Pipeline gap by theme = budgets of projects ending within N months - weighted open pipeline for that theme.
-    (Our definition, to be confirmed with partner.) Columns: theme, projects, ending_budget, weighted, gap."""
+    """Pipeline gap by theme = ANNUAL budget of projects ending within N months - weighted open pipeline for that theme
+    (draft definition, to be confirmed with partner: the funding needed to carry the work on for one more year).
+    Columns: theme, projects, ending_budget (annual), weighted, gap."""
     ending, cutoff = ending_projects(run, as_of, settings)
     by_theme = pipeline_by_theme(opps, settings).set_index("theme")
     rows = []
     for theme in settings["donor_pipeline"]["themes"]:
         e = ending[ending["theme"] == theme]
         weighted = float(by_theme["weighted"].get(theme, 0.0))
-        rows.append(dict(theme=theme, projects=len(e), ending_budget=float(e["budget_rwf"].sum()),
-                         weighted=weighted, gap=float(e["budget_rwf"].sum()) - weighted))
+        annual = float(e["annual_budget"].sum())
+        rows.append(dict(theme=theme, projects=len(e), ending_budget=annual, weighted=weighted, gap=annual - weighted))
     return pd.DataFrame(rows), cutoff
 
 
@@ -196,12 +201,20 @@ RECONCILIATION_GROUPS = ["within tolerance", "gap above tolerance", "derived onl
 
 def reconciliation(run, project_ids: list, start, end, district: str | None = None,
                    sex: str | None = None) -> pd.DataFrame:
-    """Month-by-month reported-versus-records comparisons (by project and district) in the selection.
-    Totals only, or one sex when the sex filter is set."""
+    """Reported-versus-records comparisons AT THE COMPARISON LEVEL of each indicator (catalogue derived.reconcile:
+    month or quarter, totals, by project and district) whose period starts in the date range. Only these rows can
+    be flagged. The sex filter does not apply: breakdowns by sex are for information (reconciliation_breakdowns)."""
     clause, params = ("AND district = ?", [district]) if district else ("", [])
-    rec = run(f"""SELECT * FROM indicator_reconciliation WHERE district <> 'All' AND project_id IN {in_list(project_ids)}
-                  AND period_start BETWEEN ? AND ? {clause}""", *project_ids, start, end, *params)
-    return rec[rec["disaggregation"] == (f"sex={sex}" if sex else "total")]
+    return run(f"""SELECT * FROM indicator_reconciliation WHERE comparison_level AND project_id IN {in_list(project_ids)}
+                   AND period_start BETWEEN ? AND ? {clause}""", *project_ids, start, end, *params)
+
+
+def reconciliation_breakdowns(run, project_ids: list, start, end, district: str | None = None) -> pd.DataFrame:
+    """The same comparisons by sex, for information only (never flagged)."""
+    clause, params = ("AND district = ?", [district]) if district else ("", [])
+    return run(f"""SELECT * FROM indicator_reconciliation WHERE NOT comparison_level AND disaggregation <> 'total'
+                   AND district <> 'All' AND project_id IN {in_list(project_ids)} AND period_start BETWEEN ? AND ?
+                   {clause}""", *project_ids, start, end, *params)
 
 
 def reconciliation_counts(rec: pd.DataFrame) -> dict:
@@ -282,3 +295,47 @@ def status_counts(rows: pd.DataFrame) -> dict:
     counts = rows["status"].value_counts().to_dict()
     counts["total"] = len(rows)
     return counts
+
+
+# ---------------------------------------------------------------- cost per person reached, by programme
+def cost_per_reach_by_programme(run, period_type: str, period: str) -> pd.DataFrame:
+    """CC-03 by programme: the cost and the reported people of the programme's projects that report reach, added up,
+    then divided. A programme with no reporting project gets no figure ("not available").
+    Columns: programme_id, programme, projects, reporting_projects, cost, people, cost_per_person."""
+    v = run("""SELECT p.programme_id, g.name AS programme, v.project_id, v.numerator, v.denominator
+               FROM dim_project p JOIN dim_programme g USING (programme_id)
+               LEFT JOIN indicator_values v ON v.project_id = p.project_id AND v.indicator_code = 'CC-03'
+                    AND v.period_type = ? AND v.period = ? AND v.district = 'All' AND v.disaggregation = 'total'""",
+            period_type, period)
+    v["reports"] = v["denominator"].fillna(0) > 0
+    rows = []
+    for (pid, name), g in v.groupby(["programme_id", "programme"]):
+        r = g[g["reports"]]
+        cost, people = r["numerator"].sum(), r["denominator"].sum()
+        rows.append(dict(programme_id=pid, programme=name, projects=g["project_id"].nunique(),
+                         reporting_projects=list(r["project_id"]), cost=cost if len(r) else np.nan,
+                         people=people if len(r) else np.nan,
+                         cost_per_person=cost / people if len(r) and people else np.nan))
+    return pd.DataFrame(rows)
+
+
+def report_rows_behind(run, gaps: pd.DataFrame) -> list[str]:
+    """For each reconciliation row, the indicator-report rows it was made from ("file, sheet: rows 3, 16"), so the MEAL
+    officer can open the report and check it. A quarter lists the rows of its months."""
+    if not len(gaps):
+        return []
+    src = run("""SELECT r.indicator_code, r.project_id, r.district, r.period_start, s.source_file, s.source_sheet,
+                        s.source_row
+                 FROM indicator_reconciliation r JOIN indicator_value_sources s ON s.value_id = r.reported_value_id
+                 WHERE r.period_type = 'month' AND r.disaggregation = 'total'""")
+    src["period_start"] = pd.to_datetime(src["period_start"])
+    out = []
+    for g in gaps.itertuples():
+        start = pd.Timestamp(g.period_start)
+        end = start + pd.DateOffset(months=3 if g.period_type == "quarter" else 1)
+        rows = src[(src["indicator_code"] == g.indicator_code) & (src["project_id"] == g.project_id)
+                   & (src["district"] == g.district) & (src["period_start"] >= start) & (src["period_start"] < end)]
+        parts = [f"{f}, {sh}: row{'s' if len(r) > 1 else ''} {', '.join(str(int(x)) for x in sorted(r['source_row']))}"
+                 for (f, sh), r in rows.groupby(["source_file", "source_sheet"])]
+        out.append("; ".join(parts) or "no report row")
+    return out

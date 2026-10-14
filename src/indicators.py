@@ -119,6 +119,7 @@ class Data:
                 JOIN dim_indicator i USING (indicator_id) JOIN dim_location l USING (location_id)""")
             self.completeness = q("SELECT * FROM report_completeness")
             self.dim_indicator = q("SELECT * FROM dim_indicator")
+            self.projects = q("SELECT project_id, programme_id FROM dim_project")
         finally:
             con.close()
         for df, cols in ((self.activities, ["date", "planned_date"]), (self.services, ["date"]),
@@ -241,12 +242,19 @@ def on_time(data: Data, spec: dict, settings: dict):
 
 
 def cost_per_person(data: Data, spec: dict, settings: dict):
+    """Activity cost divided by the different registered people who received a service from those activities.
+    With derived.activity_ids, only those activities count on both sides (e.g. farmer field schools)."""
     acts = data.activities[data.activities["status"].isin(["completed", "delayed"]) & data.activities["date"].notna()]
+    only = spec.get("calculation", {}).get("derived", {}).get("activity_ids")
+    services = data.services
+    if only:
+        acts = acts[acts["activity_id"].isin(only)]
+        services = services[services["activity_id"].isin(only)]
     cost_long = with_disaggregation(expand(acts, "date", settings), False)
     cost_long["has_cost"] = cost_long["cost_rwf"].notna()
     g = cost_long.groupby(KEYS)
     costs = pd.DataFrame(dict(cost=g["cost_rwf"].sum(min_count=1), acts=g.size(), with_cost=g["has_cost"].sum()))
-    people_long = with_disaggregation(expand(data.services, "date", settings), False)
+    people_long = with_disaggregation(expand(services, "date", settings), False)
     people = people_long.groupby(KEYS)["beneficiary_key"].nunique().rename("people")
     values = costs.join(people, how="outer").reset_index()
     values["numerator"], values["denominator"] = values["cost"], values["people"]
@@ -255,6 +263,53 @@ def cost_per_person(data: Data, spec: dict, settings: dict):
     values["n_rows"] = values["acts"].fillna(0) + people_long.groupby(KEYS).size().reindex(
         pd.MultiIndex.from_frame(values[KEYS])).fillna(0).values
     links = pd.concat([fact_links(cost_long, "fact_activity"), fact_links(people_long, "fact_beneficiary_service")],
+                      ignore_index=True)
+    return values, links
+
+
+def cost_per_reported_reach(data: Data, spec: dict, settings: dict):
+    """Activity spending divided by the people reached AS REPORTED in the monthly indicator reports (D163).
+
+    The people-reached indicators are listed per programme in the catalogue (derived.reach_indicators). Only projects
+    that report one of them are included, on BOTH sides, so cost and people cover the same projects; a project (or a
+    programme) that reports no reach gets no value ("not available" on the dashboard). Coverage = the share of
+    activities whose cost is included. Reported figures are added up over the months, as the reports do.
+    """
+    method = spec["calculation"]["derived"]
+    catalogue = {i["code"]: i for i in load_yaml("indicator_catalogue.yaml")["indicators"]}
+    start_month = settings["fiscal_year"]["start_month"]
+
+    def all_periods(df: pd.DataFrame) -> pd.DataFrame:
+        """Month rows plus the same rows labelled with their quarter and fiscal year."""
+        parts = [df]
+        for period_type in [p for p in settings["indicators"]["period_types"] if p != "month"]:
+            label, start = period_columns(df["period_start"], period_type, start_month)
+            parts.append(df.assign(period_type=period_type, period=label.values, period_start=start.values))
+        return pd.concat(parts, ignore_index=True)
+
+    reach_values, reach_links = [], []
+    for codes in method["reach_indicators"].values():
+        for code in codes:
+            v, links = reported(data, catalogue[code], settings)
+            reach_values.append(v[(v["disaggregation"] == "total") & v["actual"].notna()][KEYS + ["actual"]])
+            reach_links.append(links[links["disaggregation"] == "total"])
+    month_reach = pd.concat(reach_values, ignore_index=True)
+    people = all_periods(month_reach).groupby(KEYS)["actual"].sum().rename("people")
+    reporting = set(month_reach["project_id"]) - {ALL}
+
+    acts = data.activities[data.activities["status"].isin(["completed", "delayed"]) & data.activities["date"].notna()]
+    acts = acts.assign(included=acts["project_id"].isin(reporting))
+    acts = acts.assign(included_cost=acts["cost_rwf"].where(acts["included"]))
+    cost_long = with_disaggregation(expand(acts, "date", settings), False)
+    g = cost_long.groupby(KEYS)
+    costs = pd.DataFrame(dict(cost=g["included_cost"].sum(min_count=1), acts=g.size(), included=g["included"].sum()))
+    values = costs.join(people, how="outer").reset_index()
+    values["numerator"], values["denominator"] = values["cost"], values["people"]
+    values["actual"] = values["cost"] / values["people"].where(values["people"] > 0)
+    values["coverage_numerator"], values["coverage_denominator"] = values["included"], values["acts"]
+    values["n_rows"] = values["included"].fillna(0)
+    reach_link_rows = all_periods(pd.concat(reach_links, ignore_index=True))
+    links = pd.concat([fact_links(cost_long[cost_long["included"]], "fact_activity"), reach_link_rows],
                       ignore_index=True)
     return values, links
 
@@ -275,6 +330,7 @@ def report_completeness(data: Data, spec: dict, settings: dict):
 
 DERIVED = {"unique_people": unique_people, "activity_participants": activity_participants,
            "share_women": share_women, "on_time": on_time, "cost_per_person": cost_per_person,
+           "cost_per_reported_reach": cost_per_reported_reach,
            "report_completeness": report_completeness}
 
 
@@ -465,26 +521,53 @@ class IndicatorBuilder:
                     indicator_reconciliation=self.reconcile(values))
 
     def reconcile(self, values: pd.DataFrame) -> pd.DataFrame:
-        """Reported versus derived, MONTH BY MONTH, where the catalogue says the two are like for like.
+        """Reported versus derived, where the catalogue says the two are like for like.
 
-        Months are the reporting grain: the two sources are defined to count the same thing per month.
+        Every month is compared (by project, district and breakdown). The catalogue's derived.reconcile says at which
+        level gaps are FLAGGED (comparison_level = True): month or quarter, totals only. A quarter adds up the months
+        that have a report, on both sides, so a missing report does not look like a gap. Breakdowns by sex, and the
+        months of a quarterly indicator, stay in the table for information and are never flagged.
         A gap is flagged only when it is BOTH above the % tolerance AND at least the minimum difference
         (settings: indicators.reconciliation_tolerance_pct and reconciliation_min_difference).
         """
-        tol = self.settings["indicators"]["reconciliation_tolerance_pct"]
-        min_diff = self.settings["indicators"].get("reconciliation_min_difference", 0)
-        both = [s["code"] for s in self.catalogue if s.get("availability", "available") == "available"
-                and {"reported", "derived"} <= set(s.get("calculation", {}))
-                and s["calculation"]["derived"].get("like_for_like")]
+        specs = {s["code"]: s for s in self.catalogue if s.get("availability", "available") == "available"
+                 and {"reported", "derived"} <= set(s.get("calculation", {}))
+                 and s["calculation"]["derived"].get("like_for_like")}
         ident = ["indicator_code", "indicator_id"] + KEYS
-        v = values[values["indicator_code"].isin(both) & (values["period_type"] == "month")]
+        v = values[values["indicator_code"].isin(list(specs)) & (values["period_type"] == "month")]
         rep = v[v["source"] == "reported"][ident + ["value_id", "actual"]].rename(
             columns={"value_id": "reported_value_id", "actual": "reported"})
         der = v[v["source"] == "derived"][ident + ["value_id", "actual"]].rename(
             columns={"value_id": "derived_value_id", "actual": "derived"})
-        rec = rep.merge(der, on=ident, how="outer")
+        months = rep.merge(der, on=ident, how="outer")
         # A month with a report but no matching records means the records show zero.
-        rec.loc[rec["derived"].isna() & rec["reported"].notna(), "derived"] = 0.0
+        months.loc[months["derived"].isna() & months["reported"].notna(), "derived"] = 0.0
+        months["months_compared"] = months["reported"].notna().astype(int)
+        frames = []
+        start_month = self.settings["fiscal_year"]["start_month"]
+        for code, spec in specs.items():
+            level = {"period": "month", "by": "total", **spec["calculation"]["derived"].get("reconcile", {})}
+            m = months[months["indicator_code"] == code].copy()
+            m["comparison_level"] = (level["period"] == "month") & (m["disaggregation"] == "total")
+            frames.append(m)
+            if level["period"] == "quarter":
+                label, qstart = period_columns(m["period_start"], "quarter", start_month)
+                q = m.assign(period_type="quarter", period=label.values, period_start=qstart.values)
+                q["derived_in_report_months"] = q["derived"].where(q["reported"].notna())
+                g = q.groupby(ident, dropna=False)
+                rolled = pd.DataFrame(dict(
+                    reported=g["reported"].sum(min_count=1),
+                    derived_reported_months=g["derived_in_report_months"].sum(min_count=1),
+                    derived_all=g["derived"].sum(min_count=1),
+                    months_compared=g["months_compared"].sum())).reset_index()
+                rolled["derived"] = np.where(rolled["reported"].notna(), rolled["derived_reported_months"],
+                                             rolled["derived_all"])
+                rolled = rolled.drop(columns=["derived_reported_months", "derived_all"])
+                rolled["comparison_level"] = rolled["disaggregation"] == "total"
+                frames.append(rolled)
+        rec = pd.concat(frames, ignore_index=True)
+        tol = self.settings["indicators"]["reconciliation_tolerance_pct"]
+        min_diff = self.settings["indicators"].get("reconciliation_min_difference", 0)
         rec["difference"] = rec["derived"] - rec["reported"]
         rec["pct_difference"] = (100 * rec["difference"] / rec["reported"].replace(0, np.nan)).round(1)
         rec["tolerance_pct"] = tol
@@ -495,14 +578,18 @@ class IndicatorBuilder:
              b(rec["reported"] == 0), b(rec["pct_difference"].abs() <= tol)],
             ["derived only", "within tolerance", "within tolerance", "gap above tolerance", "within tolerance"],
             default="gap above tolerance")
-        rec["flag"] = rec["status"] == "gap above tolerance"
+        # Compared by project AND district (the grain of a report); project-wide and all-project rows are roll-ups.
+        rec["comparison_level"] = (rec["comparison_level"].astype(bool) & (rec["project_id"] != ALL)
+                                   & (rec["district"] != ALL))
+        rec["flag"] = rec["comparison_level"] & (rec["status"] == "gap above tolerance")
         for c in ("reported_value_id", "derived_value_id"):
             rec[c] = rec[c].astype("Int64")
-        return rec.sort_values(["indicator_code", "period_start", "project_id", "district",
+        rec["months_compared"] = rec["months_compared"].astype(int)
+        return rec.sort_values(["indicator_code", "period_type", "period_start", "project_id", "district",
                                 "disaggregation"]).reset_index(drop=True)[
             ["indicator_code", "indicator_id", "project_id", "district", "period_type", "period", "period_start",
-             "disaggregation", "reported", "derived", "difference", "pct_difference", "tolerance_pct", "status",
-             "flag", "reported_value_id", "derived_value_id"]]
+             "disaggregation", "comparison_level", "months_compared", "reported", "derived", "difference",
+             "pct_difference", "tolerance_pct", "status", "flag", "reported_value_id", "derived_value_id"]]
 
 
 def check(tables: dict) -> list[str]:
@@ -618,7 +705,7 @@ def main():
     t = run()
     v, rec = t["indicator_values"], t["indicator_reconciliation"]
     print(f"Indicators: {v['indicator_code'].nunique()} indicators, {len(v):,} values; reconciliation: "
-          f"{int(rec['flag'].sum())} of {len(rec):,} comparisons above the tolerance. "
+          f"{int(rec['flag'].sum())} of {int(rec['comparison_level'].sum()):,} comparisons flagged. "
           "Reference sheets: docs/indicator_reference_sheets.md and .xlsx")
 
 

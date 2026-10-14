@@ -1,5 +1,6 @@
 """Programme overview: headline figures, target versus actual by project, trend, donor report."""
 
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
@@ -31,6 +32,9 @@ ui.tiles([
 if f.district:
     st.caption("People are counted in the district where they registered; activities and spending in the district "
                "where the activity took place. Budgets are for whole projects.")
+elif people["unknown_district"]:
+    st.caption(f"{people['unknown_district']} of the people reached have no known district (their registration is "
+               "quarantined): see Geography and Data quality.")
 
 # ------------------------------------------------------------------ target versus actual by project
 st.markdown("### Target versus actual by project")
@@ -77,6 +81,22 @@ if len(tv):
                "for those same months.")
 else:
     st.info("No reported values for this indicator, year and selection.")
+
+# ------------------------------------------------------------------ cost per person reached
+cc03 = cat["CC-03"]
+st.markdown(f"### {cc03['name']}, by programme")
+st.markdown(f"<div class='muted'><b>{cc03['status']}.</b> {' '.join(str(cc03['definition']).split())} "
+            f"{' '.join(str(cc03['counting_rule']).split())} Fiscal year {year}.</div>", unsafe_allow_html=True)
+cpp = measures.cost_per_reach_by_programme(run, "fiscal_year", year)
+ui.html_table(pd.DataFrame({
+    "Programme": cpp["programme"],
+    "Cost per person reached": [ui.money(x) if pd.notna(x) else cc03["when_missing"].capitalize()
+                                for x in cpp["cost_per_person"]],
+    "Activity cost included": [ui.money(x, short=True) if pd.notna(x) else "–" for x in cpp["cost"]],
+    "People reached (as reported)": [f"{x:,.0f}" if pd.notna(x) else "–" for x in cpp["people"]],
+    "Based on": [f"{', '.join(r) or 'no project'} ({len(r)} of {n} projects report people reached)"
+                 for r, n in zip(cpp["reporting_projects"], cpp["projects"])]}), f"cost_per_person_reached_{year}"
+    .replace("/", "-"))
 
 # ------------------------------------------------------------------ trend
 st.markdown("### Trend over time")

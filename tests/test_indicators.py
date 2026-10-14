@@ -236,6 +236,33 @@ def test_reconciliation_ignores_gaps_smaller_than_the_minimum_difference():
     assert not rec.loc["2024-03", "flag"]
 
 
+def test_quarterly_reconciliation_adds_up_report_months_and_never_flags_breakdowns():
+    """AGR-01 is compared by quarter (catalogue derived.reconcile); months without a report are left out on BOTH
+    sides, and the breakdown by sex is kept for information only."""
+    assert CATALOGUE["AGR-01"]["calculation"]["derived"]["reconcile"]["period"] == "quarter"
+    builder = indicators.IndicatorBuilder.__new__(indicators.IndicatorBuilder)
+    builder.settings, builder.catalogue = S, list(CATALOGUE.values())
+    base = dict(indicator_code="AGR-01", indicator_id=5, project_id="PRJ04", district="Rulindo", period_type="month")
+    rows, vid = [], 0
+    # Jul to Sep 2024 (FY2024/25 Q1): reports 10 + 10 (August not received); records 4 + 9 + 30.
+    for month, rep, der in ((7, 10, 4), (8, None, 9), (9, 10, 30)):
+        for disagg, share in (("total", 1.0), ("sex=female", 0.5)):
+            start = D(2024, month, 1)
+            common = dict(base, period=f"2024-{month:02d}", period_start=start, disaggregation=disagg)
+            if rep is not None:
+                vid += 1
+                rows.append(dict(common, source="reported", actual=rep * share, value_id=vid))
+            vid += 1
+            rows.append(dict(common, source="derived", actual=der * share, value_id=vid))
+    rec = builder.reconcile(pd.DataFrame(rows))
+    q = rec[(rec["period_type"] == "quarter") & (rec["disaggregation"] == "total")].iloc[0]
+    assert q["comparison_level"] and q["months_compared"] == 2
+    assert (q["reported"], q["derived"]) == (20, 34)            # August's 9 is not counted against a missing report
+    assert q["flag"]                                            # 14 apart and 70%
+    assert not rec.loc[rec["disaggregation"] != "total", "flag"].any()
+    assert not rec.loc[rec["period_type"] == "month", "comparison_level"].any()
+
+
 # ---------------------------------------------------------------- the real pipeline output
 @pytest.fixture(scope="module")
 def built(synthetic, tmp_path_factory):
@@ -314,7 +341,8 @@ def test_reconciliation_is_built_and_flags_large_gaps(built):
     assert set(rec["indicator_code"]) == {"WASH-01", "AGR-01"}
     tol = S["indicators"]["reconciliation_tolerance_pct"]
     min_diff = S["indicators"]["reconciliation_min_difference"]
-    both = rec[rec["reported"].notna() & rec["derived"].notna() & (rec["reported"] > 0)]
+    assert not rec.loc[~rec["comparison_level"], "flag"].any()          # only the comparison level is flagged
+    both = rec[rec["comparison_level"] & rec["reported"].notna() & rec["derived"].notna() & (rec["reported"] > 0)]
     expected = (both["pct_difference"].abs() > tol) & (both["difference"].abs() >= min_diff)
     assert (both["flag"] == expected).all()
 
@@ -405,7 +433,7 @@ def test_reconciliation_finds_the_planted_discrepancies(built, synthetic):
     import score_cleaning
     r = score_cleaning.score_reconciliation(synthetic["truth"], built["db"])
     s = r["summary"]
-    assert s["planted"] > 0 and s["catch_rate_at_least_min"] >= 95
+    assert s["planted_units"] > 0 and s["catch_rate_at_least_min"] >= 95
     assert s["false_alarms"] == 0
     rounding = r["rows"][r["rows"]["kind"] == "rounding"]
     # Rounding differences stay within the tolerance, unless a data problem in the records explains the flag.

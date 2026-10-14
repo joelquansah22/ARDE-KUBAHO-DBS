@@ -51,8 +51,9 @@ if len(rows):
     table = pd.DataFrame({
         "Indicator": rows["name"], "Project": rows["project_id"],
         "Target": [ui.number(t, u) for t, u in zip(rows["target"], rows["unit"])],
-        "Actual": [ui.number(a, u) + ("" if s == "reported" else " (from records)")
-                   for a, u, s in zip(rows["actual"], rows["unit"], rows["source"])],
+        "Actual": [(cat[c].get("when_missing", "–").capitalize() if pd.isna(a) else
+                    ui.number(a, u) + ("" if s == "reported" else " (worked out)"))
+                   for c, a, u, s in zip(rows["indicator_code"], rows["actual"], rows["unit"], rows["source"])],
         "% achieved": [achieved(r) for r in rows.itertuples()],
         "Status": [ui.status_html(s) for s in rows["status"]],
         "Compared with records": [measures.records_comparison(a, r) for a, r in zip(rows["actual"], rows["records_value"])],
@@ -63,8 +64,8 @@ if len(rows):
     ui.html_table(table, f"indicators_{period}".replace("/", "-").replace(" ", "_"), html_columns=("Status",),
                   widths={"Indicator": "30%", "Target": "8%", "Actual": "11%", "% achieved": "13%", "Status": "12%",
                           "Compared with records": "15%", "Coverage": "9%"})
-    st.caption("Actual = the monthly reports where the indicator is reported, otherwise worked out from the activity "
-               "and register records. 'Compared with records' is shown where the records count the same thing as the "
+    st.caption("Actual = the monthly reports where the indicator is reported; otherwise '(worked out)' from the "
+               "activity, register and report files (see the definitions below). 'Compared with records' is shown where the records count the same thing as the "
                "report (see the reconciliation below). Coverage is shown when a value could only be worked out from "
                "part of the data. WASH-03 and AGR-03 are not shown: their survey data does not exist yet.")
 else:
@@ -123,9 +124,9 @@ if len(monthly):
     if len(flagged):
         months = ", ".join(f"{pd.Timestamp(m):%b %Y}" for m in sorted(flagged["period_start"].unique()))
         reasons = sorted({c.strip() for r in flagged["reasons"] for c in str(r).split(",")})
-        st.caption(f"◇ Months marked with an open diamond include records in the MEAL officer's review queue "
-                   f"({months}): {'; '.join(ui.issue_label(c).lower() for c in reasons)}. The value may change once "
-                   "they are checked.")
+        st.caption(f"◇ {len(flagged['period_start'].unique())} months include records in the MEAL officer's review "
+                   f"queue (most common: {ui.issue_label(flagged['reasons'].str.split(', ').explode().mode().iloc[0]).lower()})"
+                   ". Those values may change once the records are checked; see Data quality for the list.")
 elif project is not None:
     st.info("No monthly values for this indicator and selection.")
 
@@ -133,18 +134,24 @@ elif project is not None:
 st.markdown("### Reported versus records (reconciliation)")
 tol = ui.SETTINGS["indicators"]["reconciliation_tolerance_pct"]
 min_diff = ui.SETTINGS["indicators"]["reconciliation_min_difference"]
+levels = {c: {"period": "month", **i["calculation"]["derived"].get("reconcile", {})} for c, i in cat.items()
+          if i.get("calculation", {}).get("derived", {}).get("like_for_like")}
+level_text = "; ".join(f"{cat[c]['name']} ({c}): by {lvl['period']}" for c, lvl in levels.items())
 st.markdown(f"<div class='muted'>Where the monthly report and the activity or register records count the same thing, "
-            f"the two are compared month by month. A gap is flagged for follow-up when it is more than {tol}% of the "
-            f"report AND at least {min_diff} apart: it may be over-reporting, under-reporting, or a recording problem. "
-            "WASH-01 is compared with people served on water-point activities; AGR-01 with different registered "
-            "training participants.</div>", unsafe_allow_html=True)
+            "the two are compared for each project and district, all people together. A gap is flagged for follow-up "
+            f"when it is more than {tol}% of the report AND at least {min_diff} apart: it may be over-reporting, "
+            "under-reporting, or a recording problem. Comparison level, set per indicator in the catalogue: "
+            f"{level_text}. A quarter adds up only the months that have a report.</div>", unsafe_allow_html=True)
 rec = measures.reconciliation(run, f.project_ids, f.start, f.end, f.district, f.sex)
+if f.sex:
+    st.caption("The sex filter does not apply here: gaps are checked on totals. Figures by sex are below, for "
+               "information.")
 if len(rec):
     n = measures.reconciliation_counts(rec)
     words = ui.LABELS["reconciliation_status"]
-    ui.tiles([("Months compared", f"{n['compared']:,}", "by project and district"),
+    ui.tiles([("Comparisons", f"{n['compared']:,}", "by project, district and month or quarter"),
               (words["within tolerance"], f"{n['within tolerance']:,}", "report and records agree"),
-              (words["gap above tolerance"], f"{n['gap above tolerance']:,}", "above the tolerance"),
+              (words["gap above tolerance"], f"{n['gap above tolerance']:,}", "above the tolerance and minimum"),
               (words["derived only"], f"{n['derived only']:,}", "records exist but no report was received")])
     rec_code = st.selectbox("Indicator", sorted(rec["indicator_code"].unique()), format_func=lambda c: cat[c]["name"],
                             key="rec_code")
@@ -152,20 +159,34 @@ if len(rec):
     fig = go.Figure()
     fig.add_bar(x=rc["period_start"], y=rc["reported"], name="Reported", marker_color="#1f6f8b")
     fig.add_bar(x=rc["period_start"], y=rc["derived"], name="From records", marker_color="#e36209")
-    fig.update_layout(barmode="group", height=270, margin=dict(l=10, r=10, t=10, b=10), legend_orientation="h",
+    fig.update_layout(barmode="group", height=270, margin=dict(l=10, r=10, t=10, b=10),
                       yaxis_title=ui.axis_title(rec_code))
     ui.month_axis(fig)
     st.plotly_chart(fig, width="stretch")
+    st.caption(f"All projects and districts in the selection added up, by {levels[rec_code]['period']}.")
     gaps = rec[rec["flag"]].sort_values(["period_start", "project_id", "district"])
     gaps_table = pd.DataFrame({
         "Indicator": gaps["indicator_code"].map(lambda c: cat[c]["name"]),
-        "Month": pd.to_datetime(gaps["period_start"]).dt.strftime("%b %Y"), "Project": gaps["project_id"],
-        "District": gaps["district"],
+        "Period": [pd.Timestamp(d).strftime("%b %Y") if t == "month" else p
+                   for d, t, p in zip(gaps["period_start"], gaps["period_type"], gaps["period"])],
+        "Project": gaps["project_id"], "District": gaps["district"],
         "Reported": gaps["reported"].map(lambda x: f"{x:,.0f}"), "Records": gaps["derived"].map(lambda x: f"{x:,.0f}"),
-        "What differs": [measures.difference_in_words(r, d) for r, d in zip(gaps["reported"], gaps["derived"])]})
-    st.markdown(f"**Gaps to follow up** ({len(gaps_table)} months)")
-    ui.html_table(gaps_table, "reconciliation_gaps_to_follow_up", max_rows=60,
-                  widths={"Indicator": "28%", "Month": "8%", "Project": "7%", "District": "10%", "Reported": "8%",
-                          "Records": "8%"})
+        "What differs": [measures.difference_in_words(r, d) for r, d in zip(gaps["reported"], gaps["derived"])],
+        "Report to check": measures.report_rows_behind(run, gaps)})
+    st.markdown(f"**Gaps to follow up** ({len(gaps_table)}, most recent first)")
+    ui.html_table(gaps_table.iloc[::-1], "reconciliation_gaps_to_follow_up", max_rows=15,
+                  widths={"Indicator": "20%", "Period": "9%", "Project": "6%", "District": "8%", "Reported": "7%",
+                          "Records": "7%", "What differs": "18%"})
+    info = measures.reconciliation_breakdowns(run, f.project_ids, f.start, f.end, f.district)
+    if len(info):
+        with st.expander("Figures by sex (for information; gaps are not flagged at this level)"):
+            info = info[info["period_type"] == info["indicator_code"].map(lambda c: levels[c]["period"])]
+            ui.table(pd.DataFrame({
+                "Indicator": info["indicator_code"].map(lambda c: cat[c]["name"]), "Period": info["period"],
+                "Project": info["project_id"], "District": info["district"],
+                "Sex": info["disaggregation"].str.replace("sex=", "").str.capitalize(),
+                "Reported": info["reported"], "Records": info["derived"],
+                "What differs": [measures.difference_in_words(r, d) for r, d in zip(info["reported"], info["derived"])]
+            }), "reconciliation_by_sex_information", height=300)
 else:
-    st.info("No months to compare for this selection.")
+    st.info("Nothing to compare for this selection.")

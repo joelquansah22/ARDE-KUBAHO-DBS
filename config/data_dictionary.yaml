@@ -409,28 +409,36 @@ tables:
     kind: indicator
     description: >-
       A key MEAL check: where an indicator is both reported and derived LIKE FOR LIKE (catalogue: derived.like_for_like),
-      the two monthly values side by side. Months are compared because that is the reporting grain where both sources
-      count the same thing. Gaps larger than the tolerance (settings: indicators.reconciliation_tolerance_pct) AND at
-      least the minimum difference (reconciliation_min_difference) are flagged for follow-up. A month with a report but no matching records counts as derived 0.
+      the two values side by side, for every month (by project, district and breakdown) and, for indicators compared
+      by quarter, every quarter. The catalogue's derived.reconcile sets the COMPARISON LEVEL (month or quarter, totals
+      only): only rows at that level can be flagged. Gaps above the tolerance (settings:
+      indicators.reconciliation_tolerance_pct) AND at least the minimum difference (reconciliation_min_difference) are
+      flagged. A month with a report but no matching records counts as derived 0. A quarter adds up only the months
+      that have a report, on both sides. Other rows (breakdowns by sex, months of a quarterly indicator) are for
+      information.
     key: [indicator_code, project_id, district, period_type, period, disaggregation]
     columns:
       indicator_code: Indicator code.
       indicator_id: Indicator (links to dim_indicator).
-      project_id: Project, or All.
-      district: District, or All.
-      period_type: month (the reconciliation is done month by month).
-      period: Month, e.g. 2024-03.
-      period_start: First day of the month.
+      project_id: Project.
+      district: District.
+      period_type: month or quarter.
+      period: Month (e.g. 2024-03) or fiscal quarter (e.g. FY2024/25 Q3).
+      period_start: First day of the month or quarter.
       disaggregation: total, or sex=female / sex=male.
-      reported: Value from the monthly indicator reports.
-      derived: Value worked out from the activity and beneficiary records.
+      comparison_level: True if this row is at the level where gaps are flagged (catalogue derived.reconcile).
+      months_compared: Months in the row that have a report.
+      reported: Value from the monthly indicator reports (added up over the months compared).
+      derived: Value worked out from the activity and beneficiary records (over the same months).
       difference: Derived minus reported.
       pct_difference: Difference as a % of the reported value.
       tolerance_pct: The tolerance used.
       status: within tolerance, gap above tolerance, or derived only (records but no report).
-      flag: True if the gap is above the % tolerance and at least the minimum difference.
-      reported_value_id: The reported value (links to indicator_values).
-      derived_value_id: The derived value (links to indicator_values).
+      flag: >-
+        True if the row is at the comparison level and the gap is above the % tolerance and at least the minimum
+        difference.
+      reported_value_id: The monthly reported value (links to indicator_values); empty for quarter rows.
+      derived_value_id: The monthly derived value (links to indicator_values); empty for quarter rows.
 
 relationships:
   - [dim_project.programme_id, dim_programme.programme_id]

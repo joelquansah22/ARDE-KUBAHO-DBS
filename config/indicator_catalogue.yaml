@@ -22,6 +22,12 @@
 #   derived.counts      exactly what the derived value counts, written to match the reported definition
 #   derived.like_for_like  true if the derived value measures the same thing as the reported one; only then are
 #                    the two compared in the reconciliation table
+#   derived.reconcile   the level at which the two are compared and gaps flagged (D162):
+#                    period  month or quarter (quarters add up the months that HAVE a report, on both sides)
+#                    by      total: one comparison per project and district, all people together
+#                    Breakdowns by sex are kept in the table for information but never flagged.
+#                    The rule (more than reconciliation_tolerance_pct AND at least reconciliation_min_difference
+#                    apart, settings.yaml) is applied at this level.
 #
 # Activity codes (ACT01...) refer to the activity list in the programme master file. With real
 # data, check them against ARDE/KUBAHO's own activity list.
@@ -68,6 +74,7 @@ indicators:
         statuses: [completed, delayed]
         counts: Participants recorded on water-point activities (ACT01) done in the month, by activity district.
         like_for_like: true
+        reconcile: {period: month, by: total}     # monthly district figures are large enough (median about 24)
     notes: >-
       Reported and derived values are compared month by month in the reconciliation table; a gap above the tolerance
       points to a reporting or recording problem to follow up.
@@ -186,6 +193,7 @@ indicators:
         activity_ids: [ACT10]
         counts: Different registered people who received farmer training (ACT10) in the month, by sex, by registration district.
         like_for_like: true
+        reconcile: {period: quarter, by: total}   # monthly district totals are mostly under the minimum (median 3)
     notes: >-
       The definition of "trained" (one session, or the full course) needs to be agreed. Quarters and years add up
       the months, as the reports do, so a farmer trained in two different months counts in both.
@@ -330,33 +338,67 @@ indicators:
       checked. Adding a planned-date field to the paper form (decision log D56) would raise it.
 
   - code: CC-03
-    name: Cost per beneficiary reached (RWF)
+    name: Cost per person reached (RWF), as reported
     status: Draft, for co-design with ARDE/KUBAHO staff
     thematic_area: Cross-cutting
-    definition: Activity spending during the period divided by the number of different registered people reached.
+    definition: >-
+      Activity spending divided by the people reached as reported in the monthly indicator reports, by programme.
     level: output
     unit: RWF
-    axis_label: RWF per person           # chart axis title on the dashboard
-    numerator: Total cost (RWF) of activities that took place during the period.
-    denominator: Different registered people reached during the period.
-    calculation_rule: Numerator divided by denominator.
+    axis_label: RWF per person reached           # chart axis title on the dashboard
+    numerator: Total cost (RWF) of the activities of projects that report people reached, during the period.
+    denominator: >-
+      People reached as reported by the same projects during the period: WASH programme - people with access to
+      improved water (WASH-01); agriculture programme - farmers trained (AGR-01).
+    calculation_rule: Numerator divided by denominator. Not available for a project or programme that reports no reach.
     counting_rule: >-
-      Unique people, not attendance. Costs are attributed to the district where the activity took place; people to
-      the district where they registered.
-    coverage_rule: Activities with a cost recorded out of all activities that took place.
+      Reported monthly figures are added up, as the reports do, so a person reached in two months counts twice.
+      Projects without a people-reached indicator (sanitation, hygiene, irrigation) are left out of both sides.
+    coverage_rule: Activities whose cost is included (projects that report reach) out of all activities.
     disaggregation: none
     target_setting_rule: To be agreed with ARDE/KUBAHO (a benchmark per type of project).
     frequency: quarterly
-    aggregation: ratio            # worked out again from the records for the whole period
+    aggregation: ratio            # worked out again for the whole period
+    data_source: Activity monitoring files (costs) and monthly indicator reports (people reached) (derived).
+    owner: To be confirmed with partner (suggested - finance officer with MEAL officer)
+    higher_is_better: false
+    availability: available
+    calculation:
+      derived:
+        method: cost_per_reported_reach
+        reach_indicators: {PRG01: [WASH-01], PRG02: [AGR-01]}   # which reported indicator counts people, per programme
+    when_missing: not available (no reported reach)     # shown instead of a figure on the dashboard
+    notes: >-
+      Replaces cost per REGISTERED person (D161, D163): the register holds far fewer people than the activities reach.
+      Which indicators count "people reached" for each programme must be agreed with ARDE/KUBAHO; sanitation, hygiene
+      and irrigation projects have none yet. Only activity costs are included (not staff or overheads).
+
+  - code: CC-05
+    name: Cost per registered farmer trained, farmer field schools (RWF)
+    status: Draft, for co-design with ARDE/KUBAHO staff
+    thematic_area: Cross-cutting
+    definition: >-
+      Cost of farmer field school sessions divided by the different registered people who attended them (training
+      activities only).
+    level: output
+    unit: RWF
+    axis_label: RWF per registered farmer         # chart axis title on the dashboard
+    numerator: Total cost (RWF) of farmer field school sessions (ACT10) during the period.
+    denominator: Different registered people who received farmer training (ACT10) during the period.
+    calculation_rule: Numerator divided by denominator.
+    counting_rule: Unique people, not attendance. Training is the one activity where every participant is registered.
+    coverage_rule: Sessions with a cost recorded out of all sessions that took place.
+    disaggregation: none
+    target_setting_rule: To be agreed with ARDE/KUBAHO.
+    frequency: quarterly
+    aggregation: ratio
     data_source: Activity monitoring files (costs) and beneficiary registers and service records (people) (derived).
     owner: To be confirmed with partner (suggested - finance officer with MEAL officer)
     higher_is_better: false
     availability: available
     calculation:
-      derived: {method: cost_per_person}
-    notes: >-
-      Only activity costs recorded in the monitoring files are included (not staff or overhead costs), and only
-      registered people are counted, so the figure is not a full cost-effectiveness measure.
+      derived: {method: cost_per_person, activity_ids: [ACT10]}
+    notes: Kept for training activities only, where registration is complete; labelled as per REGISTERED farmer.
 
   - code: CC-04
     name: "Reporting completeness: percentage of expected monthly reports submitted"

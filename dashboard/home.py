@@ -12,7 +12,8 @@ run = ui.query
 cat = ui.catalogue()
 quarter, q_start, q_end = ui.current_quarter()
 st.title("Executive summary")
-st.markdown(f"<div class='muted'>{quarter} ({q_start:%d %b} to {q_end:%d %b %Y}) · {f.scope_text}</div>",
+st.markdown(f"<div class='muted'>{quarter} ({q_start:%d %b} to {q_end:%d %b %Y}) · {f.scope_text} · "
+            f"data as of {ui.as_of():%d %B %Y}</div>",
             unsafe_allow_html=True)
 
 c1, c2, c3 = st.columns(3, gap="small")
@@ -55,7 +56,7 @@ with c2:
     quarantined = ui.query("SELECT COUNT(*) AS n FROM quarantine")["n"].iloc[0]
     ui.tiles([("Data-quality score", f"{overall:.1f}%", f"weakest: {weakest['dimension']} {weakest['score']:.0f}%"),
               ("Reported vs records", f"{rec['gap above tolerance']} gaps",
-               f"in {rec['compared']} months compared this quarter")])
+               f"in {rec['compared']} comparisons this quarter")])
     st.markdown(f"""<div class='small'><ul>
         <li><b>{int(review_q)}</b> records to review this quarter ({int(review):,} in all)</li>
         <li><b>{pending}</b> people in the whole register pending duplicate review (people counts may be slightly high)</li>
@@ -76,10 +77,11 @@ with c3:
     gaps, cutoff = measures.pipeline_gaps(run, opps, today, ui.SETTINGS)
     lines = []
     for r in gaps[gaps["projects"] > 0].itertuples():
-        lines.append(f"<li>{r.theme}: budgets of projects ending by {cutoff:%b %Y} {ui.money(r.ending_budget, short=True)}; "
+        lines.append(f"<li>{r.theme}: annual budget of projects ending by {cutoff:%b %Y} "
+                     f"{ui.money(r.ending_budget, short=True)}; "
                      f"weighted pipeline {ui.money(r.weighted, short=True)}"
                      + (f" → <b>gap {ui.money(r.gap, short=True)}</b>" if r.gap > 0 else " (covered)") + "</li>")
     st.markdown(f"<div class='small'><b>Next deadlines</b><ul>{items or '<li>None</li>'}</ul>"
-                f"<b>Pipeline gaps</b><ul>{''.join(lines) or '<li>No project ends within 12 months</li>'}</ul>"
+                f"<b>Pipeline gaps</b> <span class='muted'>(draft definition)</span><ul>{''.join(lines) or '<li>No project ends within 12 months</li>'}</ul>"
                 f"<b>{overdue}</b> follow-up actions are overdue.</div>", unsafe_allow_html=True)
     st.page_link("pages/5_Donor_Pipeline.py", label="See the donor pipeline →", icon="🤝")

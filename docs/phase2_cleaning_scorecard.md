@@ -801,27 +801,81 @@ Rows to review by month:
 
 ## Reconciliation scoring (main set)
 
-The main set's WASH-01 and AGR-01 reports are worked out from the same true data as the activity and register files, with discrepancies planted at known rates (decision log D132): two officers over-report 15 to 30% of the time, some months are under-reported by 20 to 50%, and a few figures have 1 to 5% rounding differences that should stay within the tolerance. Scored on every submitted report row (project, district, month and, for AGR-01, sex).
+The WASH-01 and AGR-01 reports are worked out from the same true data as the activity and register files, with discrepancies planted at known rates (decision log D132): two officers over-report 15 to 30% of the time, some months are under-reported by 20 to 50%, and a few figures have 1 to 5% rounding differences that should stay within the tolerance.
 
-- Planted discrepancies (over- and under-reporting) in submitted reports: **66**; flagged: **20 (30.3%)**.
-- Of these, **20** are at least 5 apart (the minimum difference for a gap, settings: indicators.reconciliation_min_difference); flagged: **19 (95.0%)**. The other 46 are smaller than the minimum, so they are not flagged by design (decision log D153).
-- Flags raised: 25; on a planted discrepancy: 20 (precision 80.0%).
-- Other flags explained by an injected data problem (an extra zero in a report, quarantined or duplicate records...): 5. **Unexplained false alarms: 0.**
-- Planted rounding differences that stayed within the tolerance: 4 of 5.
+Scored at each indicator's comparison level (catalogue `derived.reconcile`, D162): WASH-01 by month (total), AGR-01 by quarter (total), by project and district. A gap needs more than the % tolerance AND at least 5 apart.
 
-| indicator_code | kind | outcome | report rows |
+- Comparisons scored: 140; with a planted discrepancy: **47**; flagged: **22 (46.8%)**.
+- Of these, **20** have a planted difference of at least 5; flagged: **19 (95.0%)**.
+- Flags raised: 27; on a planted discrepancy: 22 (precision 81.5%).
+- Other flags explained by an injected data problem: 5. **Unexplained false alarms: 0.**
+- Comparisons with only a planted rounding difference that stayed within the tolerance: 4 of 5.
+
+| indicator_code | kind | outcome | comparisons |
 |---|---|---|---|
-| AGR-01 | none | correctly within tolerance | 163 |
-| AGR-01 | over_report | caught | 1 |
-| AGR-01 | over_report | missed | 28 |
-| AGR-01 | under_report | missed | 10 |
+| AGR-01 | none | correctly within tolerance | 16 |
+| AGR-01 | planted | caught | 3 |
+| AGR-01 | planted | missed (smaller than the minimum) | 17 |
 | WASH-01 | none | correctly within tolerance | 68 |
 | WASH-01 | none | flag explained: records-side data issue | 4 |
-| WASH-01 | over_report | caught | 18 |
-| WASH-01 | over_report | missed | 8 |
+| WASH-01 | planted | caught | 19 |
+| WASH-01 | planted | missed | 1 |
+| WASH-01 | planted | missed (smaller than the minimum) | 7 |
 | WASH-01 | rounding | correctly within tolerance | 4 |
 | WASH-01 | rounding | flag explained: records-side data issue | 1 |
-| WASH-01 | under_report | caught | 1 |
+
+### Known limitation: planted discrepancies too small to detect
+
+Of 66 planted report rows (the grain the officer reports: project, district, month and, for AGR-01, sex), **46** differ from the truth by less than 5 on their own (AGR-01: 39, WASH-01: 7). On its own, none of these can be detected at any level; 8 of them sit in a comparison that was flagged because it adds up with other planted differences. Full list: `data/staging/score_reconciliation_too_small.csv`.
+
+| indicator_code | project_id | district | period | sex | kind | true_value | actual_value | size | its comparison unit |
+|---|---|---|---|---|---|---|---|---|---|
+| WASH-01 | PRJ01 | Nyagatare | 2023-07-01 |  | over_report | 13.0 | 16.0 | 3.0 | missed (smaller than the minimum) |
+| WASH-01 | PRJ01 | Nyagatare | 2025-04-01 |  | over_report | 12.0 | 15.0 | 3.0 | missed (smaller than the minimum) |
+| WASH-01 | PRJ01 | Nyagatare | 2025-11-01 |  | over_report | 16.0 | 20.0 | 4.0 | missed (smaller than the minimum) |
+| WASH-01 | PRJ01 | Nyagatare | 2026-05-01 |  | over_report | 8.0 | 10.0 | 2.0 | missed (smaller than the minimum) |
+| WASH-01 | PRJ01 | Kayonza | 2023-08-01 |  | over_report | 13.0 | 16.0 | 3.0 | missed (smaller than the minimum) |
+| WASH-01 | PRJ01 | Kayonza | 2026-02-01 |  | over_report | 22.0 | 26.0 | 4.0 | missed (smaller than the minimum) |
+| WASH-01 | PRJ01 | Kayonza | 2026-04-01 |  | over_report | 9.0 | 11.0 | 2.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Bugesera | 2024-11-01 | Male | under_report | 3.0 | 1.0 | 2.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Bugesera | 2025-06-01 | Male | under_report | 3.0 | 1.0 | 2.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Bugesera | 2025-07-01 | Male | under_report | 3.0 | 2.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Bugesera | 2026-04-01 | Female | under_report | 1.0 | 0.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Kirehe | 2024-06-01 | Male | under_report | 1.0 | 0.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Kirehe | 2025-02-01 | Male | under_report | 1.0 | 0.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Kirehe | 2025-04-01 | Female | under_report | 1.0 | 0.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Kirehe | 2025-12-01 | Female | under_report | 2.0 | 1.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2023-08-01 | Male | over_report | 1.0 | 2.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2023-10-01 | Female | over_report | 1.0 | 2.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2023-12-01 | Male | over_report | 2.0 | 3.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2024-01-01 | Female | over_report | 1.0 | 2.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2024-02-01 | Female | over_report | 1.0 | 2.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2024-02-01 | Male | over_report | 1.0 | 2.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2024-04-01 | Female | over_report | 2.0 | 3.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2024-05-01 | Male | over_report | 1.0 | 2.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2024-09-01 | Female | over_report | 4.0 | 5.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2024-10-01 | Female | over_report | 2.0 | 3.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2024-11-01 | Male | over_report | 1.0 | 2.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2024-12-01 | Male | over_report | 1.0 | 2.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2025-01-01 | Male | over_report | 1.0 | 2.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2025-02-01 | Female | over_report | 1.0 | 2.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2025-03-01 | Male | under_report | 2.0 | 1.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2025-04-01 | Female | over_report | 1.0 | 2.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2025-04-01 | Male | under_report | 2.0 | 1.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2025-05-01 | Female | over_report | 1.0 | 2.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2025-05-01 | Male | over_report | 4.0 | 6.0 | 2.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2025-08-01 | Male | over_report | 1.0 | 2.0 | 1.0 | caught |
+| AGR-01 | PRJ04 | Rulindo | 2025-09-01 | Male | over_report | 4.0 | 5.0 | 1.0 | caught |
+| AGR-01 | PRJ04 | Rulindo | 2025-10-01 | Male | over_report | 3.0 | 4.0 | 1.0 | caught |
+| AGR-01 | PRJ04 | Rulindo | 2025-12-01 | Female | over_report | 4.0 | 6.0 | 2.0 | caught |
+| AGR-01 | PRJ04 | Rulindo | 2025-12-01 | Male | over_report | 1.0 | 2.0 | 1.0 | caught |
+| AGR-01 | PRJ04 | Rulindo | 2026-01-01 | Female | over_report | 2.0 | 3.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2026-02-01 | Female | over_report | 3.0 | 4.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2026-03-01 | Female | over_report | 1.0 | 2.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2026-03-01 | Male | over_report | 2.0 | 3.0 | 1.0 | missed (smaller than the minimum) |
+| AGR-01 | PRJ04 | Rulindo | 2026-04-01 | Male | over_report | 2.0 | 3.0 | 1.0 | caught |
+| AGR-01 | PRJ04 | Rulindo | 2026-06-01 | Female | over_report | 1.0 | 2.0 | 1.0 | caught |
+| AGR-01 | PRJ04 | Rulindo | 2026-06-01 | Male | over_report | 2.0 | 3.0 | 1.0 | caught |
 
 ## Hand-made test files (data/holdout/manual)
 

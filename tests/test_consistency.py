@@ -270,6 +270,10 @@ def test_pipeline_figures_are_the_same_on_summary_and_donor_page(con, run, combo
     gaps, cutoff = measures.pipeline_gaps(run, opps, S["as_of_date"], S)
     assert f"ending by {cutoff:%b %Y}" in html(home)
     assert f"end by {cutoff:%d %b %Y}" in html(donor)
+    # The gap uses the ANNUAL budget: budget divided by the project's length in years.
+    ending, _ = measures.ending_projects(run, S["as_of_date"], S)
+    assert gaps["ending_budget"].sum() == pytest.approx(ending["annual_budget"].sum())
+    assert ending["annual_budget"].sum() < ending["budget_rwf"].sum()
 
 
 @pytest.mark.parametrize("combo", ["no filters", "WASH programme", "one project", "women only"])
@@ -299,7 +303,7 @@ def test_reconciliation_cards_add_up_on_the_indicators_page(con, run, combo):
     page = render("pages/2_Indicators.py", combo, con)
     words = S["labels"]["reconciliation_status"]
     shown = [to_int(tile(page, words[s])[0]) for s in measures.RECONCILIATION_GROUPS]
-    assert sum(shown) == to_int(tile(page, "Months compared")[0]) == n["compared"]
+    assert sum(shown) == to_int(tile(page, "Comparisons")[0]) == n["compared"]
 
 
 def test_donor_report_figures_match_the_dashboard_definitions(con, run):

@@ -16,7 +16,7 @@ No table holds names, phone numbers or national ID numbers. People and donors ar
 | `dim_project` | dimension | 5 | project_id | One row per project. Each project belongs to one programme. |
 | `dim_activity` | dimension | 15 | activity_id | One row per type of activity a project runs (the activity list, not each event). |
 | `dim_location` | dimension | 152 | location_id | One row per village, plus one row per district (for results reported at district level, such as monthly indicator reports). District rows have no sector, cell or village. Provinces and districts are Rwanda's real ones; sectors, cells and villages are synthetic while on demonstration data. |
-| `dim_indicator` | dimension | 12 | indicator_id | One row per MEAL indicator in config/indicator_catalogue.yaml (draft, for co-design with ARDE/KUBAHO staff). |
+| `dim_indicator` | dimension | 13 | indicator_id | One row per MEAL indicator in config/indicator_catalogue.yaml (draft, for co-design with ARDE/KUBAHO staff). |
 | `dim_date` | dimension | 1,461 | date | One row per calendar day, with Rwanda's fiscal year (July to June). |
 | `dim_beneficiary` | dimension | 1,509 | beneficiary_key | One row per person (after duplicate matching). No names, phone numbers or ID numbers: the person is identified only by a salted hash. Details come from the person's earliest registration that passed the data-quality checks. |
 | `dim_donor` | dimension | 25 | donor_key | One row per donor. Organisations keep their names; individual donors appear only as "Individual donor #NNN". Contact names, emails and phone numbers are never stored. |
@@ -34,9 +34,9 @@ No table holds names, phone numbers or national ID numbers. People and donors ar
 | `skipped_sheets` | data quality | 0 | source_file, source_sheet | Every sheet the pipeline could not read, with the reason and the column headers it did not recognise. |
 | `dq_info_measures` | data quality | 6 | metric_id | Data-quality measures shown on the dashboard instead of rows to review (info-level flags). |
 | `report_completeness` | data quality | 417 | project_id, district, period | One row per monthly indicator report that was due, and whether it arrived. |
-| `indicator_values` | indicator | 6,744 | value_id | One row per indicator value: for each indicator, source (reported or derived), project, district, period and breakdown. "All" in project_id or district means all projects or all districts together (worked out directly, not by adding up the rows below, so a person is never counted twice). |
-| `indicator_value_sources` | indicator | 145,386 | value_id, source_table, source_file, source_sheet, source_row, record_key | Traceability: for each indicator value, every record it was worked out from. Use it to go from any number on the dashboard back to the Excel rows. |
-| `indicator_reconciliation` | indicator | 729 | indicator_code, project_id, district, period_type, period, disaggregation | A key MEAL check: where an indicator is both reported and derived LIKE FOR LIKE (catalogue: derived.like_for_like), the two monthly values side by side. Months are compared because that is the reporting grain where both sources count the same thing. Gaps larger than the tolerance (settings: indicators.reconciliation_tolerance_pct) AND at least the minimum difference (reconciliation_min_difference) are flagged for follow-up. A month with a report but no matching records counts as derived 0. |
+| `indicator_values` | indicator | 6,853 | value_id | One row per indicator value: for each indicator, source (reported or derived), project, district, period and breakdown. "All" in project_id or district means all projects or all districts together (worked out directly, not by adding up the rows below, so a person is never counted twice). |
+| `indicator_value_sources` | indicator | 99,567 | value_id, source_table, source_file, source_sheet, source_row, record_key | Traceability: for each indicator value, every record it was worked out from. Use it to go from any number on the dashboard back to the Excel rows. |
+| `indicator_reconciliation` | indicator | 916 | indicator_code, project_id, district, period_type, period, disaggregation | A key MEAL check: where an indicator is both reported and derived LIKE FOR LIKE (catalogue: derived.like_for_like), the two values side by side, for every month (by project, district and breakdown) and, for indicators compared by quarter, every quarter. The catalogue's derived.reconcile sets the COMPARISON LEVEL (month or quarter, totals only): only rows at that level can be flagged. Gaps above the tolerance (settings: indicators.reconciliation_tolerance_pct) AND at least the minimum difference (reconciliation_min_difference) are flagged. A month with a report but no matching records counts as derived 0. A quarter adds up only the months that have a report, on both sides. Other rows (breakdowns by sex, months of a quarterly indicator) are for information. |
 
 ## How the tables link
 
@@ -129,7 +129,7 @@ Rows: 152. Key: location_id.
 
 One row per MEAL indicator in config/indicator_catalogue.yaml (draft, for co-design with ARDE/KUBAHO staff).
 
-Rows: 12. Key: indicator_id.
+Rows: 13. Key: indicator_id.
 
 | Column | Type | Description |
 |---|---|---|
@@ -442,7 +442,7 @@ Rows: 417. Key: project_id, district, period.
 
 One row per indicator value: for each indicator, source (reported or derived), project, district, period and breakdown. "All" in project_id or district means all projects or all districts together (worked out directly, not by adding up the rows below, so a person is never counted twice).
 
-Rows: 6,744. Key: value_id.
+Rows: 6,853. Key: value_id.
 
 | Column | Type | Description |
 |---|---|---|
@@ -477,7 +477,7 @@ Rows: 6,744. Key: value_id.
 
 Traceability: for each indicator value, every record it was worked out from. Use it to go from any number on the dashboard back to the Excel rows.
 
-Rows: 145,386. Key: value_id, source_table, source_file, source_sheet, source_row, record_key.
+Rows: 99,567. Key: value_id, source_table, source_file, source_sheet, source_row, record_key.
 
 | Column | Type | Description |
 |---|---|---|
@@ -490,26 +490,28 @@ Rows: 145,386. Key: value_id, source_table, source_file, source_sheet, source_ro
 
 ## `indicator_reconciliation`
 
-A key MEAL check: where an indicator is both reported and derived LIKE FOR LIKE (catalogue: derived.like_for_like), the two monthly values side by side. Months are compared because that is the reporting grain where both sources count the same thing. Gaps larger than the tolerance (settings: indicators.reconciliation_tolerance_pct) AND at least the minimum difference (reconciliation_min_difference) are flagged for follow-up. A month with a report but no matching records counts as derived 0.
+A key MEAL check: where an indicator is both reported and derived LIKE FOR LIKE (catalogue: derived.like_for_like), the two values side by side, for every month (by project, district and breakdown) and, for indicators compared by quarter, every quarter. The catalogue's derived.reconcile sets the COMPARISON LEVEL (month or quarter, totals only): only rows at that level can be flagged. Gaps above the tolerance (settings: indicators.reconciliation_tolerance_pct) AND at least the minimum difference (reconciliation_min_difference) are flagged. A month with a report but no matching records counts as derived 0. A quarter adds up only the months that have a report, on both sides. Other rows (breakdowns by sex, months of a quarterly indicator) are for information.
 
-Rows: 729. Key: indicator_code, project_id, district, period_type, period, disaggregation.
+Rows: 916. Key: indicator_code, project_id, district, period_type, period, disaggregation.
 
 | Column | Type | Description |
 |---|---|---|
 | `indicator_code` | VARCHAR | Indicator code. |
 | `indicator_id` | BIGINT | Indicator (links to dim_indicator). |
-| `project_id` | VARCHAR | Project, or All. |
-| `district` | VARCHAR | District, or All. |
-| `period_type` | VARCHAR | month (the reconciliation is done month by month). |
-| `period` | VARCHAR | Month, e.g. 2024-03. |
-| `period_start` | DATE | First day of the month. |
+| `project_id` | VARCHAR | Project. |
+| `district` | VARCHAR | District. |
+| `period_type` | VARCHAR | month or quarter. |
+| `period` | VARCHAR | Month (e.g. 2024-03) or fiscal quarter (e.g. FY2024/25 Q3). |
+| `period_start` | DATE | First day of the month or quarter. |
 | `disaggregation` | VARCHAR | total, or sex=female / sex=male. |
-| `reported` | DOUBLE | Value from the monthly indicator reports. |
-| `derived` | DOUBLE | Value worked out from the activity and beneficiary records. |
+| `comparison_level` | BOOLEAN | True if this row is at the level where gaps are flagged (catalogue derived.reconcile). |
+| `months_compared` | BIGINT | Months in the row that have a report. |
+| `reported` | DOUBLE | Value from the monthly indicator reports (added up over the months compared). |
+| `derived` | DOUBLE | Value worked out from the activity and beneficiary records (over the same months). |
 | `difference` | DOUBLE | Derived minus reported. |
 | `pct_difference` | DOUBLE | Difference as a % of the reported value. |
 | `tolerance_pct` | BIGINT | The tolerance used. |
 | `status` | VARCHAR | within tolerance, gap above tolerance, or derived only (records but no report). |
-| `flag` | BOOLEAN | True if the gap is above the % tolerance and at least the minimum difference. |
-| `reported_value_id` | BIGINT | The reported value (links to indicator_values). |
-| `derived_value_id` | BIGINT | The derived value (links to indicator_values). |
+| `flag` | BOOLEAN | True if the row is at the comparison level and the gap is above the % tolerance and at least the minimum difference. |
+| `reported_value_id` | BIGINT | The monthly reported value (links to indicator_values); empty for quarter rows. |
+| `derived_value_id` | BIGINT | The monthly derived value (links to indicator_values); empty for quarter rows. |

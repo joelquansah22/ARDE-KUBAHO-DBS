@@ -70,7 +70,7 @@ def main() -> int:
                     page.goto(url)
                     wait_until_loaded(page, title)
                     timings.append(time.perf_counter() - start)
-                page.wait_for_timeout(800)            # let charts finish drawing before the screenshot
+                page.wait_for_timeout(1500)           # let charts and tables finish drawing before measuring
                 fits = page.evaluate("""() => {
                     const m = document.querySelector('[data-testid="stMain"]') ||
                               document.querySelector('[data-testid="stAppViewContainer"]');

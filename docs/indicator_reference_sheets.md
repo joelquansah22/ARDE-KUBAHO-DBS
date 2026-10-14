@@ -18,7 +18,8 @@ Traffic-light status (% of target achieved, from `config/settings.yaml`): on tra
 | AGR-04 | Number of cooperatives formed or strengthened | output | number | quarterly | available |
 | CC-01 | Percentage of participants who are women | output | percent | monthly | available |
 | CC-02 | Percentage of planned activities completed on time | output | percent | monthly | available |
-| CC-03 | Cost per beneficiary reached (RWF) | output | RWF | quarterly | available |
+| CC-03 | Cost per person reached (RWF), as reported | output | RWF | quarterly | available |
+| CC-05 | Cost per registered farmer trained, farmer field schools (RWF) | output | RWF | quarterly | available |
 | CC-04 | Reporting completeness: percentage of expected monthly reports submitted | output | percent | monthly | available |
 
 ## WASH-01: Number of people with access to improved water sources
@@ -251,7 +252,7 @@ Traffic-light status (% of target achieved, from `config/settings.yaml`): on tra
 | Higher is better | Yes |
 | Notes | Coverage matters here: on the synthetic data the timing of only about three quarters of activities can be checked. Adding a planned-date field to the paper form (decision log D56) would raise it. |
 
-## CC-03: Cost per beneficiary reached (RWF)
+## CC-03: Cost per person reached (RWF), as reported
 
 | Field | Value |
 |---|---|
@@ -259,20 +260,43 @@ Traffic-light status (% of target achieved, from `config/settings.yaml`): on tra
 | Theme | Cross-cutting |
 | Level | output |
 | Unit | RWF |
-| Definition | Activity spending during the period divided by the number of different registered people reached. |
-| Numerator | Total cost (RWF) of activities that took place during the period. |
-| Denominator | Different registered people reached during the period. |
-| Calculation rule | Numerator divided by denominator. |
-| Counting rule | Unique people, not attendance. Costs are attributed to the district where the activity took place; people to the district where they registered. |
-| Coverage | Activities with a cost recorded out of all activities that took place. |
+| Definition | Activity spending divided by the people reached as reported in the monthly indicator reports, by programme. |
+| Numerator | Total cost (RWF) of the activities of projects that report people reached, during the period. |
+| Denominator | People reached as reported by the same projects during the period: WASH programme - people with access to improved water (WASH-01); agriculture programme - farmers trained (AGR-01). |
+| Calculation rule | Numerator divided by denominator. Not available for a project or programme that reports no reach. |
+| Counting rule | Reported monthly figures are added up, as the reports do, so a person reached in two months counts twice. Projects without a people-reached indicator (sanitation, hygiene, irrigation) are left out of both sides. |
+| Coverage | Activities whose cost is included (projects that report reach) out of all activities. |
 | Disaggregation | none |
 | Target-setting rule | To be agreed with ARDE/KUBAHO (a benchmark per type of project). |
+| Frequency | quarterly |
+| Data source | Activity monitoring files (costs) and monthly indicator reports (people reached) (derived). |
+| Availability | available |
+| Owner | To be confirmed with partner (suggested - finance officer with MEAL officer) |
+| Higher is better | No |
+| Notes | Replaces cost per REGISTERED person (D161, D163): the register holds far fewer people than the activities reach. Which indicators count "people reached" for each programme must be agreed with ARDE/KUBAHO; sanitation, hygiene and irrigation projects have none yet. Only activity costs are included (not staff or overheads). |
+
+## CC-05: Cost per registered farmer trained, farmer field schools (RWF)
+
+| Field | Value |
+|---|---|
+| Status | Draft, for co-design with ARDE/KUBAHO staff |
+| Theme | Cross-cutting |
+| Level | output |
+| Unit | RWF |
+| Definition | Cost of farmer field school sessions divided by the different registered people who attended them (training activities only). |
+| Numerator | Total cost (RWF) of farmer field school sessions (ACT10) during the period. |
+| Denominator | Different registered people who received farmer training (ACT10) during the period. |
+| Calculation rule | Numerator divided by denominator. |
+| Counting rule | Unique people, not attendance. Training is the one activity where every participant is registered. |
+| Coverage | Sessions with a cost recorded out of all sessions that took place. |
+| Disaggregation | none |
+| Target-setting rule | To be agreed with ARDE/KUBAHO. |
 | Frequency | quarterly |
 | Data source | Activity monitoring files (costs) and beneficiary registers and service records (people) (derived). |
 | Availability | available |
 | Owner | To be confirmed with partner (suggested - finance officer with MEAL officer) |
 | Higher is better | No |
-| Notes | Only activity costs recorded in the monitoring files are included (not staff or overhead costs), and only registered people are counted, so the figure is not a full cost-effectiveness measure. |
+| Notes | Kept for training activities only, where registration is complete; labelled as per REGISTERED farmer. |
 
 ## CC-04: Reporting completeness: percentage of expected monthly reports submitted
 

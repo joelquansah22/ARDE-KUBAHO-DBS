@@ -19,7 +19,8 @@ import sys
 
 from openpyxl import Workbook
 from openpyxl.comments import Comment
-from openpyxl.styles import Font, PatternFill
+from openpyxl.formatting.rule import FormulaRule
+from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
@@ -60,6 +61,18 @@ def build_template(file_name: str, spec: dict, lists: dict) -> None:
     row = len(spec["instructions"]) + 4
     intro.cell(row, 1, "Orange headers are required. Do not rename, reorder or delete columns.").font = Font(italic=True)
     intro.column_dimensions["A"].width = 110
+    for r in range(3, row):
+        intro.cell(r, 1).alignment = Alignment(wrap_text=True, vertical="top")
+    if spec.get("examples"):
+        # Examples live on the Instructions sheet only, so they are never read as data.
+        row += 2
+        intro.cell(row, 1, spec.get("example_heading", "Example rows")).font = Font(bold=True)
+        for r, values in enumerate(spec["examples"], start=row + 1):
+            for c, v in enumerate(values, start=1):
+                cell = intro.cell(r, c, v)
+                if r == row + 1:
+                    cell.font = Font(bold=True)
+                    cell.fill = HEADER_FILL
 
     # Hidden sheet with every dropdown list used in this template.
     list_ws = wb.create_sheet("Lists")
@@ -98,6 +111,19 @@ def build_template(file_name: str, spec: dict, lists: dict) -> None:
             elif col.get("type") == "whole_number":
                 dv = DataValidation(type="whole", operator="greaterThanOrEqual", formula1="0", allow_blank=True)
                 dv.error = "Please type a whole number (0 or more)."
+            elif "list_from" in col:
+                # A dropdown of the values typed on another sheet of this workbook (e.g. donor names).
+                source = col["list_from"]
+                src_cols = [c["header"] for c in spec["sheets"][source["sheet"]]]
+                src_letter = get_column_letter(src_cols.index(source["header"]) + 1)
+                dv = DataValidation(type="list", allow_blank=True,
+                                    formula1=f"='{source['sheet']}'!${src_letter}$2:${src_letter}${ROWS_WITH_CHECKS + 1}")
+                dv.error = f"Please pick a name from the {source['sheet']} sheet (add it there first)."
+            elif col.get("type") == "percent":
+                dv = DataValidation(type="decimal", operator="between", formula1="0", formula2="1", allow_blank=True)
+                dv.error = "Please type a percentage between 0% and 100%, for example 40%."
+                for r in range(2, ROWS_WITH_CHECKS + 2):
+                    ws.cell(r, i).number_format = "0%"
             elif col.get("type") == "number":
                 dv = DataValidation(type="decimal", operator="greaterThanOrEqual", formula1="0", allow_blank=True)
                 dv.error = "Please type a number only (no RWF, no commas)."
@@ -109,11 +135,27 @@ def build_template(file_name: str, spec: dict, lists: dict) -> None:
                 ws.add_data_validation(dv)
                 dv.add(cells)
         ws.freeze_panes = "A2"
+        add_highlights(ws, sheet_name, columns, spec.get("highlights", []))
 
     out = resolve_path("templates") / file_name
     out.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out)
     print(f"Wrote {out}")
+
+
+def add_highlights(ws, sheet_name: str, columns: list, highlights: list) -> None:
+    """Colour cells that need attention (templates.yaml: highlights). In a rule, {cell} is the cell itself and
+    {col:Header} is the same row's cell in another column."""
+    letters = {c["header"]: get_column_letter(i) for i, c in enumerate(columns, start=1)}
+    for h in highlights:
+        if h["sheet"] != sheet_name:
+            continue
+        letter = letters[h["column"]]
+        formula = h["when"].replace("{cell}", f"{letter}2")
+        for header, other in letters.items():
+            formula = formula.replace("{col:" + header + "}", f"${other}2")
+        ws.conditional_formatting.add(f"{letter}2:{letter}{ROWS_WITH_CHECKS + 1}",
+                                      FormulaRule(formula=[formula], fill=PatternFill("solid", fgColor=h["colour"])))
 
 
 STAMP_FILE = ".build_stamp"

@@ -17,11 +17,15 @@ st.markdown("<div class='muted'>This page covers every record in the source file
 
 
 def records_view(df: pd.DataFrame) -> pd.DataFrame:
-    """Quarantine or review-queue rows in plain words."""
+    """Quarantine or review-queue rows in plain words, oldest first. Details are left blank when they only repeat
+    the problem."""
+    problems = df["reasons"].map(ui.issues_in_words)
+    details = df["details"].map(ui.details_in_words)
+    details = [("" if d.strip().rstrip(".") == p.strip() else d) for d, p in zip(details, problems)]
     return pd.DataFrame({
-        "Record type": df["entity"].map(ui.entity_label), "File": df["source_file"], "Sheet": df["source_sheet"],
-        "Row in file": df["source_row"], "Month": df["month"], "Problems": df["reasons"].map(ui.issues_in_words),
-        "Details": df["details"].map(ui.details_in_words), "Field officer": df["field_officer"]})
+        "Field officer": df["field_officer"], "Month": df["month"], "Record type": df["entity"].map(ui.entity_label),
+        "File": df["source_file"], "Sheet": df["source_sheet"], "Row in file": df["source_row"],
+        "Problems": problems, "Details": details})
 
 
 skipped = ui.query("SELECT * FROM skipped_sheets")
@@ -120,10 +124,17 @@ with c2:
     fig.update_layout(height=320, margin=dict(l=0, r=10, t=10, b=0))
     ui.month_axis(fig)
     st.plotly_chart(fig, width="stretch")
-st.markdown("**Quarantined records** (correct them in the source Excel file, then run the pipeline again)")
-ui.html_table(records_view(quarantine), "quarantine", max_rows=12)
-st.markdown("**Review queue**")
-ui.html_table(records_view(review), "review_queue", max_rows=12)
+st.markdown("### Work lists")
+officers = sorted(set(quarantine["field_officer"].dropna()) | set(review["field_officer"].dropna()))
+who = st.selectbox("Field officer", ["All officers"] + officers, key="dq_officer",
+                   help="Show one officer's records, e.g. to send them their list.")
+pick = (lambda df: df) if who == "All officers" else (lambda df: df[df["field_officer"] == who])
+q_rows, r_rows = pick(quarantine).sort_values("month"), pick(review).sort_values("month")
+st.markdown(f"**Quarantined records** ({len(q_rows):,}): correct them in the source Excel file, then run the "
+            "pipeline again")
+ui.html_table(records_view(q_rows), "quarantine" if who == "All officers" else f"quarantine_{who}", max_rows=12)
+st.markdown(f"**Review queue** ({len(r_rows):,}): the records are used, but a person should check them")
+ui.html_table(records_view(r_rows), "review_queue" if who == "All officers" else f"review_queue_{who}", max_rows=12)
 
 # ------------------------------------------------------------------ before and after
 st.markdown("### What cleaning changed")
