@@ -6,7 +6,8 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-import ui
+import ui                # first: it makes src/ importable
+import measures          # noqa: E402  (src/measures.py: one definition per figure)
 
 f = ui.filters()
 cat = ui.catalogue()
@@ -40,30 +41,37 @@ def districts_geojson():
 
 
 reported = [c for c, i in cat.items() if "reported" in i.get("calculation", {}) and i["availability"] == "available"]
-measures = ["People reached (different people, by registration district)", "Activities completed",
-            "Activity spending"] + [f"{c}: {cat[c]['name']} (reported)" for c in reported]
-measure = st.selectbox("Show", measures, key="geo_measure")
-sex_clause, sex_params = ("AND b.sex = ?", [f.sex]) if f.sex else ("", [])
+measures_shown = ["People reached (different people, by registration district)", "Activities completed",
+                  "Activity spending"] + [f"{cat[c]['name']} (reported)" for c in reported]
+code_of = {f"{cat[c]['name']} (reported)": c for c in reported}
+measure = st.selectbox("Show", measures_shown, key="geo_measure")
+run = ui.query
+if f.district:
+    st.caption(f"The map shows every district so they can be compared; {f.district} (your district filter) is listed "
+               "first in the table.")
 
 if measure.startswith("People"):
-    data = ui.query(f"""SELECT l.district, COUNT(DISTINCT s.beneficiary_key) AS value,
-                               COUNT(DISTINCT CASE WHEN b.pending_duplicate_review THEN s.beneficiary_key END) AS pending
-                        FROM fact_beneficiary_service s JOIN dim_activity a USING (activity_id)
-                        JOIN dim_beneficiary b USING (beneficiary_key) JOIN dim_location l ON l.location_id = b.location_id
-                        WHERE a.project_id IN {ui.in_list(projects)} AND s.date BETWEEN ? AND ? {sex_clause}
-                        GROUP BY 1""", *projects, f.start, f.end, *sex_params)
-    label = "People reached"
-    note = (f"Includes {int(data['pending'].sum())} people pending duplicate review." if data["pending"].sum() else "")
+    d = measures.people_by_district(run, projects, f.start, f.end, None, f.sex)
+    data = d.rename(columns={"people": "value"})
+    label, axis = "People reached", "Number of people"
+    total = measures.people_reached(run, projects, f.start, f.end, None, f.sex)
+    register = measures.pending_in_register(run)
+    note = (f"{total['people']:,} people in all (the Programme overview shows the same total when no district is "
+            f"chosen); includes {total['pending']} people pending duplicate review ({register} in the whole register). "
+            "People are counted in the district where they registered.")
+    if total["unknown_district"]:
+        note += (f" '{measures.UNKNOWN_DISTRICT}': {total['unknown_district']} people received services but every "
+                 "registration record for them is quarantined (see Data quality), so their district is not known until "
+                 "the register is corrected. They are not drawn on the map.")
 elif measure.startswith("Activities") or measure.startswith("Activity spending"):
-    col = "COUNT(*)" if measure.startswith("Activities") else "SUM(f.cost_rwf)"
-    data = ui.query(f"""SELECT l.district, {col} AS value FROM fact_activity f JOIN dim_activity a USING (activity_id)
-                        JOIN dim_location l USING (location_id)
-                        WHERE a.project_id IN {ui.in_list(projects)} AND f.status IN ('completed','delayed')
-                          AND f.date BETWEEN ? AND ? GROUP BY 1""", *projects, f.start, f.end)
-    label = "Activities completed" if measure.startswith("Activities") else "Spending (RWF)"
-    note = ""
+    d = measures.activities_by_district(run, projects, f.start, f.end)
+    spending = measure.startswith("Activity spending")
+    data = d.rename(columns={"spend" if spending else "activities": "value"})
+    label = "Spending (RWF)" if spending else "Activities completed"
+    axis = "RWF" if spending else "Number of activities"
+    note = "Activities and spending are counted in the district where the activity took place."
 else:
-    code = measure.split(":")[0]
+    code = code_of[measure]
     agg = cat[code].get("aggregation", "sum")
     data = ui.query(f"""SELECT district, project_id, period_start, actual FROM indicator_values
                         WHERE indicator_code = ? AND source = 'reported' AND period_type = 'month' AND district <> 'All'
@@ -74,12 +82,12 @@ else:
     if agg == "latest":      # a snapshot: the latest month for each project, then add the projects up
         data = data.sort_values("period_start").groupby(["district", "project_id"]).tail(1)
     data = data.groupby("district", as_index=False)["actual"].sum().rename(columns={"actual": "value"})
-    label = cat[code]["name"]
+    label, axis = cat[code]["name"], ui.axis_title(code)
     note = f"Monthly reported values {'(latest month)' if agg == 'latest' else 'added up'} over the date range."
 
 all_districts = pd.DataFrame({"district": [d for ds in ui.load_yaml("reference/rwanda_admin.yaml")["provinces"].values()
                                            for d in ds]})
-shown = all_districts.merge(data[["district", "value"]], on="district", how="left")
+shown = all_districts.merge(data[["district", "value"]], on="district", how="left")   # map: known districts only
 geo = districts_geojson()
 c1, c2 = st.columns([3, 2])
 with c1:
@@ -104,11 +112,17 @@ with c1:
         st.info("District boundaries are not available, so only the ranked chart is shown.")
 with c2:
     ranked = data.sort_values("value", ascending=True)
-    fig = px.bar(ranked, x="value", y="district", orientation="h", text="value", labels={"value": label, "district": ""})
-    fig.update_traces(marker_color="#1f6f8b", texttemplate="%{text:,.0f}")
+    ranked["colour"] = ["#8c959f" if d == measures.UNKNOWN_DISTRICT else "#1f6f8b" for d in ranked["district"]]
+    fig = px.bar(ranked, x="value", y="district", orientation="h", text="value", labels={"value": axis, "district": ""})
+    fig.update_traces(marker_color=ranked["colour"], texttemplate="%{text:,.0f}")
     fig.update_layout(height=430, margin=dict(l=0, r=10, t=10, b=0))
     st.plotly_chart(fig, width="stretch")
 if note:
     st.caption(note)
-ui.table(data.sort_values("value", ascending=False).rename(columns={"district": "District", "value": label}),
-         "geography_by_district")
+shown_table = data.sort_values("value", ascending=False)
+if f.district:
+    shown_table = pd.concat([shown_table[shown_table["district"] == f.district],
+                             shown_table[shown_table["district"] != f.district]])
+shown_table = shown_table[["district", "value"] + (["pending"] if "pending" in shown_table else [])]
+ui.table(shown_table.rename(columns={"district": "District", "value": label,
+                                     "pending": "Of whom pending duplicate review"}), "geography_by_district")

@@ -218,6 +218,24 @@ def test_reconciliation_flags_gaps_above_the_tolerance():
     assert rec.loc["2024-04", "status"] == "derived only"
 
 
+def test_reconciliation_ignores_gaps_smaller_than_the_minimum_difference():
+    min_diff = S["indicators"]["reconciliation_min_difference"]
+    builder = indicators.IndicatorBuilder.__new__(indicators.IndicatorBuilder)
+    builder.settings, builder.catalogue = S, list(CATALOGUE.values())
+    base = dict(indicator_code="WASH-01", indicator_id=1, project_id="PRJ01", district="Huye", period_type="month",
+                period_start=D(2024, 1, 1), disaggregation="total")
+    rows = [dict(base, period="2024-01", source="reported", actual=4, value_id=1),        # 4 v 2: 50% but 2 people
+            dict(base, period="2024-01", source="derived", actual=2, value_id=2),
+            dict(base, period="2024-02", source="reported", actual=20, value_id=3),       # 20 v 20+min: flagged
+            dict(base, period="2024-02", source="derived", actual=20 + min_diff, value_id=4),
+            dict(base, period="2024-03", source="reported", actual=0, value_id=5),        # nothing reported, 2 found
+            dict(base, period="2024-03", source="derived", actual=2, value_id=6)]
+    rec = builder.reconcile(pd.DataFrame(rows)).set_index("period")
+    assert not rec.loc["2024-01", "flag"] and rec.loc["2024-01", "status"] == "within tolerance"
+    assert rec.loc["2024-02", "flag"]
+    assert not rec.loc["2024-03", "flag"]
+
+
 # ---------------------------------------------------------------- the real pipeline output
 @pytest.fixture(scope="module")
 def built(synthetic, tmp_path_factory):
@@ -295,8 +313,10 @@ def test_reconciliation_is_built_and_flags_large_gaps(built):
     rec = built["tables"]["indicator_reconciliation"]
     assert set(rec["indicator_code"]) == {"WASH-01", "AGR-01"}
     tol = S["indicators"]["reconciliation_tolerance_pct"]
-    both = rec[rec["reported"].notna() & rec["derived"].notna()]
-    assert (both["flag"] == (both["pct_difference"].abs() > tol)).all()
+    min_diff = S["indicators"]["reconciliation_min_difference"]
+    both = rec[rec["reported"].notna() & rec["derived"].notna() & (rec["reported"] > 0)]
+    expected = (both["pct_difference"].abs() > tol) & (both["difference"].abs() >= min_diff)
+    assert (both["flag"] == expected).all()
 
 
 def test_reference_sheets_markdown_and_excel(built):
@@ -385,6 +405,9 @@ def test_reconciliation_finds_the_planted_discrepancies(built, synthetic):
     import score_cleaning
     r = score_cleaning.score_reconciliation(synthetic["truth"], built["db"])
     s = r["summary"]
-    assert s["planted"] > 0 and s["catch_rate"] >= 95
+    assert s["planted"] > 0 and s["catch_rate_at_least_min"] >= 95
     assert s["false_alarms"] == 0
-    assert s["rounding_within"] == s["rounding_planted"]
+    rounding = r["rows"][r["rows"]["kind"] == "rounding"]
+    # Rounding differences stay within the tolerance, unless a data problem in the records explains the flag.
+    assert rounding["outcome"].isin(["correctly within tolerance", "flag explained: records-side data issue",
+                                     "flag explained: report-side data error"]).all()

@@ -144,6 +144,9 @@ class ModelBuilder:
                                 household_size=good["household_size"].astype("Int64"),
                                 disability_flag=good["disability"].map({"yes": True, "no": False}),
                                 location_id=good["location_id"]))
+        # Village missing but district known: link to the district (so the person still counts in their district).
+        district_only = dim["location_id"].isna() & good["district"].notna().values
+        dim.loc[district_only, "location_id"] = "DIST-" + good.loc[district_only.values, "district"].values
         # People whose only registrations were quarantined still need a row, so that links work.
         others = (set(regs["beneficiary_key"]) | set(services["beneficiary_key"].dropna())) - set(dim["beneficiary_key"])
         if others:

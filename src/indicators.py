@@ -388,7 +388,7 @@ def add_status(values: pd.DataFrame, spec: dict, settings: dict) -> pd.DataFrame
 # ======================================================================================
 VALUE_COLUMNS = ["value_id", "indicator_id", "indicator_code", "source", "aggregation", "project_id", "district",
                  "period_type", "period", "period_start", "disaggregation", "unit", "target", "actual",
-                 "pct_achieved", "status", "partial_pct_achieved", "target_note", "months_with_target",
+                 "pct_achieved", "status", "partial_pct_achieved", "partial_target", "partial_actual", "target_note", "months_with_target",
                  "months_with_data", "numerator", "denominator", "coverage_pct", "n_rows"]
 
 
@@ -468,8 +468,11 @@ class IndicatorBuilder:
         """Reported versus derived, MONTH BY MONTH, where the catalogue says the two are like for like.
 
         Months are the reporting grain: the two sources are defined to count the same thing per month.
+        A gap is flagged only when it is BOTH above the % tolerance AND at least the minimum difference
+        (settings: indicators.reconciliation_tolerance_pct and reconciliation_min_difference).
         """
         tol = self.settings["indicators"]["reconciliation_tolerance_pct"]
+        min_diff = self.settings["indicators"].get("reconciliation_min_difference", 0)
         both = [s["code"] for s in self.catalogue if s.get("availability", "available") == "available"
                 and {"reported", "derived"} <= set(s.get("calculation", {}))
                 and s["calculation"]["derived"].get("like_for_like")]
@@ -488,8 +491,9 @@ class IndicatorBuilder:
         b = lambda cond: pd.Series(cond).fillna(False).astype(bool).to_numpy()
         rec["status"] = np.select(
             [b(rec["reported"].isna()), b((rec["reported"] == 0) & (rec["derived"] == 0)),
+             b(rec["difference"].abs() < min_diff),
              b(rec["reported"] == 0), b(rec["pct_difference"].abs() <= tol)],
-            ["derived only", "within tolerance", "gap above tolerance", "within tolerance"],
+            ["derived only", "within tolerance", "within tolerance", "gap above tolerance", "within tolerance"],
             default="gap above tolerance")
         rec["flag"] = rec["status"] == "gap above tolerance"
         for c in ("reported_value_id", "derived_value_id"):

@@ -188,6 +188,9 @@ indicators:
   period_types: [month, quarter, fiscal_year]
   # Reported and derived values more than this far apart (as a % of the reported value) are flagged.
   reconciliation_tolerance_pct: 10
+  # ...AND at least this many apart (in the indicator's unit). Stops tiny numbers being flagged:
+  # reported 4 against 3 in the records is 33% but only 1 person.
+  reconciliation_min_difference: 5
   # Words shown instead of a % achieved.
   no_target_label: no target set
   target_incomplete_label: target incomplete      # some months in the period have no target
@@ -212,6 +215,16 @@ donor_pipeline:
     private: [private, private sector, company]
     individual: [individual, individual (diaspora), private individual]
   deadline_windows_days: [30, 60, 90]
+  # Stages that are still open (not yet decided). Awarded and Declined are outcomes.
+  open_stages: [Identified, Qualified, Concept note, Proposal submitted]
+  # An opportunity that fits more than one theme ("WASH; Agriculture") has its value split
+  # equally between them, so the themes always add up to the total pipeline.
+  multi_theme_allocation: split_equally
+  # Themes shown for the pipeline. They match dim_programme.thematic_area.
+  themes: [WASH, Agriculture]
+  # "Pipeline gap": projects ending within this many months, against the weighted pipeline for their theme.
+  # The definition is ours: to be confirmed with partner.
+  ending_within_months: 12
 
 # -----------------------------------------------------------------------------
 # What happens to each kind of flag (three levels)
@@ -285,3 +298,39 @@ duplicate_certain_name_score: 95
 # Review queue sizing: minutes the MEAL officer needs per row in the queue (a planning assumption).
 review_minutes_per_row: 2
 review_budget_minutes_per_month: 60
+
+# -----------------------------------------------------------------------------
+# Plain-language labels for the dashboard (no raw codes on screen)
+# -----------------------------------------------------------------------------
+labels:
+  entity:
+    activity: Activity record
+    beneficiary: Beneficiary registration
+    service: Service record
+    indicator_result: Indicator report
+    opportunity: Donor opportunity
+    donor: Donor
+  issue:
+    accuracy_outlier: Actual more than 3 times the target
+    date_outside_project_window: Date outside the project dates
+    district_province_mismatch: District not in the stated province
+    district_unrecognised: District name not recognised
+    entry_before_activity: Entered before the activity took place
+    female_exceeds_total: More women than total participants
+    impossible_age: Impossible age
+    impossible_household_size: Impossible household size
+    missing_required: Required field left blank
+    missing_target: No target given
+    negative_value: Negative number
+    number_unreadable: Number could not be read
+    percent_over_100: Percentage above 100
+    possible_duplicate_person: Possibly the same person registered twice
+    probability_word: Probability written in words
+    sex_unmapped: Sex not recognised
+    status_completed_but_late: Marked completed but done late
+    sum_mismatch: Women + men do not equal the total
+    village_unrecognised: Village name not recognised
+  reconciliation_status:
+    within tolerance: ✔ Within tolerance
+    gap above tolerance: ✖ Gap to follow up
+    derived only: ○ Records only (no report)

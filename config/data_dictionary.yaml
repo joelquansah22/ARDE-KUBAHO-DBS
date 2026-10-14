@@ -102,7 +102,9 @@ tables:
       age_band: Age at registration, in bands (e.g. 25-34).
       household_size: Number of people in the household.
       disability_flag: True if the person reported a disability.
-      location_id: Village where the person registered (links to dim_location).
+      location_id: >-
+        Village where the person registered (links to dim_location); the district only, when the village was not
+        recorded. Empty when all of the person's registrations are quarantined.
       pending_duplicate_review: >-
         True if any of this person's records is waiting for a duplicate review. A people count includes these, so it
         may be slightly too high until the review is done ("includes N people pending duplicate review").
@@ -376,6 +378,9 @@ tables:
         colour), or no data.
       partial_pct_achieved: >-
         When the target is incomplete: actual as a % of target over the months that DO have a target (see target_note).
+      partial_target: >-
+        When the target is incomplete: the target added up (or averaged) over the months that DO have a target.
+      partial_actual: The actual over the same months as partial_target (so the two can be compared fairly).
       target_note: 'For an incomplete target, e.g. "partial: 9 of 12 months".'
       months_with_target: Months in the period that have a value and a complete target.
       months_with_data: Months in the period that have a value (for a "latest" indicator, 1 - the month used).
@@ -405,8 +410,8 @@ tables:
     description: >-
       A key MEAL check: where an indicator is both reported and derived LIKE FOR LIKE (catalogue: derived.like_for_like),
       the two monthly values side by side. Months are compared because that is the reporting grain where both sources
-      count the same thing. Gaps larger than the tolerance (settings: indicators.reconciliation_tolerance_pct) are
-      flagged for follow-up. A month with a report but no matching records counts as derived 0.
+      count the same thing. Gaps larger than the tolerance (settings: indicators.reconciliation_tolerance_pct) AND at
+      least the minimum difference (reconciliation_min_difference) are flagged for follow-up. A month with a report but no matching records counts as derived 0.
     key: [indicator_code, project_id, district, period_type, period, disaggregation]
     columns:
       indicator_code: Indicator code.
@@ -422,8 +427,8 @@ tables:
       difference: Derived minus reported.
       pct_difference: Difference as a % of the reported value.
       tolerance_pct: The tolerance used.
-      status: within tolerance, gap above tolerance, reported only, or derived only.
-      flag: True if the gap is above the tolerance.
+      status: within tolerance, gap above tolerance, or derived only (records but no report).
+      flag: True if the gap is above the % tolerance and at least the minimum difference.
       reported_value_id: The reported value (links to indicator_values).
       derived_value_id: The derived value (links to indicator_values).
 

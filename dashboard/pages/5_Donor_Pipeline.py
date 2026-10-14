@@ -1,66 +1,82 @@
-"""Donor pipeline: opportunities by stage, deadlines, weighted value, thematic fit, overdue actions."""
-
-import datetime as dt
+"""Donor pipeline: open opportunities by stage, outcomes, deadlines, weighted value, thematic fit, overdue actions."""
 
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
-import ui
+import ui                # first: it makes src/ importable
+import measures          # noqa: E402  (src/measures.py: one definition per figure)
 
 f = ui.filters(sex_applies=False)
+run = ui.query
 today = ui.as_of()
+cfg = ui.SETTINGS["donor_pipeline"]
 st.title("Donor pipeline")
 st.markdown(f"<div class='muted'>As of {today:%d %B %Y}. Weighted value = amount requested × probability of "
-            "success. Individual donors are shown only as 'Individual donor #NNN'.</div>", unsafe_allow_html=True)
-opps = ui.query("""SELECT o.*, d.donor_name, d.donor_type FROM fact_opportunity o LEFT JOIN dim_donor d USING (donor_key)""")
-for c in ("deadline", "next_action_date"):
-    opps[c] = pd.to_datetime(opps[c])
-opps["weighted"] = opps["requested_amount_rwf"] * opps["probability"]
-open_ = opps[opps["stage"].isin(ui.OPEN_STAGES)]
-fy_start = dt.date(today.year if today.month >= 7 else today.year - 1, 7, 1)
-awarded = opps[(opps["stage"] == "Awarded")]
-overdue = open_[open_["next_action_date"] < pd.Timestamp(today)]
-ui.tiles([("Open opportunities", f"{len(open_)}"), ("Weighted pipeline", ui.money(open_["weighted"].sum(), short=True)),
-          ("Awarded (all time)", ui.money(awarded["awarded_amount_rwf"].sum(), short=True), f"{len(awarded)} grants"),
+            "success. Individual donors are shown only as 'Individual donor #NNN'. Programme, project, district and "
+            "sex filters do not apply on this page.</div>", unsafe_allow_html=True)
+opps = measures.opportunities(run, ui.SETTINGS)
+open_ = opps[opps["is_open"]]
+awarded = opps[opps["stage"] == "Awarded"]
+declined = opps[opps["stage"] == "Declined"]
+overdue = measures.overdue_actions(opps, today)
+ui.tiles([("Open opportunities", f"{len(open_)}", "not yet decided"),
+          ("Weighted open pipeline", ui.money(open_["weighted"].sum(), short=True),
+           f"of {ui.money(open_['requested_amount_rwf'].sum(), short=True)} requested"),
+          ("Outcome: awarded", ui.money(awarded["awarded_amount_rwf"].sum(), short=True), f"{len(awarded)} grants (all time)"),
+          ("Outcome: declined", f"{len(declined)}", f"{ui.money(declined['requested_amount_rwf'].sum(), short=True)} requested"),
           ("Overdue next actions", f"{len(overdue)}", "past their due date")])
 
 c1, c2 = st.columns(2)
+divisor = ui.SETTINGS["currency"]["usd_to_rwf"] if f.currency == "USD" else 1
 with c1:
-    st.markdown("### Opportunities by stage")
-    stages = ui.SETTINGS["donor_pipeline"]["stages"]
-    by_stage = (opps.groupby("stage").agg(count=("opportunity_id", "count"), requested=("requested_amount_rwf", "sum"))
-                .reindex(stages).fillna(0).reset_index())
-    by_stage["label"] = [f"{int(c)} · {ui.money(r, short=True)}" for c, r in zip(by_stage["count"], by_stage["requested"])]
-    fig = px.funnel(by_stage, x="count", y="stage", text="label")
-    fig.update_traces(marker_color="#1f6f8b", textinfo="text")
-    fig.update_layout(height=320, margin=dict(l=0, r=10, t=10, b=0))
+    st.markdown("### Open opportunities by stage")
+    by_stage = (open_.groupby("stage").agg(count=("opportunity_id", "count"), requested=("requested_amount_rwf", "sum"),
+                                           weighted=("weighted", "sum"))
+                .reindex(cfg["open_stages"]).fillna(0).reset_index())
+    fig = go.Figure()
+    fig.add_bar(y=by_stage["stage"], x=by_stage["requested"] / divisor, orientation="h", name="Requested",
+                marker_color="#c6d4dc",
+                text=[f"{int(c)} opportunit{'y' if c == 1 else 'ies'} · {ui.money(r, short=True)}"
+                      for c, r in zip(by_stage["count"], by_stage["requested"])], textposition="auto")
+    fig.add_bar(y=by_stage["stage"], x=by_stage["weighted"] / divisor, orientation="h", name="Weighted",
+                marker_color="#1f6f8b", text=[ui.money(w, short=True) for w in by_stage["weighted"]], textposition="auto")
+    fig.update_layout(barmode="group", height=320, margin=dict(l=0, r=10, t=10, b=0), legend_orientation="h",
+                      xaxis_title=f"Value ({f.currency})", yaxis=dict(autorange="reversed"))
+    ui.legend_on_top(fig)
     st.plotly_chart(fig, width="stretch")
+    st.caption("Stages run from top (earliest) to bottom. Awarded and declined opportunities are outcomes, shown in "
+               "the tiles above, not stages.")
 with c2:
     st.markdown("### Thematic fit with current programmes")
-    themes = []
-    for theme in ("WASH", "Agriculture"):
-        mask = open_["thematic_fit"].str.contains(theme, na=False)
-        themes.append(dict(theme=theme, measure="Weighted open pipeline", value=open_.loc[mask, "weighted"].sum()))
-    budgets = ui.query("""SELECT g.thematic_area AS theme, SUM(p.budget_rwf) AS value FROM dim_project p
-                          JOIN dim_programme g USING (programme_id) GROUP BY 1""").assign(measure="Current project budgets")
-    fit = pd.concat([pd.DataFrame(themes), budgets], ignore_index=True)
-    divisor = ui.SETTINGS["currency"]["usd_to_rwf"] if f.currency == "USD" else 1
-    fit["shown"] = fit["value"] / divisor
-    fit["label"] = [ui.money(v, short=True) for v in fit["value"]]
-    fig = px.bar(fit, x="theme", y="shown", color="measure", barmode="group", text="label",
-                 labels={"shown": f.currency, "theme": "", "measure": ""},
-                 color_discrete_sequence=["#1f6f8b", "#c6d4dc"])
-    fig.update_layout(height=320, margin=dict(l=0, r=10, t=10, b=0), legend_orientation="h")
+    gaps, cutoff = measures.pipeline_gaps(run, opps, today, ui.SETTINGS)
+    by_theme = measures.pipeline_by_theme(opps, ui.SETTINGS)
+    ending_label = f"Budgets of projects ending by {cutoff:%b %Y}"
+    fig = go.Figure()
+    fig.add_bar(x=by_theme["theme"], y=by_theme["weighted"] / divisor, name="Weighted open pipeline",
+                marker_color="#1f6f8b", text=[ui.money(v, short=True) for v in by_theme["weighted"]])
+    fig.add_bar(x=gaps["theme"], y=gaps["ending_budget"] / divisor, name=ending_label, marker_color="#c6d4dc",
+                text=[ui.money(v, short=True) for v in gaps["ending_budget"]])
+    fig.update_layout(barmode="group", height=320, margin=dict(l=0, r=10, t=10, b=0), legend_orientation="h",
+                      yaxis_title=f"Value ({f.currency})")
+    fig.update_traces(textangle=0, textposition="outside", cliponaxis=False)
+    ui.legend_on_top(fig)
     st.plotly_chart(fig, width="stretch")
+    n_projects = int(gaps["projects"].sum())
+    all_projects = len(ui.query("SELECT project_id FROM dim_project"))
+    st.caption(f"Opportunities that fit two themes are split equally between them, so the themes add up to the "
+               f"{ui.money(open_['weighted'].sum(), short=True)} total. {n_projects} of {all_projects} projects end by "
+               f"{cutoff:%d %b %Y} (within {cfg['ending_within_months']} months)"
+               + (", so this equals all current project budgets." if n_projects == all_projects else ".")
+               + " The gap (budgets ending minus weighted pipeline) is shown on the Executive summary; "
+               "its definition is to be confirmed with the partner.")
 
 st.markdown("### Upcoming deadlines")
-tabs = st.tabs([f"Next {d} days" for d in ui.SETTINGS["donor_pipeline"]["deadline_windows_days"]])
-for tab, days in zip(tabs, ui.SETTINGS["donor_pipeline"]["deadline_windows_days"]):
+tabs = st.tabs([f"Next {d} days" for d in cfg["deadline_windows_days"]])
+for tab, days in zip(tabs, cfg["deadline_windows_days"]):
     with tab:
-        soon = open_[(open_["deadline"] >= pd.Timestamp(today)) &
-                     (open_["deadline"] <= pd.Timestamp(today + dt.timedelta(days=days)))].sort_values("deadline")
-        ui.table(pd.DataFrame({
+        soon = measures.deadlines_within(opps, today, days)
+        ui.html_table(pd.DataFrame({
             "Deadline": soon["deadline"].dt.strftime("%d %b %Y"), "Opportunity": soon["title"],
             "Donor": soon["donor_name"], "Stage": soon["stage"],
             "Requested": [ui.money(x) for x in soon["requested_amount_rwf"]],
@@ -68,13 +84,19 @@ for tab, days in zip(tabs, ui.SETTINGS["donor_pipeline"]["deadline_windows_days"
             "Weighted": [ui.money(x) for x in soon["weighted"]], "Owner": soon["owner"]}), f"deadlines_{days}_days")
 
 st.markdown("### Overdue next actions")
-ui.table(pd.DataFrame({
+ui.html_table(pd.DataFrame({
     "Due": overdue["next_action_date"].dt.strftime("%d %b %Y"),
     "Days overdue": [(pd.Timestamp(today) - d).days for d in overdue["next_action_date"]],
     "Action": overdue["next_action"], "Opportunity": overdue["title"], "Stage": overdue["stage"], "Owner": overdue["owner"]
 }).sort_values("Days overdue", ascending=False), "overdue_next_actions")
 
 with st.expander("All opportunities"):
-    ui.table(opps.drop(columns=["donor_key"]).assign(
-        deadline=opps["deadline"].dt.strftime("%Y-%m-%d"), next_action_date=opps["next_action_date"].dt.strftime("%Y-%m-%d")),
-        "all_opportunities")
+    ui.table(pd.DataFrame({
+        "Opportunity": opps["title"], "Donor": opps["donor_name"], "Donor type": opps["donor_type"].str.capitalize(),
+        "Theme": opps["thematic_fit"], "Stage": opps["stage"], "Deadline": opps["deadline"].dt.strftime("%d %b %Y"),
+        "Requested": [ui.money(x) for x in opps["requested_amount_rwf"]],
+        "Awarded": [ui.money(x) if pd.notna(x) and x else "" for x in opps["awarded_amount_rwf"]],
+        "Probability": [f"{p:.0%}" if pd.notna(p) else "–" for p in opps["probability"]],
+        "Weighted": [ui.money(x) for x in opps["weighted"]], "Owner": opps["owner"],
+        "Next action": opps["next_action"], "Next action due": opps["next_action_date"].dt.strftime("%d %b %Y"),
+        "Source file": opps["source_file"], "Source row": opps["source_row"]}), "all_opportunities")

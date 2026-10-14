@@ -512,7 +512,9 @@ class World:
                     total = self.rand.int(*act["participants"])
                     female = self.rand.binomial(total, act["female_share"])
                     male = total - female
-                    cost = int(round(self.rand.uniform(*act["cost_rwf"]), -3))
+                    scale = ((self.cfg.get("calibration") or {}).get("activity_cost_scale") or {}).get(
+                        project["project_id"], 1)
+                    cost = int(round(self.rand.uniform(*act["cost_rwf"]) * scale, -3))
                 records.append(dict(
                     project_id=project["project_id"], activity_id=act["activity_id"],
                     location_id=loc["location_id"], district=district, planned_date=planned, date=actual,
@@ -707,6 +709,8 @@ class World:
 
     def build_services(self):
         lo, hi = self.cfg["volumes"]["services_per_beneficiary"]
+        # Services fall within this many days of registration (None = any time until the project ends).
+        window = (self.cfg.get("calibration") or {}).get("service_window_days")
         regs_by_person: dict[str, list] = {}
         for r in self.registrations:
             regs_by_person.setdefault(r["person_id"], []).append(r)
@@ -721,7 +725,8 @@ class World:
                     len(regs_by_person[p["person_id"]]) > 1 and self.rand.chance(0.3)) \
                     else regs_by_person[p["person_id"]][0]
                 start = reg["registration_date"]
-                date = start + dt.timedelta(days=self.rand.int(0, max(0, (end - start).days)))
+                last = min(end, start + dt.timedelta(days=window)) if window else end
+                date = start + dt.timedelta(days=self.rand.int(0, max(0, (last - start).days)))
                 services.append(dict(service_id=f"SRV{n:05d}", person_id=p["person_id"],
                                      registration_id=reg["registration_id"], file_key=reg["file_key"],
                                      activity_id=act["activity_id"], date=date,

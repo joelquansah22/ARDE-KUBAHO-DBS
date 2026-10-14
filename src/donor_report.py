@@ -26,6 +26,7 @@ from fpdf import FPDF                      # noqa: E402
 from openpyxl import Workbook              # noqa: E402
 from openpyxl.styles import Alignment, Font, PatternFill  # noqa: E402
 
+import measures                            # noqa: E402
 from common import PROJECT_ROOT, load_settings, resolve_path  # noqa: E402
 
 LOG = PROJECT_ROOT / "evaluation" / "report_generation_log.csv"
@@ -56,19 +57,15 @@ def gather(db: Path, project_id: str, quarter: str) -> dict:
             start = any_value["s"].iloc[0]
         start = pd.Timestamp(start).date()
         end = (pd.Timestamp(start) + pd.DateOffset(months=3)).date()
-        people = q("""SELECT COUNT(DISTINCT s.beneficiary_key) AS people,
-                             COUNT(DISTINCT CASE WHEN b.pending_duplicate_review THEN s.beneficiary_key END) AS pending
-                      FROM fact_beneficiary_service s JOIN dim_activity a USING (activity_id)
-                      JOIN dim_beneficiary b USING (beneficiary_key)
-                      WHERE a.project_id = ? AND s.date >= ? AND s.date < ?""", project_id, start, end).iloc[0]
-        acts = q("""SELECT COUNT(*) AS done, SUM(cost_rwf) AS spend, SUM(participants_total) AS attendance
-                    FROM fact_activity f JOIN dim_activity a USING (activity_id)
-                    WHERE a.project_id = ? AND f.status IN ('completed','delayed') AND f.date >= ? AND f.date < ?""",
-                 project_id, start, end).iloc[0]
+        last_day = end - dt.timedelta(days=1)
+        # The same definitions as the dashboard (src/measures.py), so the report and the pages agree.
+        people = measures.people_reached(q, [project_id], start, last_day)
+        totals = measures.activities_total(q, [project_id], start, last_day)
+        acts = dict(done=totals["activities"], spend=totals["spend"], attendance=totals["attendance"])
         spend_to_date = q("""SELECT SUM(cost_rwf) AS s FROM fact_activity f JOIN dim_activity a USING (activity_id)
                              WHERE a.project_id = ? AND f.date < ?""", project_id, end)["s"].iloc[0]
-        flags = q("""SELECT COUNT(*) AS n FROM indicator_reconciliation WHERE project_id = ? AND district <> 'All'
-                     AND flag AND period_start >= ? AND period_start < ?""", project_id, start, end)["n"].iloc[0]
+        flags = measures.reconciliation_counts(
+            measures.reconciliation(q, [project_id], start, last_day))["gap above tolerance"]
         warnings = q("""SELECT COUNT(*) AS n FROM fact_activity f JOIN dim_activity a USING (activity_id)
                         WHERE a.project_id = ? AND f.quality_flag = 'warning' AND f.date >= ? AND f.date < ?""",
                      project_id, start, end)["n"].iloc[0]

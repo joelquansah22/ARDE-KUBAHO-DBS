@@ -40,6 +40,7 @@ indicators:
       the project) during the period.
     level: output
     unit: number
+    axis_label: Number of people           # chart axis title on the dashboard
     numerator: People gaining access to an improved water source during the period.
     denominator: None (a count).
     calculation_rule: >-
@@ -78,6 +79,7 @@ indicators:
     definition: Household latrines completed (new or rehabilitated) to the project standard during the period.
     level: output
     unit: number
+    axis_label: Number of latrines           # chart axis title on the dashboard
     numerator: Latrines completed during the period.
     denominator: None (a count).
     calculation_rule: The sum of the monthly values in the indicator reports.
@@ -104,6 +106,7 @@ indicators:
       critical times.
     level: outcome
     unit: percent
+    axis_label: Percentage of households           # chart axis title on the dashboard
     numerator: Trained households practising handwashing with soap.
     denominator: Trained households surveyed.
     calculation_rule: Numerator divided by denominator, times 100, from a household survey.
@@ -129,6 +132,7 @@ indicators:
     definition: Water user committees newly established during the period that meet the functionality criteria.
     level: output
     unit: number
+    axis_label: Number of committees           # chart axis title on the dashboard
     numerator: Committees established and functional during the period.
     denominator: None (a count).
     calculation_rule: The latest quarterly value in the indicator reports for the period.
@@ -157,6 +161,7 @@ indicators:
     definition: Farmers who took part in climate-smart agriculture training (farmer field schools) during the period.
     level: output
     unit: number
+    axis_label: Number of farmers           # chart axis title on the dashboard
     numerator: Farmers trained during the period.
     denominator: None (a count).
     calculation_rule: >-
@@ -192,6 +197,7 @@ indicators:
     definition: Hectares newly brought under solar-powered or improved irrigation during the period.
     level: output
     unit: hectares
+    axis_label: Hectares           # chart axis title on the dashboard
     numerator: Hectares newly irrigated during the period.
     denominator: None (an area).
     calculation_rule: The sum of the monthly values in the indicator reports.
@@ -216,6 +222,7 @@ indicators:
     definition: Of the farmers supported, the percentage reporting a higher yield than in the previous comparable season.
     level: outcome
     unit: percent
+    axis_label: Percentage of farmers           # chart axis title on the dashboard
     numerator: Supported farmers reporting a yield increase.
     denominator: Supported farmers surveyed.
     calculation_rule: Numerator divided by denominator, times 100, from a farmer survey.
@@ -241,6 +248,7 @@ indicators:
     definition: Cooperatives newly formed, or existing cooperatives meeting the strengthening criteria, during the period.
     level: output
     unit: number
+    axis_label: Number of cooperatives           # chart axis title on the dashboard
     numerator: Cooperatives formed or strengthened during the period.
     denominator: None (a count).
     calculation_rule: The sum of the quarterly values in the indicator reports.
@@ -266,6 +274,7 @@ indicators:
     definition: Of the different registered people reached during the period, the percentage who are women or girls.
     level: output
     unit: percent
+    axis_label: Percentage of participants           # chart axis title on the dashboard
     numerator: Different registered women and girls reached during the period.
     denominator: Different registered people reached during the period whose sex is recorded.
     calculation_rule: Numerator divided by denominator, times 100.
@@ -296,6 +305,7 @@ indicators:
       planned date (on_time_tolerance_days in settings, now 7).
     level: output
     unit: percent
+    axis_label: Percentage of activities           # chart axis title on the dashboard
     numerator: Activities completed on time.
     denominator: Activities planned for the period (completed, delayed or cancelled) whose timing can be checked.
     calculation_rule: Numerator divided by denominator, times 100. The period is the month of the PLANNED date.
@@ -326,6 +336,7 @@ indicators:
     definition: Activity spending during the period divided by the number of different registered people reached.
     level: output
     unit: RWF
+    axis_label: RWF per person           # chart axis title on the dashboard
     numerator: Total cost (RWF) of activities that took place during the period.
     denominator: Different registered people reached during the period.
     calculation_rule: Numerator divided by denominator.
@@ -354,6 +365,7 @@ indicators:
     definition: Of the monthly indicator reports due, the percentage received.
     level: output
     unit: percent
+    axis_label: Percentage of reports           # chart axis title on the dashboard
     numerator: Reports received.
     denominator: >-
       Reports due: one per project, district and month in which at least one of the project's indicators is due.

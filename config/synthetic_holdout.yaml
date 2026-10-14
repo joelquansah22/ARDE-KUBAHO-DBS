@@ -38,5 +38,6 @@ holdout_mess:
 # Held-out sets keep the reports they were generated with (independent of the activity data), so their
 # documented fingerprints still hold: the reconciliation scenario (decision log D132) is off here.
 reconciliation_scenario: null
+calibration: null                 # keep this set exactly as scored (Phase 6 calibration is main set only)
 
 expected_fingerprint: 1f90c10f3c03ff3426aeb3851de7077dc27ed15649b376fdf07bf48a73674928

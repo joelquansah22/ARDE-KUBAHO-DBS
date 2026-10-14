@@ -101,7 +101,7 @@ rules:
   # ---------------------------------------------------------------- timeliness
   - id: TIM-01
     dimension: timeliness
-    description: Activities are entered within the allowed number of days (late_entry_days in settings)
+    description: Activities are entered within the allowed number of days after they take place (set in settings.yaml)
     metric: timeliness                  # score = this measure (config/dq_metrics.yaml)
     flags: [late_entry]
 

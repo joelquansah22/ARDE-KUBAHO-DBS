@@ -47,8 +47,12 @@ def test_executive_summary_answers_the_three_questions():
 
 def test_indicator_statuses_are_in_words():
     at = run_page("pages/2_Indicators.py")
-    table = at.dataframe[0].value
-    assert table["Status"].str.contains("On track|At risk|Off track|No target set|Target incomplete|No data").all()
+    import re
+    table = next(m.value for m in at.markdown if "class='tbl'" in m.value)
+    rows = re.findall(r"<tr>(.*?)</tr>", table.split("<tbody>")[1])
+    assert rows
+    for row in rows:      # every row's status has a symbol AND words, never colour alone
+        assert re.search(r"[✔▲✖◔–…] (On track|At risk|Off track|No target set|Target incomplete|No data)", row)
 
 
 def test_sex_filter_is_greyed_out_where_it_does_not_apply():

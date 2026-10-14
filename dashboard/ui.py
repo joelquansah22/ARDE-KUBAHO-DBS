@@ -23,7 +23,8 @@ for p in (ROOT / "src", Path(__file__).resolve().parent):
 from common import fiscal_year_label, load_settings, load_yaml, resolve_path  # noqa: E402
 
 SETTINGS = load_settings()
-OPEN_STAGES = ["Identified", "Qualified", "Concept note", "Proposal submitted"]
+OPEN_STAGES = SETTINGS["donor_pipeline"]["open_stages"]
+LABELS = SETTINGS["labels"]
 
 # Traffic lights never rely on colour alone: every status has a symbol and words.
 STATUS = {
@@ -206,6 +207,86 @@ def table(df: pd.DataFrame, name: str, height: int | None = None, **kwargs) -> N
                        file_name=f"{name}.csv", mime="text/csv", key=f"dl_{name}")
 
 
+def html_table(df: pd.DataFrame, name: str, widths: dict | None = None, html_columns: tuple = (),
+               max_rows: int | None = None) -> None:
+    """A compact table whose text WRAPS (nothing is cut off at 1366 px), with a download button underneath.
+    html_columns: columns that already hold HTML (e.g. coloured statuses); everything else is escaped.
+    The download has the plain text."""
+    import html as _html
+    widths = widths or {}
+    head = "".join(f"<th style='width:{widths[c]}'>{_html.escape(str(c))}</th>" if c in widths
+                   else f"<th>{_html.escape(str(c))}</th>" for c in df.columns)
+    body = "".join("<tr>" + "".join(
+        f"<td>{v if c in html_columns else _html.escape('' if v is None or (isinstance(v, float) and pd.isna(v)) else str(v))}</td>"
+        for c, v in zip(df.columns, row)) + "</tr>" for row in df.head(max_rows or len(df)).itertuples(index=False))
+    st.markdown(f"<div class='tbl-wrap'><table class='tbl'><thead><tr>{head}</tr></thead><tbody>{body}</tbody>"
+                "</table></div>", unsafe_allow_html=True)
+    if max_rows and len(df) > max_rows:
+        st.caption(f"The first {max_rows} of {len(df):,} rows are shown; the download has them all.")
+    plain = df.copy()
+    for c in html_columns:
+        plain[c] = plain[c].astype(str).str.replace(r"<[^>]+>", "", regex=True)
+    st.download_button(f"⬇ Download ({len(df):,} rows, CSV)", plain.to_csv(index=False).encode("utf-8-sig"),
+                       file_name=f"{name}.csv", mime="text/csv", key=f"dl_{name}")
+
+
+def axis_title(code: str) -> str:
+    """The chart axis title for an indicator, e.g. "Number of people" (catalogue: axis_label)."""
+    ind = catalogue()[code]
+    return ind.get("axis_label") or {"percent": "Percentage", "hectares": "Hectares", "RWF": "RWF"}.get(
+        ind["unit"], "Number")
+
+
+def pending_note(people: dict, f) -> str:
+    """The note under every people count: how many of them are pending duplicate review, against the whole register.
+    The two can differ legitimately: the register holds everyone ever registered, the count only the people
+    reached in the selection."""
+    import measures
+    register = measures.pending_in_register(query)
+    note = f"includes {people['pending']} people pending duplicate review ({register} in the whole register)"
+    if people.get("unknown_district") and not f.district:
+        note += f"; {people['unknown_district']} with no known district (registration quarantined)"
+    return note
+
+
+def month_axis(fig, title: str = "") -> None:
+    """Dates on the x axis as 'Mar 2024' (month over year, so labels are never cut off)."""
+    fig.update_xaxes(tickformat="%b<br>%Y", title_text=title, automargin=True)
+    fig.update_yaxes(automargin=True)
+    legend_on_top(fig)
+
+
+def legend_on_top(fig) -> None:
+    """Legend in one line above the chart, so it never covers the axis labels."""
+    fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, title_text=""),
+                      margin=dict(t=40))
+
+
+def issue_label(code: str) -> str:
+    return LABELS["issue"].get(code, code.replace("_", " ").capitalize())
+
+
+def issues_in_words(text) -> str:
+    """'missing_required, sex_unmapped' -> 'Required field left blank; Sex not recognised'."""
+    if text is None or (isinstance(text, float) and pd.isna(text)) or not str(text).strip():
+        return ""
+    return "; ".join(issue_label(c.strip()) for c in str(text).split(","))
+
+
+def details_in_words(text) -> str:
+    """Replace issue codes at the start of each detail ('sex_unmapped: ...') with plain words."""
+    if text is None or (isinstance(text, float) and pd.isna(text)):
+        return ""
+    out = str(text)
+    for code in sorted(LABELS["issue"], key=len, reverse=True):
+        out = out.replace(code + ":", LABELS["issue"][code] + ":").replace(code, LABELS["issue"][code])
+    return out
+
+
+def entity_label(code: str) -> str:
+    return LABELS["entity"].get(code, str(code).replace("_", " ").capitalize())
+
+
 def current_quarter() -> tuple[str, dt.date, dt.date]:
     """The fiscal quarter of the as-of date (settings), e.g. FY2025/26 Q4."""
     as_of = SETTINGS["as_of_date"] or dt.date.today()
@@ -244,5 +325,11 @@ h4 {font-size: 1.0rem !important; margin: 0.2rem 0 0.3rem 0 !important;}
 .answer ul {margin: 0.1rem 0 0.2rem 1rem; padding: 0; font-size: 0.82rem;}
 .answer li {margin-bottom: 0.1rem;}
 .small {font-size: 0.82rem;}
+.tbl-wrap {overflow-x: auto; margin-bottom: 0.3rem;}
+table.tbl {border-collapse: collapse; width: 100%; font-size: 0.8rem; table-layout: auto;}
+table.tbl th {background: #f6f8fa; text-align: left; padding: 0.3rem 0.45rem; border-bottom: 2px solid #d0d7de;
+              vertical-align: bottom;}
+table.tbl td {padding: 0.25rem 0.45rem; border-bottom: 1px solid #e5e8eb; vertical-align: top; white-space: normal;
+              overflow-wrap: break-word;}
 </style>
 """

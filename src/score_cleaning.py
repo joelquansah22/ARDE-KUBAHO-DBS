@@ -751,9 +751,17 @@ def score_reconciliation(truth_dir, db) -> dict | None:
     caught = int((planted["outcome"] == "caught").sum())
     unexplained = int((m["outcome"] == "false alarm (unexplained)").sum())
     rounding = m[m["kind"] == "rounding"]
+    # Since Phase 6 a gap must also be at least reconciliation_min_difference apart (D153). Planted discrepancies
+    # smaller than that are below the follow-up threshold BY DESIGN, so they are scored separately.
+    min_diff = load_settings()["indicators"].get("reconciliation_min_difference", 0)
+    size = (m["actual_value"] - m["true_value"]).abs()
+    big = planted[size.loc[planted.index] >= min_diff]
+    caught_big = int((big["outcome"] == "caught").sum())
     summary = dict(
         report_rows=len(m), planted=len(planted), caught=caught,
         catch_rate=round(100 * caught / len(planted), 1) if len(planted) else None,
+        min_difference=min_diff, planted_at_least_min=len(big), caught_at_least_min=caught_big,
+        catch_rate_at_least_min=round(100 * caught_big / len(big), 1) if len(big) else None,
         flags=len(flags), flags_on_planted=int(flags["kind"].isin(["over_report", "under_report"]).sum()),
         precision=round(100 * caught / len(flags), 1) if len(flags) else None,
         explained_flags=int(m["outcome"].str.startswith("flag explained").sum()), false_alarms=unexplained,
@@ -774,6 +782,10 @@ def reconciliation_lines(r: dict) -> list[str]:
             "month and, for AGR-01, sex).", "",
             f"- Planted discrepancies (over- and under-reporting) in submitted reports: **{s['planted']}**; flagged: "
             f"**{s['caught']} ({s['catch_rate']}%)**.",
+            f"- Of these, **{s['planted_at_least_min']}** are at least {s['min_difference']} apart (the minimum difference "
+            f"for a gap, settings: indicators.reconciliation_min_difference); flagged: **{s['caught_at_least_min']} "
+            f"({s['catch_rate_at_least_min']}%)**. The other {s['planted'] - s['planted_at_least_min']} are smaller than "
+            "the minimum, so they are not flagged by design (decision log D153).",
             f"- Flags raised: {s['flags']}; on a planted discrepancy: {s['flags_on_planted']} (precision {s['precision']}%).",
             f"- Other flags explained by an injected data problem (an extra zero in a report, quarantined or "
             f"duplicate records...): {s['explained_flags']}. **Unexplained false alarms: {s['false_alarms']}.**",

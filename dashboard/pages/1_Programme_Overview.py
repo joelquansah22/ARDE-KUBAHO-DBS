@@ -1,48 +1,32 @@
 """Programme overview: headline figures, target versus actual by project, trend, donor report."""
 
-import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-import ui
+import ui                # first: it makes src/ importable
+import measures          # noqa: E402  (src/measures.py: one definition per figure)
 
 f = ui.filters()
 projects = f.project_ids
+run = ui.query
 st.title("Programme overview")
 st.markdown(f"<div class='muted'>{f.start:%d %b %Y} to {f.end:%d %b %Y} · {f.scope_text}</div>", unsafe_allow_html=True)
 
-dist_clause, dist_params = ("AND l.district = ?", [f.district]) if f.district else ("", [])
-sex_clause, sex_params = ("AND b.sex = ?", [f.sex]) if f.sex else ("", [])
-
-# ------------------------------------------------------------------ headline figures
-people = ui.query(f"""
-    SELECT COUNT(DISTINCT s.beneficiary_key) AS people,
-           COUNT(DISTINCT CASE WHEN b.pending_duplicate_review THEN s.beneficiary_key END) AS pending,
-           COUNT(DISTINCT CASE WHEN b.sex = 'female' THEN s.beneficiary_key END) AS women,
-           COUNT(DISTINCT CASE WHEN b.sex IS NOT NULL THEN s.beneficiary_key END) AS known_sex
-    FROM fact_beneficiary_service s JOIN dim_activity a USING (activity_id)
-    JOIN dim_beneficiary b USING (beneficiary_key) LEFT JOIN dim_location l ON l.location_id = b.location_id
-    WHERE a.project_id IN {ui.in_list(projects)} AND s.date BETWEEN ? AND ? {dist_clause} {sex_clause}""",
-                  *projects, f.start, f.end, *dist_params, *sex_params).iloc[0]
-acts = ui.query(f"""
-    SELECT COUNT(*) AS done, SUM(cost_rwf) AS spend FROM fact_activity f JOIN dim_activity a USING (activity_id)
-    JOIN dim_location l USING (location_id)
-    WHERE a.project_id IN {ui.in_list(projects)} AND f.status IN ('completed', 'delayed') AND f.date BETWEEN ? AND ?
-    {dist_clause}""", *projects, f.start, f.end, *dist_params).iloc[0]
-budget = ui.query(f"SELECT SUM(budget_rwf) AS b FROM dim_project WHERE project_id IN {ui.in_list(projects)}",
-                  *projects)["b"].iloc[0]
+# ------------------------------------------------------------------ headline figures (one definition each: measures.py)
+people = measures.people_reached(run, projects, f.start, f.end, f.district, f.sex)
+acts = measures.activities_total(run, projects, f.start, f.end, f.district)
+budget = measures.budget_total(run, projects)
 women_pct = 100 * people["women"] / people["known_sex"] if people["known_sex"] else None
 coverage = 100 * people["known_sex"] / people["people"] if people["people"] else None
 ui.tiles([
-    ("People reached (different people)", f"{int(people['people']):,}",
-     f"includes {int(people['pending'])} people pending duplicate review" if people["pending"] else "none pending duplicate review"),
-    ("Activities completed", f"{int(acts['done'] or 0):,}", "completed or completed late, in the date range"),
+    ("People reached (different people)", f"{people['people']:,}", ui.pending_note(people, f)),
+    ("Activities completed", f"{acts['activities']:,}", "completed or completed late, in the date range"),
     ("% women (CC-01 definition)", ui.number(women_pct, "percent") if women_pct is not None else "–",
      f"coverage {coverage:.0f}%: people with sex recorded" if coverage is not None and coverage < 100 else
      ("sex filter applied" if f.sex else "")),
-    ("Budget spent (activity costs)", ui.money(acts["spend"] or 0, short=True),
-     f"{100 * (acts['spend'] or 0) / budget:.0f}% of {ui.money(budget, short=True)} budget" if budget else ""),
+    ("Budget spent (activity costs)", ui.money(acts["spend"], short=True),
+     f"{100 * acts['spend'] / budget:.0f}% of the {ui.money(budget, short=True)} project budgets" if budget else ""),
 ])
 if f.district:
     st.caption("People are counted in the district where they registered; activities and spending in the district "
@@ -53,54 +37,71 @@ st.markdown("### Target versus actual by project")
 cat = ui.catalogue()
 reported = [c for c, i in cat.items() if "reported" in i.get("calculation", {}) and i["availability"] == "available"]
 c1, c2 = st.columns([2, 1])
-code = c1.selectbox("Indicator", reported, format_func=lambda c: f"{c} {cat[c]['name']}", key="ov_indicator")
+code = c1.selectbox("Indicator", reported, format_func=lambda c: cat[c]["name"], key="ov_indicator")
 years = ui.query("SELECT DISTINCT period FROM indicator_values WHERE period_type = 'fiscal_year' ORDER BY 1")["period"]
 year = c2.selectbox("Fiscal year", list(years), index=len(years) - 1, key="ov_year")
 district = f.district or "All"
 disagg = f"sex={f.sex}" if f.sex and cat[code]["disaggregation"] == "sex" else "total"
 tv = ui.query(f"""SELECT v.project_id, p.name, v.target, v.actual, v.pct_achieved, v.status, v.partial_pct_achieved,
-                         v.target_note
+                         v.target_note, v.partial_target, v.partial_actual
                   FROM indicator_values v JOIN dim_project p USING (project_id)
                   WHERE v.indicator_code = ? AND v.source = 'reported' AND v.period_type = 'fiscal_year' AND v.period = ?
                     AND v.district = ? AND v.disaggregation = ? AND v.project_id IN {ui.in_list(projects)}""",
               code, year, district, disagg, *projects)
 if len(tv):
-    tv["label"] = [ui.status_label(s, n) for s, n in zip(tv["status"], tv["target_note"])]
+    tv["label"] = [ui.status_label(s) + (f" {p:.0f}%" if p == p and p is not None else "")
+                   for s, p in zip(tv["status"], tv["pct_achieved"].fillna(tv["partial_pct_achieved"]))]
+    partial = tv["target"].isna() & tv["partial_target"].notna()
     fig = go.Figure()
     fig.add_bar(name="Actual", x=tv["project_id"], y=tv["actual"], marker_color="#1f6f8b",
-                text=tv["label"], textposition="outside", cliponaxis=False)
-    fig.add_bar(name="Target", x=tv["project_id"], y=tv["target"], marker_color="#c6d4dc")
-    fig.update_layout(barmode="group", height=280, margin=dict(l=10, r=10, t=30, b=10), legend_orientation="h",
-                      yaxis_title=cat[code]["unit"])
+                text=tv["label"], textposition="outside", cliponaxis=False,
+                hovertemplate="%{x}: actual %{y:,.0f}<extra></extra>")
+    full = tv[~partial]
+    fig.add_bar(name="Target", x=full["project_id"], y=full["target"], marker_color="#c6d4dc",
+                hovertemplate="%{x}: target %{y:,.0f}<extra></extra>")
+    part = tv[partial]
+    if len(part):
+        notes = [str(n).replace("partial: ", "") for n in part["target_note"]]
+        fig.add_bar(name="Partial target (months that have one)", x=part["project_id"], y=part["partial_target"],
+                    marker=dict(color="#e7edf1", line=dict(color="#57606a", width=1), pattern_shape="/"),
+                    text=[f"target for {n}" for n in notes], textposition="inside", insidetextanchor="end",
+                    customdata=part["partial_actual"],
+                    hovertemplate="%{x}: target %{y:,.0f} (%{text}); actual in those months %{customdata:,.0f}"
+                                  "<extra></extra>")
+    fig.update_layout(barmode="group", height=300, margin=dict(l=10, r=10, t=30, b=10), legend_orientation="h",
+                      yaxis_title=ui.axis_title(code))
+    ui.legend_on_top(fig)
     st.plotly_chart(fig, width="stretch")
-    st.caption("The words above each bar give the status (not only the colour). A missing target bar means the "
-               "target is incomplete or not set; see the Indicators page for the partial % achieved.")
+    st.caption("The words above each bar give the status (not only the colour). Where some months have no target, "
+               "the hatched bar is the target for the months that DO have one, and the % compares it with the actual "
+               "for those same months.")
 else:
     st.info("No reported values for this indicator, year and selection.")
 
 # ------------------------------------------------------------------ trend
 st.markdown("### Trend over time")
-trend = ui.query(f"""
-    SELECT date_trunc('month', s.date) AS month, COUNT(DISTINCT s.beneficiary_key) AS people
-    FROM fact_beneficiary_service s JOIN dim_activity a USING (activity_id) JOIN dim_beneficiary b USING (beneficiary_key)
-    LEFT JOIN dim_location l ON l.location_id = b.location_id
-    WHERE a.project_id IN {ui.in_list(projects)} AND s.date BETWEEN ? AND ? {dist_clause} {sex_clause}
-    GROUP BY 1 ORDER BY 1""", *projects, f.start, f.end, *dist_params, *sex_params)
+trend = measures.people_by_month(run, projects, f.start, f.end, f.district, f.sex)
 act_trend = ui.query(f"""
-    SELECT date_trunc('month', f.date) AS month, COUNT(*) AS activities, SUM(participants_total) AS attendance
+    SELECT date_trunc('month', f.date) AS month, COUNT(*) AS activities
     FROM fact_activity f JOIN dim_activity a USING (activity_id) JOIN dim_location l USING (location_id)
     WHERE a.project_id IN {ui.in_list(projects)} AND f.status IN ('completed','delayed') AND f.date BETWEEN ? AND ?
-    {dist_clause} GROUP BY 1 ORDER BY 1""", *projects, f.start, f.end, *dist_params)
+    {"AND l.district = ?" if f.district else ""} GROUP BY 1 ORDER BY 1""",
+                     *projects, f.start, f.end, *([f.district] if f.district else []))
 both = act_trend.merge(trend, on="month", how="outer").sort_values("month")
 long = both.melt(id_vars="month", value_vars=["activities", "people"], var_name="measure", value_name="value")
 long["measure"] = long["measure"].map({"activities": "Activities completed",
-                                       "people": "Different people reached in the month"})
-fig = px.line(long, x="month", y="value", color="measure", markers=True, height=260)
+                                       "people": "Different people served in the month (not cumulative)"})
+fig = px.line(long, x="month", y="value", color="measure", markers=True, height=270)
 fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), legend_orientation="h", legend_title_text="",
-                  xaxis_title="", yaxis_title="")
+                  yaxis_title="Number of people or activities")
+ui.month_axis(fig)
 st.plotly_chart(fig, width="stretch")
+st.caption("Each month counts the different people who received a service that month; someone served in two months "
+           "counts in both months. The first months are lower because people are registered as the projects start.")
 with st.expander("Show the trend as a table"):
-    ui.table(both.assign(month=both["month"].dt.strftime("%Y-%m")), "trend_by_month")
+    ui.table(both.assign(month=both["month"].dt.strftime("%b %Y")).rename(columns={
+        "month": "Month", "activities": "Activities completed", "people": "Different people served"}),
+        "trend_by_month")
 
 # ------------------------------------------------------------------ donor report
 st.markdown("### Generate donor report")
