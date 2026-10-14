@@ -1,145 +1,343 @@
 # =============================================================================
 # MEAL indicator catalogue (SOURCE OF TRUTH for indicator definitions)
 # =============================================================================
-# STATUS: PHASE 1 STUB. DRAFT, FOR CO-DESIGN WITH ARDE/KUBAHO STAFF.
+# STATUS: DRAFT, FOR CO-DESIGN WITH ARDE/KUBAHO STAFF. Nothing here has been agreed
+# with ARDE/KUBAHO. Owners, targets and some definitions must be confirmed in the
+# co-design session (use docs/indicator_reference_sheets.xlsx, which has a
+# "Staff comments" column).
 #
-# Only the identifying fields are filled in for now so that the synthetic data
-# can use the same codes. Phase 4 adds the full definition, numerator,
-# denominator, calculation rule, target-setting rule, data source, owner and notes.
+# Staff can edit the plain-English fields freely. indicators.py uses these fields:
+#   availability   available, or "data source not yet available" (left out of all calculations)
+#   calculation    reported: values typed into the monthly indicator reports
+#                    aggregation: sum (values for months add up to the quarter and year)
+#                  derived: values worked out by the pipeline from activity and beneficiary records
+#                    method: unique_people | share_women | on_time | cost_per_person | report_completeness
+#                    activity_ids: which activities count (codes from the activity list)
+#                  When an indicator has both, indicators.py compares them (the reconciliation table).
+#   higher_is_better   true if a bigger value is good (the direction of the indicator)
 #
-# Field meanings:
-#   code            short unique code; never reuse a code for a different indicator
-#   level           output or outcome
-#   unit            number, percent, hectares, RWF
-#   higher_is_better true if a bigger number is good (the "direction" of the indicator)
-#   frequency       monthly, quarterly, semi-annual, annual
-#   disaggregation  how results are broken down (none, sex)
-#   source          report = entered by staff in the monthly indicator report
-#                   computed = calculated by the pipeline from activity records
+# Activity codes (ACT01...) refer to the activity list in the programme master file. With real
+# data, check them against ARDE/KUBAHO's own activity list.
 # =============================================================================
 
-catalogue_status: "Draft, for co-design with ARDE/KUBAHO staff (Phase 1 stub)"
+catalogue_status: "Draft, for co-design with ARDE/KUBAHO staff"
 
 indicators:
-  # ---------------------------------------------------------------- WASH
+  # ======================================================================= WASH
   - code: WASH-01
     name: Number of people with access to improved water sources
+    status: Draft, for co-design with ARDE/KUBAHO staff
     thematic_area: WASH
+    definition: >-
+      People who gained access to an improved water source (a borehole or water point built or rehabilitated by
+      the project) during the period.
     level: output
     unit: number
-    higher_is_better: true
-    frequency: monthly
+    numerator: People gaining access to an improved water source during the period.
+    denominator: None (a count).
+    calculation_rule: >-
+      Reported: the sum of the monthly values in the indicator reports. Derived: the number of different
+      registered people who received a "water point access" service (activity ACT01) during the period.
+    counting_rule: >-
+      Reported values are counts typed by officers and may include community members who are not registered.
+      Derived values count each registered person once per period, however many services they received.
+    coverage_rule: Reported values cover the monthly reports received out of those expected.
     disaggregation: none
-    source: report
+    target_setting_rule: An annual target per project and district from the work plan, split into equal monthly targets.
+    frequency: monthly
+    data_source: Monthly indicator report (field officers); beneficiary registers and service records (derived).
+    owner: To be confirmed with partner (suggested - MEAL officer)
+    higher_is_better: true
+    availability: available
+    calculation:
+      reported: {aggregation: sum}
+      derived: {method: unique_people, activity_ids: [ACT01]}
+    notes: >-
+      The two sources measure different things (all people reached versus registered beneficiaries), so a gap is
+      expected; the reconciliation shows how large it is.
 
   - code: WASH-02
     name: Number of household latrines constructed or rehabilitated
+    status: Draft, for co-design with ARDE/KUBAHO staff
     thematic_area: WASH
+    definition: Household latrines completed (new or rehabilitated) to the project standard during the period.
     level: output
     unit: number
-    higher_is_better: true
-    frequency: monthly
+    numerator: Latrines completed during the period.
+    denominator: None (a count).
+    calculation_rule: The sum of the monthly values in the indicator reports.
+    counting_rule: Each latrine is counted once, in the month it is completed.
+    coverage_rule: The monthly reports received out of those expected.
     disaggregation: none
-    source: report
+    target_setting_rule: An annual target per project and district from the work plan, split into equal monthly targets.
+    frequency: monthly
+    data_source: Monthly indicator report (field officers).
+    owner: To be confirmed with partner (suggested - WASH project manager)
+    higher_is_better: true
+    availability: available
+    calculation:
+      reported: {aggregation: sum}
+    notes: Activity records count construction events, not latrines, so this cannot be derived from them.
 
   - code: WASH-03
     name: Percentage of trained households practising handwashing with soap
+    status: Draft, for co-design with ARDE/KUBAHO staff
     thematic_area: WASH
+    definition: >-
+      Of the households trained in hygiene, the percentage observed (or reporting) handwashing with soap at
+      critical times.
     level: outcome
     unit: percent
-    higher_is_better: true
-    frequency: quarterly
+    numerator: Trained households practising handwashing with soap.
+    denominator: Trained households surveyed.
+    calculation_rule: Numerator divided by denominator, times 100, from a household survey.
+    counting_rule: One household counted once per survey round.
+    coverage_rule: Households surveyed out of households trained.
     disaggregation: none
-    source: report
+    target_setting_rule: To be agreed with ARDE/KUBAHO after a baseline survey.
+    frequency: quarterly
+    data_source: Household survey (DATA SOURCE NOT YET AVAILABLE)
+    owner: To be confirmed with partner (suggested - MEAL officer)
+    higher_is_better: true
+    availability: data source not yet available
+    notes: >-
+      Not calculated. It needs a household survey that does not exist yet. The synthetic monthly reports contain
+      placeholder values for this indicator; they are deliberately ignored. Recommendation for ARDE/KUBAHO: run a
+      baseline and follow-up handwashing survey.
 
   - code: WASH-04
     name: Number of water user committees established and functional
+    status: Draft, for co-design with ARDE/KUBAHO staff
     thematic_area: WASH
+    definition: Water user committees newly established during the period that meet the functionality criteria.
     level: output
     unit: number
-    higher_is_better: true
-    frequency: quarterly
+    numerator: Committees established and functional during the period.
+    denominator: None (a count).
+    calculation_rule: The sum of the quarterly values in the indicator reports.
+    counting_rule: >-
+      Each committee is counted once, in the quarter it is established. To be confirmed with partner whether the
+      reports count NEW committees (which add up over a year, as calculated here) or ALL functional committees at
+      the end of the quarter (which must not be added up).
+    coverage_rule: The quarterly reports received out of those expected.
     disaggregation: none
-    source: report
+    target_setting_rule: An annual target per project and district from the work plan, split into quarters.
+    frequency: quarterly
+    data_source: Quarterly figure in the monthly indicator report (field officers).
+    owner: To be confirmed with partner (suggested - WASH project manager)
+    higher_is_better: true
+    availability: available
+    calculation:
+      reported: {aggregation: sum}
+    notes: The functionality criteria need to be written down with ARDE/KUBAHO.
 
-  # ---------------------------------------------------------------- Agriculture / climate resilience
+  # ======================================================================= Agriculture / climate resilience
   - code: AGR-01
     name: Number of farmers trained in climate-smart agriculture
+    status: Draft, for co-design with ARDE/KUBAHO staff
     thematic_area: Agriculture
+    definition: Farmers who took part in climate-smart agriculture training (farmer field schools) during the period.
     level: output
     unit: number
-    higher_is_better: true
-    frequency: monthly
+    numerator: Farmers trained during the period.
+    denominator: None (a count).
+    calculation_rule: >-
+      Reported: the sum of the monthly values in the indicator reports, by sex. Derived: the number of different
+      registered people who received a "farmer training" service (activity ACT10) during the period, by sex.
+    counting_rule: >-
+      Derived values count each registered person once per period, however many sessions they attended (not
+      attendance). Reported values are counts typed by officers.
+    coverage_rule: Reported values cover the monthly reports received out of those expected.
     disaggregation: sex
-    source: report
+    target_setting_rule: An annual target per project, district and sex from the work plan, split into equal monthly targets.
+    frequency: monthly
+    data_source: Monthly indicator report (field officers); beneficiary registers and service records (derived).
+    owner: To be confirmed with partner (suggested - agriculture project manager)
+    higher_is_better: true
+    availability: available
+    calculation:
+      reported: {aggregation: sum}
+      derived: {method: unique_people, activity_ids: [ACT10]}
+    notes: The definition of "trained" (one session, or the full course) needs to be agreed.
 
   - code: AGR-02
     name: Hectares under solar-powered or improved irrigation
+    status: Draft, for co-design with ARDE/KUBAHO staff
     thematic_area: Agriculture
+    definition: Hectares newly brought under solar-powered or improved irrigation during the period.
     level: output
     unit: hectares
-    higher_is_better: true
-    frequency: monthly
+    numerator: Hectares newly irrigated during the period.
+    denominator: None (an area).
+    calculation_rule: The sum of the monthly values in the indicator reports.
+    counting_rule: Each hectare is counted once, in the month the irrigation starts working.
+    coverage_rule: The monthly reports received out of those expected.
     disaggregation: none
-    source: report
+    target_setting_rule: An annual target per project and district from the work plan, split into equal monthly targets.
+    frequency: monthly
+    data_source: Monthly indicator report (field officers).
+    owner: To be confirmed with partner (suggested - agriculture project manager)
+    higher_is_better: true
+    availability: available
+    calculation:
+      reported: {aggregation: sum}
+    notes: How areas are measured (GPS or estimate) needs to be agreed.
 
   - code: AGR-03
     name: Percentage of supported farmers reporting a yield increase
+    status: Draft, for co-design with ARDE/KUBAHO staff
     thematic_area: Agriculture
+    definition: Of the farmers supported, the percentage reporting a higher yield than in the previous comparable season.
     level: outcome
     unit: percent
-    higher_is_better: true
-    frequency: semi-annual
+    numerator: Supported farmers reporting a yield increase.
+    denominator: Supported farmers surveyed.
+    calculation_rule: Numerator divided by denominator, times 100, from a farmer survey.
+    counting_rule: One farmer counted once per survey round.
+    coverage_rule: Farmers surveyed out of farmers supported.
     disaggregation: none
-    source: report
+    target_setting_rule: To be agreed with ARDE/KUBAHO after a baseline survey.
+    frequency: semi-annual
+    data_source: Farmer survey (DATA SOURCE NOT YET AVAILABLE)
+    owner: To be confirmed with partner (suggested - MEAL officer)
+    higher_is_better: true
+    availability: data source not yet available
+    notes: >-
+      Not calculated. It needs a farmer yield survey that does not exist yet. The synthetic monthly reports contain
+      placeholder values for this indicator; they are deliberately ignored. Recommendation for ARDE/KUBAHO: run a
+      baseline and end-of-season yield survey, and record results by sex.
 
   - code: AGR-04
     name: Number of cooperatives formed or strengthened
+    status: Draft, for co-design with ARDE/KUBAHO staff
     thematic_area: Agriculture
+    definition: Cooperatives newly formed, or existing cooperatives meeting the strengthening criteria, during the period.
     level: output
     unit: number
-    higher_is_better: true
-    frequency: quarterly
+    numerator: Cooperatives formed or strengthened during the period.
+    denominator: None (a count).
+    calculation_rule: The sum of the quarterly values in the indicator reports.
+    counting_rule: Each cooperative is counted once, in the quarter it is formed or first meets the criteria.
+    coverage_rule: The quarterly reports received out of those expected.
     disaggregation: none
-    source: report
+    target_setting_rule: An annual target per project and district from the work plan, split into quarters.
+    frequency: quarterly
+    data_source: Quarterly figure in the monthly indicator report (field officers).
+    owner: To be confirmed with partner (suggested - agriculture project manager)
+    higher_is_better: true
+    availability: available
+    calculation:
+      reported: {aggregation: sum}
+    notes: The strengthening criteria need to be written down with ARDE/KUBAHO.
 
-  # ---------------------------------------------------------------- Cross-cutting
+  # ======================================================================= Cross-cutting
   - code: CC-01
     name: Percentage of participants who are women
+    status: Draft, for co-design with ARDE/KUBAHO staff
     thematic_area: Cross-cutting
+    definition: Of the different registered people reached during the period, the percentage who are women or girls.
     level: output
     unit: percent
-    higher_is_better: true
-    frequency: monthly
+    numerator: Different registered women and girls reached during the period.
+    denominator: Different registered people reached during the period whose sex is recorded.
+    calculation_rule: Numerator divided by denominator, times 100.
+    counting_rule: >-
+      Unique people, not attendance: a woman who attended five sessions counts once. People are attributed to the
+      district where they registered.
+    coverage_rule: People whose sex is recorded out of all people reached.
     disaggregation: none
-    source: computed
+    target_setting_rule: To be agreed with ARDE/KUBAHO (for example at least 50%).
+    frequency: monthly
+    data_source: Beneficiary registers and service records (derived).
+    owner: To be confirmed with partner (suggested - MEAL officer)
+    higher_is_better: true
+    availability: available
+    calculation:
+      derived: {method: share_women}
+    notes: >-
+      Only registered beneficiaries are counted; people at open meetings who are not registered are not. Activity
+      attendance figures (participants_female / participants_total) count people once per session and are not used.
 
   - code: CC-02
     name: Percentage of planned activities completed on time
+    status: Draft, for co-design with ARDE/KUBAHO staff
     thematic_area: Cross-cutting
+    definition: >-
+      Of the activities planned for the period, the percentage completed within the allowed number of days of the
+      planned date (on_time_tolerance_days in settings, now 7).
     level: output
     unit: percent
-    higher_is_better: true
-    frequency: monthly
+    numerator: Activities completed on time.
+    denominator: Activities planned for the period (completed, delayed or cancelled) whose timing can be checked.
+    calculation_rule: Numerator divided by denominator, times 100. The period is the month of the PLANNED date.
+    counting_rule: Each activity event counted once. Cancelled and delayed activities count as not on time.
+    coverage_rule: >-
+      Activities whose timing can be checked out of all activities planned for the period, using the same definition
+      as the data-quality measure "on_time_checkable" (config/dq_metrics.yaml), on the rows kept in the warehouse.
+      Timing cannot be checked when only the month is known, or when the record has no planned date (e.g. paper
+      records). An activity with neither a planned date nor an activity date cannot be placed in any period.
     disaggregation: none
-    source: computed
+    target_setting_rule: To be agreed with ARDE/KUBAHO (for example 85%).
+    frequency: monthly
+    data_source: Activity monitoring files and digitised paper records (derived).
+    owner: To be confirmed with partner (suggested - programme managers)
+    higher_is_better: true
+    availability: available
+    calculation:
+      derived: {method: on_time}
+    notes: >-
+      Coverage matters here: on the synthetic data the timing of only about three quarters of activities can be
+      checked. Adding a planned-date field to the paper form (decision log D56) would raise it.
 
   - code: CC-03
     name: Cost per beneficiary reached (RWF)
+    status: Draft, for co-design with ARDE/KUBAHO staff
     thematic_area: Cross-cutting
+    definition: Activity spending during the period divided by the number of different registered people reached.
     level: output
     unit: RWF
-    higher_is_better: false
-    frequency: quarterly
+    numerator: Total cost (RWF) of activities that took place during the period.
+    denominator: Different registered people reached during the period.
+    calculation_rule: Numerator divided by denominator.
+    counting_rule: >-
+      Unique people, not attendance. Costs are attributed to the district where the activity took place; people to
+      the district where they registered.
+    coverage_rule: Activities with a cost recorded out of all activities that took place.
     disaggregation: none
-    source: computed
+    target_setting_rule: To be agreed with ARDE/KUBAHO (a benchmark per type of project).
+    frequency: quarterly
+    data_source: Activity monitoring files (costs) and beneficiary registers and service records (people) (derived).
+    owner: To be confirmed with partner (suggested - finance officer with MEAL officer)
+    higher_is_better: false
+    availability: available
+    calculation:
+      derived: {method: cost_per_person}
+    notes: >-
+      Only activity costs recorded in the monitoring files are included (not staff or overhead costs), and only
+      registered people are counted, so the figure is not a full cost-effectiveness measure.
 
   - code: CC-04
     name: "Reporting completeness: percentage of expected monthly reports submitted"
+    status: Draft, for co-design with ARDE/KUBAHO staff
     thematic_area: Cross-cutting
+    definition: Of the monthly indicator reports due, the percentage received.
     level: output
     unit: percent
-    higher_is_better: true
-    frequency: monthly
+    numerator: Reports received.
+    denominator: >-
+      Reports due: one per project, district and month in which at least one of the project's indicators is due.
+    calculation_rule: Numerator divided by denominator, times 100.
+    counting_rule: One report per project, district and month.
+    coverage_rule: Not applicable (all expected reports are counted).
     disaggregation: none
-    source: computed
+    target_setting_rule: To be agreed with ARDE/KUBAHO (for example 100%).
+    frequency: monthly
+    data_source: Monthly indicator reports compared with the reporting schedule (derived).
+    owner: To be confirmed with partner (suggested - MEAL officer)
+    higher_is_better: true
+    availability: available
+    calculation:
+      derived: {method: report_completeness}
+    notes: >-
+      Uses the same definition as the "reporting completeness" data-quality measure (config/dq_metrics.yaml), so the
+      two always agree.

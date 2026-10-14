@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 import clean
+import indicators
 import ingest
 import model
 import pipeline
@@ -26,6 +27,7 @@ def build(raw, root, monkeypatch_env):
     clean.run(staging)
     dq = validate.run(staging, docs)
     tables = model.run(staging, root / "warehouse" / "arde.duckdb", root / "exports", docs)
+    indicators.run(root / "warehouse" / "arde.duckdb", root / "exports", docs)    # the full production chain
     return dict(staging=staging, docs=docs, dq=dq, tables=tables, db=root / "warehouse" / "arde.duckdb",
                 exports=root / "exports")
 
@@ -267,4 +269,4 @@ def test_data_dictionary_describes_every_table_and_column(built):
 
 def test_pipeline_runs_ingest_to_export_in_order():
     modules = [m for _, m, _, _ in pipeline.STEPS]
-    assert modules[:4] == ["ingest", "clean", "validate", "model"]
+    assert modules == ["ingest", "clean", "validate", "model", "indicators"]

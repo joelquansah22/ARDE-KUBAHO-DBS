@@ -74,8 +74,9 @@ tables:
       higher_is_better: True if a higher value is good (the direction of the indicator).
       disaggregation: How results are broken down (none or sex).
       frequency: monthly, quarterly, semi-annual or annual.
-      owner: Who is responsible for the indicator (to be completed in Phase 4).
-      data_source: Where the value comes from (report or computed; detail in Phase 4).
+      owner: Who is responsible for the indicator (to be confirmed with partner).
+      data_source: Where the value comes from (indicator reports, activity and beneficiary records, or a survey).
+      availability: available, or "data source not yet available" (such indicators are not calculated).
 
   dim_date:
     kind: dimension
@@ -344,6 +345,76 @@ tables:
       indicators_due: Indicators due that month.
       submitted: True if the report arrived.
 
+  # ------------------------------------------------------------------ indicators (built by indicators.py)
+  indicator_values:
+    kind: indicator
+    description: >-
+      One row per indicator value: for each indicator, source (reported or derived), project, district, period and
+      breakdown. "All" in project_id or district means all projects or all districts together (worked out directly,
+      not by adding up the rows below, so a person is never counted twice).
+    key: value_id
+    columns:
+      value_id: Number of the value (links to indicator_value_sources).
+      indicator_id: Indicator (links to dim_indicator).
+      indicator_code: Indicator code, e.g. AGR-01.
+      source: reported (from the monthly indicator reports) or derived (worked out from activity and beneficiary records).
+      project_id: Project, or All.
+      district: District, or All.
+      period_type: month, quarter (fiscal quarter, Q1 = July to September) or fiscal_year.
+      period: Period label, e.g. 2024-03, FY2023/24 Q3, FY2023/24.
+      period_start: First day of the period.
+      disaggregation: total, or sex=female / sex=male.
+      unit: number, percent, hectares or RWF.
+      target: Target for the period (empty when no target is set, or when some months have no target).
+      actual: Value for the period (empty when no data arrived).
+      pct_achieved: Actual as a % of target (empty when there is no complete target).
+      status: on track, at risk, off track, no target set, target incomplete, or no data.
+      numerator: The numerator behind the value (e.g. women reached), where the indicator is a ratio.
+      denominator: The denominator behind the value (e.g. people reached with sex recorded).
+      coverage_pct: >-
+        How much of the relevant data the value could be worked out from, e.g. the % of planned activities whose
+        timing could be checked, or the % of expected reports received.
+      n_rows: Number of source records used.
+
+  indicator_value_sources:
+    kind: indicator
+    description: >-
+      Traceability: for each indicator value, every record it was worked out from. Use it to go from any number on
+      the dashboard back to the Excel rows.
+    key: [value_id, source_table, source_file, source_sheet, source_row, record_key]
+    columns:
+      value_id: The indicator value (links to indicator_values).
+      source_table: The warehouse table the record is in (fact_activity, fact_beneficiary_service, fact_indicator_result or report_completeness).
+      source_file: Excel file the record came from.
+      source_sheet: Sheet in that file.
+      source_row: Row number in that sheet, as shown in Excel.
+      record_key: For report_completeness, which report (project|district|month); otherwise empty.
+
+  indicator_reconciliation:
+    kind: indicator
+    description: >-
+      A key MEAL check: where an indicator is both reported and derived, the two values side by side. Gaps larger than
+      the tolerance (settings: indicators.reconciliation_tolerance_pct) are flagged for follow-up.
+    key: [indicator_code, project_id, district, period_type, period, disaggregation]
+    columns:
+      indicator_code: Indicator code.
+      indicator_id: Indicator (links to dim_indicator).
+      project_id: Project, or All.
+      district: District, or All.
+      period_type: month, quarter or fiscal_year.
+      period: Period label.
+      period_start: First day of the period.
+      disaggregation: total, or sex=female / sex=male.
+      reported: Value from the monthly indicator reports.
+      derived: Value worked out from the activity and beneficiary records.
+      difference: Derived minus reported.
+      pct_difference: Difference as a % of the reported value.
+      tolerance_pct: The tolerance used.
+      status: within tolerance, gap above tolerance, reported only, or derived only.
+      flag: True if the gap is above the tolerance.
+      reported_value_id: The reported value (links to indicator_values).
+      derived_value_id: The derived value (links to indicator_values).
+
 relationships:
   - [dim_project.programme_id, dim_programme.programme_id]
   - [dim_programme.funder_id, dim_donor.donor_key]
@@ -361,4 +432,9 @@ relationships:
   - [fact_indicator_result.period_date, dim_date.date]
   - [fact_opportunity.donor_key, dim_donor.donor_key]
   - [dq_rule_results_by_file.rule_id, dq_results.rule_id]
+  - [indicator_values.indicator_id, dim_indicator.indicator_id]
+  - [indicator_value_sources.value_id, indicator_values.value_id]
+  - [indicator_reconciliation.indicator_id, dim_indicator.indicator_id]
+  - [indicator_reconciliation.reported_value_id, indicator_values.value_id]
+  - [indicator_reconciliation.derived_value_id, indicator_values.value_id]
   - [report_completeness.project_id, dim_project.project_id]

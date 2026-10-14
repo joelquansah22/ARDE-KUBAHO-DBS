@@ -113,7 +113,8 @@ class ModelBuilder:
             rows.append(dict(indicator_id=i, code=ind["code"], name=ind["name"], level=ind.get("level"),
                              unit=ind.get("unit"), higher_is_better=bool(ind.get("higher_is_better")),
                              disaggregation=ind.get("disaggregation"), frequency=ind.get("frequency"),
-                             owner=ind.get("owner"), data_source=ind.get("data_source") or ind.get("source")))
+                             owner=ind.get("owner"), data_source=ind.get("data_source") or ind.get("source"),
+                             availability=ind.get("availability", "available")))
         return pd.DataFrame(rows)
 
     def dim_date(self, facts: dict) -> pd.DataFrame:
@@ -222,6 +223,8 @@ class ModelBuilder:
         """Return a list of problems (empty if the model is sound)."""
         problems = []
         for name, spec in self.dictionary["tables"].items():
+            if name not in tables:          # built by a later step (e.g. indicators.py)
+                continue
             df = tables[name]
             key = spec["key"] if isinstance(spec["key"], list) else [spec["key"]]
             if len(df) and df.duplicated(key).any():
@@ -236,7 +239,7 @@ class ModelBuilder:
         # row to its own villages (data_dictionary.yaml: location_level on the fact table).
         levels = dict(zip(tables["dim_location"]["location_id"], tables["dim_location"]["location_level"]))
         for name, spec in self.dictionary["tables"].items():
-            if spec.get("location_level"):
+            if spec.get("location_level") and name in tables:
                 found = {levels.get(v) for v in tables[name]["location_id"].dropna()}
                 if found - {spec["location_level"]}:
                     problems.append(f"{name}: links to location level(s) {sorted(found)}, "
@@ -244,6 +247,8 @@ class ModelBuilder:
         for child, parent in self.dictionary["relationships"]:
             ct, cc = child.split(".")
             pt, pc = parent.split(".")
+            if ct not in tables or pt not in tables:
+                continue
             values = set(tables[ct][cc].dropna())
             known = set(tables[pt][pc].dropna())
             orphans = values - known
@@ -273,11 +278,12 @@ def save_warehouse(tables: dict[str, pd.DataFrame], path: Path) -> None:
     tmp.replace(path)
 
 
-def export(tables: dict[str, pd.DataFrame], folder: Path, relationships: list) -> None:
+def export(tables: dict[str, pd.DataFrame], folder: Path, relationships: list, clear: bool = True) -> None:
     """CSV (UTF-8 with BOM so Excel shows accents correctly) and Parquet copies of every table."""
     folder.mkdir(parents=True, exist_ok=True)
-    for old in list(folder.glob("*.csv")) + list(folder.glob("*.parquet")):
-        old.unlink()
+    if clear:
+        for old in list(folder.glob("*.csv")) + list(folder.glob("*.parquet")):
+            old.unlink()
     for name, df in tables.items():
         df.to_csv(folder / f"{name}.csv", index=False, encoding="utf-8-sig")
         df.to_parquet(folder / f"{name}.parquet", index=False)
@@ -293,7 +299,8 @@ def write_dictionary(path_db: Path, dictionary: dict, docs: Path) -> None:
     try:
         schema = con.execute("SELECT table_name, column_name, data_type FROM information_schema.columns "
                              "ORDER BY table_name, ordinal_position").df()
-        counts = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in dictionary["tables"]}
+        present = set(schema["table_name"])
+        counts = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in dictionary["tables"] if t in present}
     finally:
         con.close()
     settings = load_settings()
@@ -314,10 +321,13 @@ def write_dictionary(path_db: Path, dictionary: dict, docs: Path) -> None:
               "| Table | Kind | Rows | Key | Description |", "|---|---|---|---|---|"]
     for name, spec in dictionary["tables"].items():
         key = ", ".join(spec["key"]) if isinstance(spec["key"], list) else spec["key"]
-        lines.append(f"| `{name}` | {spec['kind']} | {counts[name]:,} | {key} | {' '.join(spec['description'].split())} |")
+        rows = f"{counts[name]:,}" if name in counts else "not built yet"
+        lines.append(f"| `{name}` | {spec['kind']} | {rows} | {key} | {' '.join(spec['description'].split())} |")
     lines += ["", "## How the tables link", "", "| From | To |", "|---|---|"]
     lines += [f"| `{c}` | `{p}` |" for c, p in dictionary["relationships"]]
     for name, spec in dictionary["tables"].items():
+        if name not in counts:
+            continue
         cols = schema[schema["table_name"] == name]
         lines += ["", f"## `{name}`", "", " ".join(spec["description"].split()), "",
                   f"Rows: {counts[name]:,}. Key: {', '.join(spec['key']) if isinstance(spec['key'], list) else spec['key']}.", "",

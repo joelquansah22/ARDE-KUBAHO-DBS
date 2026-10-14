@@ -34,6 +34,9 @@ No table holds names, phone numbers or national ID numbers. People and donors ar
 | `skipped_sheets` | data quality | 0 | source_file, source_sheet | Every sheet the pipeline could not read, with the reason and the column headers it did not recognise. |
 | `dq_info_measures` | data quality | 6 | metric_id | Data-quality measures shown on the dashboard instead of rows to review (info-level flags). |
 | `report_completeness` | data quality | 417 | project_id, district, period | One row per monthly indicator report that was due, and whether it arrived. |
+| `indicator_values` | indicator | 6,625 | value_id | One row per indicator value: for each indicator, source (reported or derived), project, district, period and breakdown. "All" in project_id or district means all projects or all districts together (worked out directly, not by adding up the rows below, so a person is never counted twice). |
+| `indicator_value_sources` | indicator | 147,177 | value_id, source_table, source_file, source_sheet, source_row, record_key | Traceability: for each indicator value, every record it was worked out from. Use it to go from any number on the dashboard back to the Excel rows. |
+| `indicator_reconciliation` | indicator | 1,045 | indicator_code, project_id, district, period_type, period, disaggregation | A key MEAL check: where an indicator is both reported and derived, the two values side by side. Gaps larger than the tolerance (settings: indicators.reconciliation_tolerance_pct) are flagged for follow-up. |
 
 ## How the tables link
 
@@ -55,6 +58,11 @@ No table holds names, phone numbers or national ID numbers. People and donors ar
 | `fact_indicator_result.period_date` | `dim_date.date` |
 | `fact_opportunity.donor_key` | `dim_donor.donor_key` |
 | `dq_rule_results_by_file.rule_id` | `dq_results.rule_id` |
+| `indicator_values.indicator_id` | `dim_indicator.indicator_id` |
+| `indicator_value_sources.value_id` | `indicator_values.value_id` |
+| `indicator_reconciliation.indicator_id` | `dim_indicator.indicator_id` |
+| `indicator_reconciliation.reported_value_id` | `indicator_values.value_id` |
+| `indicator_reconciliation.derived_value_id` | `indicator_values.value_id` |
 | `report_completeness.project_id` | `dim_project.project_id` |
 
 ## `dim_programme`
@@ -133,8 +141,9 @@ Rows: 12. Key: indicator_id.
 | `higher_is_better` | BOOLEAN | True if a higher value is good (the direction of the indicator). |
 | `disaggregation` | VARCHAR | How results are broken down (none or sex). |
 | `frequency` | VARCHAR | monthly, quarterly, semi-annual or annual. |
-| `owner` | INTEGER | Who is responsible for the indicator (to be completed in Phase 4). |
-| `data_source` | VARCHAR | Where the value comes from (report or computed; detail in Phase 4). |
+| `owner` | VARCHAR | Who is responsible for the indicator (to be confirmed with partner). |
+| `data_source` | VARCHAR | Where the value comes from (indicator reports, activity and beneficiary records, or a survey). |
+| `availability` | VARCHAR | available, or "data source not yet available" (such indicators are not calculated). |
 
 ## `dim_date`
 
@@ -428,3 +437,72 @@ Rows: 417. Key: project_id, district, period.
 | `period` | DATE | Reporting month. |
 | `indicators_due` | VARCHAR | Indicators due that month. |
 | `submitted` | BOOLEAN | True if the report arrived. |
+
+## `indicator_values`
+
+One row per indicator value: for each indicator, source (reported or derived), project, district, period and breakdown. "All" in project_id or district means all projects or all districts together (worked out directly, not by adding up the rows below, so a person is never counted twice).
+
+Rows: 6,625. Key: value_id.
+
+| Column | Type | Description |
+|---|---|---|
+| `value_id` | BIGINT | Number of the value (links to indicator_value_sources). |
+| `indicator_id` | BIGINT | Indicator (links to dim_indicator). |
+| `indicator_code` | VARCHAR | Indicator code, e.g. AGR-01. |
+| `source` | VARCHAR | reported (from the monthly indicator reports) or derived (worked out from activity and beneficiary records). |
+| `project_id` | VARCHAR | Project, or All. |
+| `district` | VARCHAR | District, or All. |
+| `period_type` | VARCHAR | month, quarter (fiscal quarter, Q1 = July to September) or fiscal_year. |
+| `period` | VARCHAR | Period label, e.g. 2024-03, FY2023/24 Q3, FY2023/24. |
+| `period_start` | DATE | First day of the period. |
+| `disaggregation` | VARCHAR | total, or sex=female / sex=male. |
+| `unit` | VARCHAR | number, percent, hectares or RWF. |
+| `target` | DOUBLE | Target for the period (empty when no target is set, or when some months have no target). |
+| `actual` | DOUBLE | Value for the period (empty when no data arrived). |
+| `pct_achieved` | DOUBLE | Actual as a % of target (empty when there is no complete target). |
+| `status` | VARCHAR | on track, at risk, off track, no target set, target incomplete, or no data. |
+| `numerator` | DOUBLE | The numerator behind the value (e.g. women reached), where the indicator is a ratio. |
+| `denominator` | DOUBLE | The denominator behind the value (e.g. people reached with sex recorded). |
+| `coverage_pct` | DOUBLE | How much of the relevant data the value could be worked out from, e.g. the % of planned activities whose timing could be checked, or the % of expected reports received. |
+| `n_rows` | DOUBLE | Number of source records used. |
+
+## `indicator_value_sources`
+
+Traceability: for each indicator value, every record it was worked out from. Use it to go from any number on the dashboard back to the Excel rows.
+
+Rows: 147,177. Key: value_id, source_table, source_file, source_sheet, source_row, record_key.
+
+| Column | Type | Description |
+|---|---|---|
+| `value_id` | BIGINT | The indicator value (links to indicator_values). |
+| `source_table` | VARCHAR | The warehouse table the record is in (fact_activity, fact_beneficiary_service, fact_indicator_result or report_completeness). |
+| `source_file` | VARCHAR | Excel file the record came from. |
+| `source_sheet` | VARCHAR | Sheet in that file. |
+| `source_row` | BIGINT | Row number in that sheet, as shown in Excel. |
+| `record_key` | VARCHAR | For report_completeness, which report (project|district|month); otherwise empty. |
+
+## `indicator_reconciliation`
+
+A key MEAL check: where an indicator is both reported and derived, the two values side by side. Gaps larger than the tolerance (settings: indicators.reconciliation_tolerance_pct) are flagged for follow-up.
+
+Rows: 1,045. Key: indicator_code, project_id, district, period_type, period, disaggregation.
+
+| Column | Type | Description |
+|---|---|---|
+| `indicator_code` | VARCHAR | Indicator code. |
+| `indicator_id` | BIGINT | Indicator (links to dim_indicator). |
+| `project_id` | VARCHAR | Project, or All. |
+| `district` | VARCHAR | District, or All. |
+| `period_type` | VARCHAR | month, quarter or fiscal_year. |
+| `period` | VARCHAR | Period label. |
+| `period_start` | DATE | First day of the period. |
+| `disaggregation` | VARCHAR | total, or sex=female / sex=male. |
+| `reported` | DOUBLE | Value from the monthly indicator reports. |
+| `derived` | DOUBLE | Value worked out from the activity and beneficiary records. |
+| `difference` | DOUBLE | Derived minus reported. |
+| `pct_difference` | DOUBLE | Difference as a % of the reported value. |
+| `tolerance_pct` | BIGINT | The tolerance used. |
+| `status` | VARCHAR | within tolerance, gap above tolerance, reported only, or derived only. |
+| `flag` | BOOLEAN | True if the gap is above the tolerance. |
+| `reported_value_id` | BIGINT | The reported value (links to indicator_values). |
+| `derived_value_id` | BIGINT | The derived value (links to indicator_values). |

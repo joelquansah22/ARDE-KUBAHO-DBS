@@ -6,9 +6,9 @@ dataset, MEAL indicators and a dashboard.
 > **Demonstration data.** Everything in this prototype currently runs on synthetic records,
 > not ARDE/KUBAHO data. Synthetic files always start with `SYNTHETIC_`.
 
-**Status: Phase 3 of 8** (templates, synthetic data, reading, cleaning and pseudonymising the
-records, data-quality checks, the data warehouse and exports for Power BI). The indicators come in
-Phase 4 and the dashboard in Phase 5. A full user guide for staff comes in Phase 7.
+**Status: Phase 4 of 8** (templates, synthetic data, reading, cleaning and pseudonymising the
+records, data-quality checks, the data warehouse, exports for Power BI, and the MEAL indicators).
+The dashboard comes in Phase 5. A full user guide for staff comes in Phase 7.
 
 ## First-time set-up (Windows)
 
@@ -30,12 +30,15 @@ python src/pipeline.py
 ```
 
 This is the production run. It reads every Excel file in `data/raw/`, pseudonymises and cleans the
-records, checks data quality, and builds the warehouse. It takes about 16 seconds and produces:
+records, checks data quality, and builds the warehouse. It takes about 15 seconds and produces:
 
 - `docs/data_quality_report.md`: skipped sheets, scores, quarantined records and the review queue;
 - `data/warehouse/arde.duckdb`: the data warehouse (one file);
 - `data/exports/`: every table as CSV (opens in Excel) and Parquet (for Power BI);
-- `docs/data_dictionary.md`: what every table and column means.
+- `docs/data_dictionary.md`: what every table and column means;
+- the indicator values, the reported-versus-derived reconciliation, and the indicator reference sheets
+  (`docs/indicator_reference_sheets.md`, plus an Excel version with a Staff comments column for the
+  co-design session).
  A file whose columns are not recognised is **skipped** with a message
 listing its column names; add them to `config/source_mappings.yaml` and run it again.
 

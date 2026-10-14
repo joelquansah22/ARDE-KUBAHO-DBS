@@ -307,6 +307,37 @@ Neither changed the cleaner. Both changed only how the scorer judges a cell, and
 | D114 | **One definition per measure:** `config/dq_metrics.yaml` defines each data-quality measure once (which records are measured, which meet the standard), and `validate.py` is the only place that calculates them. Rules that are measures (TIM-01 timeliness, COM-04 reporting completeness) take their score from it; the report, the dashboard tables and the scorer all read the same numbers. Timeliness was 86.5% as a rule (late or possibly-late entries out of all 2,894 activities) and 88.8% as a measure (late entries out of the 2,493 activities that took place on a known day). **The single definition is the second**: an activity whose day is unknown cannot be judged late or on time, so it is left out of the denominator. The overall score moves from 96.1% to 96.5% as a result. Also checked: reporting completeness (96.2% in both places, now one calculation); the monthly review-queue figure (the scorer now uses `validate.review_queue_monthly`). | Team instruction. |
 | D115 | **Rule-level detail for the dashboard:** `dq_results` gains `dimension_impact` (points a rule takes off its dimension score), and a new table `dq_rule_results_by_file` scores every rule for every source sheet, with counts. | Team instruction: show which rule drives a low score. On the main set, TIM-01 (timeliness) takes 11.2 points off its dimension; the next is COM-03 (missing targets), 1.9 points. |
 
+## Phase 4: Indicators (2026-10-14)
+
+### Catalogue
+
+| # | Decision | Reason |
+|---|---|---|
+| D116 | `config/indicator_catalogue.yaml` now holds all 12 indicators of brief Section 7 with every field (code, name, definition, level, unit, numerator, denominator, calculation rule, disaggregation, target-setting rule, frequency, data source, owner, direction, notes), plus a counting rule, a coverage rule, availability and the calculation sources. Every entry is marked **"Draft, for co-design with ARDE/KUBAHO staff"**. Owners are "To be confirmed with partner" with a suggested role only. | Brief Section 7. Nothing about ARDE/KUBAHO's real roles is invented. |
+| D117 | **Survey-based outcomes are not calculated:** WASH-03 (handwashing with soap) and AGR-03 (yield increase) are marked "data source not yet available". The synthetic monthly reports contain placeholder values for them; these are deliberately ignored. **Recommendation for ARDE/KUBAHO:** run a baseline and follow-up household handwashing survey, and a baseline and end-of-season farmer yield survey (with results by sex). | Team instruction: do not invent outcome data. |
+| D118 | AGR-03's disaggregation stays `none` in the catalogue, with "record results by sex" in its notes, because the synthetic generator reads that field: changing it changed the synthetic data (caught by the fingerprint test), and the indicator is not calculated anyway. | Keeps the frozen datasets identical. |
+
+### Calculation
+
+| # | Decision | Reason |
+|---|---|---|
+| D119 | Every available indicator is worked out by project and district, by project for all districts, and for all projects together, by **month, fiscal quarter and fiscal year** (`indicators.period_types`). Quarters follow the fiscal year (Q1 = July to September). The "All" rows are worked out directly from the records, never by adding up the rows below, so a person reached in two districts counts once. | Team instruction (b); Rwanda's fiscal year. |
+| D120 | **Two sources.** Reported: the monthly indicator reports (WASH-01, WASH-02, WASH-04, AGR-01, AGR-02, AGR-04). Derived, worked out from the records: WASH-01 and AGR-01 (different registered people who received the water-point or farmer-training service), CC-01 (% women), CC-02 (% on time), CC-03 (cost per person) and CC-04 (reporting completeness). WASH-02, WASH-04, AGR-02 and AGR-04 cannot be derived: the activity records count events, not latrines, committees, hectares or cooperatives. | Team instruction (c). |
+| D121 | **Counting people:** always different pseudonymised people (`beneficiary_key`) in the period, never attendance. CC-01 (% women) is therefore women among the different registered people reached, not `participants_female / participants_total` (which counts a person once per session). People are attributed to the district where they registered; 169 service records belong to people whose registered village is not known and appear under district "Unknown". The counting rule of every indicator is written in the catalogue. | Team instruction (f). |
+| D122 | **Targets and status.** Reported indicators take their targets from the reports; a period's target is the sum of its months' targets. If any month has no target, the period shows **"target incomplete"** with no target or % achieved (a part-target would make performance look better than it is). With no target at all it shows **"no target set"**. Never 0% or 100%. A period whose expected report never arrived shows **"no data"**. Traffic lights use `traffic_light` in settings (on track 90% or more, at risk 70 to 89%, off track below 70%); for CC-03 lower is better, so % achieved = target / actual. Derived indicators have no targets yet (to be agreed in the co-design session). | Team instruction (b). |
+| D123 | **Coverage** is stored next to every value (`coverage_pct`): for reported values, the expected reports received; for CC-01, people with their sex recorded; for CC-02, activities whose timing can be checked; for CC-03, activities with a cost recorded. CC-02's coverage uses exactly the definition of the data-quality measure `on_time_checkable` (`config/dq_metrics.yaml`), applied to the rows kept in the warehouse. The measure on the data-quality page (74.1%) is over every activity received, quarantined ones included; CC-02's coverage is over the kept rows (75.2% across the three fiscal years: 2,029 of 2,699). 10 kept activities have neither a planned date nor an activity date and cannot be placed in any period. | Team instruction (e); one definition per measure (D114). |
+| D124 | **Traceability:** `indicator_value_sources` lists, for every value, every record it came from (`source_table`, `source_file`, `source_sheet`, `source_row`; or the report key for CC-04): 147,177 links for 6,625 values. Tests check that every value with data has links, that the links point to real fact rows, and that a derived people count equals the number of different people in its linked rows. | Team instruction (g). |
+| D125 | New warehouse tables `indicator_values`, `indicator_value_sources` and `indicator_reconciliation` (described in `config/data_dictionary.yaml`, exported as CSV and Parquet). `dim_indicator` gains `availability`. | Needed for (b), (c), (d) and (g). |
+| D126 | Found by a test and fixed: a project with no reporting schedule made the reported-indicator calculation fail (an empty filter was read as a column selection). | Edge case for real data. |
+
+### Reconciliation (a key MEAL check)
+
+| # | Decision | Reason |
+|---|---|---|
+| D127 | `indicator_reconciliation` puts reported and derived values side by side where both exist (WASH-01, and AGR-01 by sex), with the difference, the % difference (of the reported value) and the tolerance (`indicators.reconciliation_tolerance_pct`, 10%). Statuses: within tolerance, gap above tolerance, reported only, derived only. | Team instruction (c). |
+| D128 | **Results on the synthetic data: none of the 1,045 comparisons is within tolerance.** 829 have a gap above 10%, 180 are reported only, 36 derived only. Derived values are 1% to 5% of the reported ones. Summed over the three fiscal years: WASH-01 reported 22,235 people against 238 derived; AGR-01 reported 7,830 farmers against 243 derived. **This is expected and says nothing about ARDE/KUBAHO:** the synthetic reports and registers were generated independently (D24), and the reports count everyone reached while the derived values count registered beneficiaries only. On real data this table is where over-reporting, under-registration or a mismatch in definitions would show up. The co-design session should agree which source is official for each indicator and what gap is acceptable. | Recorded for the report. |
+| D129 | Production pipeline including indicators: 15.3 seconds. | Brief target (under a minute) still met. |
+
 ## Open items to confirm with ARDE/KUBAHO and supervisors (brief Section 15)
 
 These do not block the prototype.
@@ -326,6 +357,9 @@ These do not block the prototype.
 - [ ] Old district names and their candidate districts (D72, config/district_legacy_map.yaml)
 - [ ] **Partner question:** do staff ever write dates month first ("Mar 12, 2024")? They are not read until confirmed (D69, D82, D88)
 - [ ] Minutes per review-queue row, checked with the MEAL officer (D60)
+- [ ] **Co-design session:** indicator definitions, owners and targets (docs/indicator_reference_sheets.xlsx); which source is official where reported and derived differ, and the acceptable gap (D128)
+- [ ] **Recommendation:** baseline and follow-up surveys for handwashing (WASH-03) and yield (AGR-03) (D117)
+- [ ] Whether WASH-04 counts new committees, or all functional committees (which must not be added up)
 - [ ] **Partner question:** can registers carry an officer code? An optional column is now in the template (D99, D112)
 - [ ] Reporting schedule for indicator reports (D25)
 - [ ] USD to RWF exchange rate to use in reports (`currency.usd_to_rwf`, now 1,450)

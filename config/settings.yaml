@@ -180,6 +180,19 @@ traffic_light:
   at_risk_min: 70                  # 70 to 89% achieved; below 70% is off track
 
 # -----------------------------------------------------------------------------
+# Indicators (indicators.py)
+# -----------------------------------------------------------------------------
+indicators:
+  # Periods every indicator is worked out for. Quarters follow the fiscal year:
+  # Q1 = July to September, Q2 = October to December, Q3 = January to March, Q4 = April to June.
+  period_types: [month, quarter, fiscal_year]
+  # Reported and derived values more than this far apart (as a % of the reported value) are flagged.
+  reconciliation_tolerance_pct: 10
+  # Words shown instead of a % achieved.
+  no_target_label: no target set
+  target_incomplete_label: target incomplete      # some months in the period have no target
+
+# -----------------------------------------------------------------------------
 # Donor pipeline
 # -----------------------------------------------------------------------------
 donor_pipeline:
