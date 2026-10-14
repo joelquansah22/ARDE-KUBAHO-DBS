@@ -26,7 +26,9 @@ from __future__ import annotations
 import argparse
 import calendar
 import datetime as dt
+import hashlib
 import math
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -276,7 +278,7 @@ class InjectionLog:
 
     def add(self, **kw):
         row = dict(source_file=None, source_sheet=None, source_row=None, source_column=None,
-                   column_letter=None, entity=None, record_id=None, error_type=None,
+                   column_letter=None, field=None, entity=None, record_id=None, error_type=None,
                    true_value=None, messy_value=None, expected_handling=None, detail="")
         row.update(kw)
         self.rows.append(row)
@@ -358,7 +360,7 @@ class SheetWriter:
             self._log(source_row=self.row,
                       source_column=self.headers[col - 1] if col else None,
                       column_letter=get_column_letter(col) if col else None,
-                      record_id=record_id, **details)
+                      field=fld if col else None, record_id=record_id, **details)
         return self.row
 
     def totals(self, label: str, sum_fields: list[str]):
@@ -509,7 +511,8 @@ class World:
         for i, r in enumerate(records, 1):
             r["record_id"] = f"ACR{i:05d}"
             r["entry_lag_days"] = (r["entry_date"] - (r["date"] or r["planned_date"])).days
-            r["is_late_entry"] = r["entry_lag_days"] > late_days and r["status"] != "planned"
+            # Late entry is measured from the activity date, so only activities that took place count.
+            r["is_late_entry"] = r["entry_lag_days"] > late_days and r["date"] is not None
             r["on_time"] = (r["status"] == "completed") if r["status"] != "planned" else None
         self.activity_records = records
 
@@ -917,12 +920,16 @@ class MessyWriter:
                    "planned": ["Planned", "Not yet"]}[status]
         return self.rand.pick(options)
 
-    def write_status(self, cells: Cells, status: str, style: str):
+    def write_status(self, cells: Cells, status: str, style: str, fields: list):
         if status == "delayed" and self.rand.chance(self.rates["status_says_completed_but_late"]):
             text = self.status_text("completed", style)
             cells.values["status"] = text
-            cells.note("status", "status_completed_but_late", status, text, "flag",
-                       detail="actual date is well after the planned date")
+            if "planned_date" in fields:
+                cells.note("status", "status_completed_but_late", status, text, "flag",
+                           detail="actual date is well after the planned date")
+            else:
+                cells.note("status", "status_completed_but_late", status, text, "undetectable",
+                           detail="this file has no planned date, so lateness cannot be seen")
             return
         text = self.status_text(status, style)
         cells.values["status"] = text
@@ -955,7 +962,7 @@ class MessyWriter:
                        detail=f"entered {rec['entry_lag_days']} days after the activity")
         # Location and status
         self.district_cell(cells, rec["district"], layout["kinyarwanda"], fields)
-        self.write_status(cells, rec["status"], layout["status_style"])
+        self.write_status(cells, rec["status"], layout["status_style"], fields)
         # Participant numbers: at most one numeric problem per row
         if rec["status"] in ("completed", "delayed") and rec["participants_total"] is not None:
             roll = self.rand.uniform(0, 1)
@@ -984,8 +991,15 @@ class MessyWriter:
         # Missing required values
         rate = self.rates["missing_required_paper" if is_paper else "missing_required"]
         if rec["status"] != "planned" and self.rand.chance(rate):
+            # Do not blank a value another injected problem depends on (that would hide it),
+            # and a cancelled activity legitimately has no date or participants.
+            protect = set()
+            if rec["status"] == "cancelled":
+                protect |= {"date", "total"}
+            if rec["is_late_entry"] or any(i["error_type"] == "status_completed_but_late" for i in cells.issues):
+                protect.add("date")
             options = [f for f in ("date", "district", "activity", "total", "village")
-                       if f in fields and cells.values.get(f) not in (None, "")]
+                       if f in fields and f not in protect and cells.values.get(f) not in (None, "")]
             if options:
                 fld = self.rand.pick(options)
                 true = {"date": rec["date"].isoformat() if rec["date"] else None, "district": rec["district"],
@@ -1483,11 +1497,13 @@ def generate(raw_dir: Path | None = None, truth_dir: Path | None = None, quiet: 
 
     write_answer_key(world, mw, truth_dir)
     summary = summarise(mw.log, truth_dir)
+    fingerprint = content_fingerprint(raw_dir, truth_dir)
     if not quiet:
         print(f"Wrote {len(books)} synthetic Excel files to {raw_dir}")
         print(f"Wrote answer key and injected-error log to {truth_dir}")
         print(summary.to_string(index=False))
-    return dict(files=sorted(books), log_rows=len(mw.log.rows), summary=summary,
+        print(f"Content fingerprint: {fingerprint}")
+    return dict(files=sorted(books), log_rows=len(mw.log.rows), summary=summary, fingerprint=fingerprint,
                 activity_records=len(world.activity_records), people=len(world.people),
                 registrations=len(world.registrations), services=len(world.services),
                 indicator_rows=len(world.indicator_rows), donors=len(world.donors),
@@ -1553,11 +1569,49 @@ def summarise(log: InjectionLog, truth_dir: Path) -> pd.DataFrame:
     return summary
 
 
+def content_fingerprint(raw_dir: Path, truth_dir: Path) -> str:
+    """One SHA-256 code summarising every cell of every synthetic file and the answer key.
+
+    Excel files record the time they were saved, so their bytes differ on every run;
+    this fingerprint looks only at the contents, which are identical for the same seed.
+    """
+    from openpyxl import load_workbook
+
+    digest = hashlib.sha256()
+    for path in sorted(Path(raw_dir).glob(f"{PREFIX}*.xlsx")):
+        digest.update(path.name.encode())
+        wb = load_workbook(path, read_only=True)
+        for ws in wb.worksheets:
+            digest.update(ws.title.encode())
+            for row in ws.iter_rows(values_only=True):
+                digest.update(repr(row).encode())
+        wb.close()
+    for path in sorted(Path(truth_dir).glob(f"{PREFIX}*.csv")):
+        digest.update(path.name.encode())
+        digest.update(path.read_bytes().replace(b"\r\n", b"\n"))
+    return digest.hexdigest()
+
+
+def verify(raw_dir: Path | None = None, truth_dir: Path | None = None) -> bool:
+    """Check that the synthetic files on this computer match the expected fingerprint."""
+    expected = load_yaml("synthetic.yaml").get("expected_fingerprint")
+    actual = content_fingerprint(Path(raw_dir or resolve_path("raw")), Path(truth_dir or resolve_path("ground_truth")))
+    if actual == expected:
+        print(f"OK: your synthetic data matches the expected version ({actual[:16]}...).")
+        return True
+    print(f"MISMATCH: expected {expected}\n          found    {actual}\n"
+          "Rerun 'python src/generate_synthetic.py' and check you installed requirements.txt exactly.")
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--raw-dir", type=Path, default=None, help="where to write the messy Excel files")
     parser.add_argument("--truth-dir", type=Path, default=None, help="where to write the answer key")
+    parser.add_argument("--verify", action="store_true", help="check existing files instead of generating")
     args = parser.parse_args()
+    if args.verify:
+        sys.exit(0 if verify(args.raw_dir, args.truth_dir) else 1)
     generate(args.raw_dir, args.truth_dir)
 
 

@@ -97,17 +97,48 @@ data_quality:
   late_entry_days: 30              # entry more than this many days after the activity = late
   on_time_tolerance_days: 7        # activity done within this many days of its planned date = on time
   accuracy_outlier_ratio: 3.0      # actual > 3 x target is flagged for review
+  date_window_grace_days: 31       # activity dates up to this many days outside the project window are accepted
   age_min: 0
   age_max: 110
   household_size_min: 1
   household_size_max: 25
+  # Age bands used on the dashboard (lower bound of each band, in years).
+  age_bands: [0, 18, 25, 35, 50, 65]
 
 # Fuzzy matching of duplicate beneficiaries (ingest.py). Score is 0 to 100;
 # higher means names must be more alike before two records are treated as one person.
 duplicate_matching:
   name_similarity_threshold: 88
-  require_same_district: true
-  require_same_sex: true
+  require_same_district: true      # only compare people registered in the same district
+  require_same_sex: true           # only compare people of the same sex (when both are known)
+  # Even when names are alike, two records are kept apart if any of these disagree:
+  max_phone_digit_difference: 1    # phones differing in more than 1 digit = different people
+  max_age_difference_years: 2      # ages differing by more than 2 years = different people
+  compare_id_digits: 15            # compare the first 15 digits of the ID (Excel drops the 16th)
+  # Other thresholds tried when scoring the synthetic data (for justifying the setting above).
+  thresholds_to_compare: [80, 85, 88, 92]
+
+# -----------------------------------------------------------------------------
+# Cleaning rules (clean.py)
+# -----------------------------------------------------------------------------
+cleaning:
+  date_day_first: true             # 03/04/2024 means 3 April (Rwandan practice)
+  excel_serial_range: [20000, 80000]   # whole numbers in a date column inside this range are Excel dates
+  month_only_day: 1                # "March 2024" is stored as 1 March and flagged "day unknown"
+  # Words removed before matching a district, e.g. "Nyagatare District", "Akarere ka Huye".
+  district_noise_words: [district, akarere ka, akarere, karere ka]
+  district_fuzzy_min_score: 80     # closest district name accepted only above this score (0 to 100)
+  village_fuzzy_min_score: 85      # same, for village names within the stated district
+  # Text removed when reading a number, e.g. "1,250,000 RWF", "45 people", "12 ha".
+  number_noise_words: [rwf, frw, people, ppl, persons, pers, ha, hectares]
+  usd_markers: [usd, us$, $]
+  # Letters that are typos for digits when typed into a number (paper transcription).
+  letter_digit_fixes: {O: "0", o: "0", l: "1", I: "1"}
+  # A percentage indicator typed between 0 and 1 (e.g. 0.72) is read as a fraction (72%).
+  percent_fraction_max: 1.0
+  # Labels that mark a totals row at the bottom of a sheet (row is removed, not counted).
+  totals_labels: [total, totals, grand total, igiteranyo, sum]
+  probability_words_flag: [high, medium, low]   # words cannot be turned into a number: flagged
 
 # -----------------------------------------------------------------------------
 # Indicator traffic lights (% of target achieved)
@@ -121,4 +152,18 @@ traffic_light:
 # -----------------------------------------------------------------------------
 donor_pipeline:
   stages: [Identified, Qualified, Concept note, Proposal submitted, Awarded, Declined]
+  stage_mapping:
+    Identified: [Identified, Idea, Prospect]
+    Qualified: [Qualified, Eligible, Go decision]
+    Concept note: [Concept note, CN, CN submitted, Concept]
+    Proposal submitted: [Proposal submitted, Proposal sent, Submitted, Full proposal]
+    Awarded: [Awarded, Won, Grant signed]
+    Declined: [Declined, Lost, Rejected, Unsuccessful]
+  donor_type_mapping:
+    bilateral: [bilateral, bilateral donor, bi-lateral]
+    multilateral: [multilateral, multi-lateral, un / multilateral]
+    foundation: [foundation, private foundation, trust/foundation, trust]
+    government: [government, govt, local government]
+    private: [private, private sector, company]
+    individual: [individual, individual (diaspora), private individual]
   deadline_windows_days: [30, 60, 90]

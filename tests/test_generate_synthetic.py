@@ -148,3 +148,10 @@ def test_same_seed_gives_identical_output(synthetic, tmp_path):
     for name in ["SYNTHETIC_injected_errors_log.csv", "SYNTHETIC_truth_activities.csv",
                  "SYNTHETIC_truth_registrations.csv"]:
         assert (tmp_path / "truth" / name).read_bytes() == (synthetic["truth"] / name).read_bytes()
+
+
+def test_fingerprint_matches_the_documented_one(synthetic):
+    """If this fails after a deliberate change to the generator, update expected_fingerprint in
+    config/synthetic.yaml and the checksum in docs/synthetic_data.md."""
+    from common import load_yaml
+    assert synthetic["fingerprint"] == load_yaml("synthetic.yaml")["expected_fingerprint"]

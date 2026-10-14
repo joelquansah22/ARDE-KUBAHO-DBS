@@ -154,3 +154,60 @@ indicator_targets:
   AGR-02: {per_month: [2, 8]}        # hectares
   AGR-03: {percent: [50, 70]}        # % farmers
   AGR-04: {per_quarter: [1, 3]}      # cooperatives
+
+# -----------------------------------------------------------------------------
+# How injected problems are grouped when the cleaning is scored (score_cleaning.py)
+# -----------------------------------------------------------------------------
+# officer_habits: consistent ways an officer formats things (not mistakes as such).
+# genuine_errors: real mistakes. The 95% fixed-or-flagged target applies to these on their own.
+# privacy: personal data that must be removed or pseudonymised.
+error_groups:
+  officer_habits:
+    - date_dmy_text
+    - date_excel_serial
+    - date_month_year_text
+    - number_as_text
+    - sex_variant
+    - disability_variant
+    - status_variant
+    - province_variant
+    - district_variant
+    - phone_leading_zero_lost
+    - id_stored_as_number
+    - stage_variant
+    - donor_type_variant
+    - donor_name_variant
+    - probability_format
+    - percent_as_fraction
+    - amount_in_usd
+    - title_row
+    - merged_header_row
+    - totals_row
+    - blank_row
+  genuine_errors:
+    - duplicate_beneficiary
+    - duplicate_activity_row
+    - sum_mismatch
+    - female_exceeds_total
+    - negative_value
+    - accuracy_outlier
+    - percent_over_100
+    - impossible_age
+    - impossible_household_size
+    - district_typo
+    - district_wrong_province
+    - transcription_error
+    - missing_required
+    - missing_target
+    - missing_monthly_report
+    - late_entry
+    - status_completed_but_late
+    - date_out_of_window
+    - sex_ambiguous_code_1
+  privacy:
+    - personal_data_individual_donor
+    - personal_data_contact
+
+# Content fingerprint of a correct run (see docs/synthetic_data.md).
+# Check your copy with:  python src/generate_synthetic.py --verify
+expected_fingerprint: d62680eec7338d7b664106c890deefea7403d310dcb4ba16c2d82dc3673bdd5a

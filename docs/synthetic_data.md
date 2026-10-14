@@ -11,6 +11,26 @@ python src/generate_synthetic.py
 It takes about 6 seconds. The seed is fixed (`config/synthetic.yaml`), so every run gives identical files.
 The script deletes and recreates the `SYNTHETIC_*` files each time.
 
+## Is my copy identical to everyone else's?
+
+The data is not stored in git, so each teammate generates their own copy. To check it:
+
+```
+python src/generate_synthetic.py --verify
+```
+
+It prints `OK` if your files match this content fingerprint (SHA-256):
+
+```
+d62680eec7338d7b664106c890deefea7403d310dcb4ba16c2d82dc3673bdd5a
+```
+
+The fingerprint covers every cell of every `SYNTHETIC_*.xlsx` file and every answer-key CSV.
+It ignores the save time that Excel stores inside each file, which is why the file bytes can differ
+while the contents are identical. If you see `MISMATCH`, regenerate and check that you installed
+`requirements.txt` exactly (the generator depends on the numpy version). The expected value is
+also stored as `expected_fingerprint` in `config/synthetic.yaml`, and a test fails if they drift apart.
+
 ## What it creates
 
 ### `data/raw/`: the messy Excel files (what the pipeline reads)
@@ -51,16 +71,27 @@ Expected handling means:
 
 | Brief Section 6 problem | Error types in the log | Count |
 |---|---|---|
-| Mixed date formats | `date_dmy_text`, `date_excel_serial`, `date_month_year_text`, `date_out_of_window` | 3,947 / 2,202 / 604 / 22 |
-| District variants and typos | `district_variant`, `district_typo`, `district_wrong_province`, `province_variant` | 755 / 192 / 22 / 1,175 |
+| Mixed date formats | `date_dmy_text`, `date_excel_serial`, `date_month_year_text`, `date_out_of_window` | 3,949 / 2,203 / 605 / 22 |
+| District variants and typos | `district_variant`, `district_typo`, `district_wrong_province`, `province_variant` | 753 / 191 / 22 / 1,175 |
 | Sex coding | `sex_variant` (F, f, Female, Gore, Gabo...), `sex_ambiguous_code_1` | 1,020 / 13 |
 | Duplicate beneficiaries | `duplicate_beneficiary` (spelling, name order, phone changes) | 66 |
 | Missing targets, impossible values | `missing_target`, `negative_value`, `female_exceeds_total`, `percent_over_100`, `sum_mismatch`, `accuracy_outlier`, `impossible_age`, `impossible_household_size` | 46 / 28 / 36 / 4 / 102 / 5 / 7 / 10 |
 | Numbers as text, separators, RWF suffixes | `number_as_text`, `amount_in_usd`, `percent_as_fraction`, `phone_leading_zero_lost`, `id_stored_as_number` | 1,612 / 3 / 5 / 277 / 277 |
 | Paper records | `missing_required` (all files), `transcription_error` | 141 / 43 |
-| Timeliness (added) | `late_entry`, `status_completed_but_late`, `missing_monthly_report` | 337 / 100 / 16 |
+| Timeliness (added) | `late_entry`, `status_completed_but_late`, `missing_monthly_report` | 328 / 100 / 16 |
 | Layout | `title_row`, `merged_header_row`, `totals_row`, `blank_row`, `duplicate_activity_row` | 14 / 1 / 7 / 85 / 55 |
 | Personal data to remove | `personal_data_individual_donor`, `personal_data_contact` | 6 / 25 |
 
-Total: 15,093 logged problems (13,018 fix, 1,247 flag, 823 fix-or-flag, 5 undetectable).
+Total: 15,085 logged problems (13,019 fix, 1,224 flag, 823 fix-or-flag, 19 undetectable).
+The 19 undetectable ones are 5 misspelt names in the paper file and 14 activities in the paper file
+marked "completed" although they were late: the paper form has no planned date, so lateness cannot be seen.
 The exact counts are rewritten to `SYNTHETIC_injected_errors_summary.csv` on every run.
+
+The error log has a `field` column naming the standard field (e.g. `total`, `district`) each problem is in,
+so the scoring script can compare it with the cleaned table.
+
+## How the cleaning is scored
+
+`python src/score_cleaning.py` (also run by `pipeline.py` while `synthetic_mode` is on) compares the
+cleaned tables with the answer key and writes `docs/phase2_cleaning_scorecard.md`. Problems are grouped
+in `config/synthetic.yaml` (`error_groups`) into **officer habits**, **genuine errors** and **privacy**.

@@ -1,0 +1,121 @@
+# =============================================================================
+# Source mappings: which Excel files to read, and what their columns mean
+# =============================================================================
+# ingest.py reads every .xlsx file in data/raw/ that matches a "files" entry.
+# It finds the header row by itself (it may be below a title or a merged group
+# header) by looking for the row that contains the most known column names.
+#
+# WHEN A NEW FILE ARRIVES WITH DIFFERENT COLUMN NAMES
+#   Add its column names to the right list under "fields" below. Matching ignores
+#   upper/lower case, extra spaces and full stops. Nothing else needs to change.
+#   After each run, data/staging/sheet_inventory.csv lists any column the
+#   pipeline did not recognise, so nothing is silently ignored.
+# =============================================================================
+
+# Which sheets in which files hold which kind of record.
+# "pattern" uses * as a wildcard. "sheets: '*'" means every sheet.
+files:
+  - pattern: "*programme_master*.xlsx"
+    sheets: {Programmes: ref_programme, Projects: ref_project, Activities: ref_activity,
+             Locations: ref_location, Field officers: ref_officer}
+  - pattern: "*activity_monitoring*.xlsx"
+    sheets: {"*": activity}
+  - pattern: "*beneficiary_register*.xlsx"
+    sheets: {Register: registration, Services: service}
+  - pattern: "*digitised_paper_records*.xlsx"
+    sheets: {Activities: activity, Registrations: registration, Services: service}
+  - pattern: "*indicator_report*.xlsx"
+    sheets: {"*": indicator_result}
+  - pattern: "*donor_opportunity*.xlsx"
+    sheets: {Donors: donor, Opportunities: opportunity}
+
+# For each kind of record: the standard field names and every column header
+# that means that field. Reference sheets (ref_*) use their own column names as-is.
+fields:
+  activity:
+    row_no: ["No.", "No"]
+    date: [Date, Activity date, "Itariki y'igikorwa", Date of activity]
+    planned_date: [Planned date, Planned for, Planned]
+    entry_date: [Date entered, Entry date, Reported on, Digitised on]
+    project: [Project, Project code, Project name, Umushinga]
+    activity: [Activity, Activity name, Igikorwa]
+    province: [Province, Intara]
+    district: [District, Akarere]
+    sector: [Sector, Umurenge]
+    cell: [Cell, Akagari]
+    village: [Village, Umudugudu]
+    status: [Status]
+    female: [Female, F, Women, Of which women, Abagore, Female participants]
+    male: [Male, M, Men, Of which men, Abagabo, Male participants]
+    total: [Total, Total participants, Bose, Participants]
+    cost: [Cost, Cost (RWF), Cost RWF, Amafaranga (RWF), Amafaranga]
+    officer: [Officer, Entered by, FO, Field officer]
+    notes: [Notes, Comments]
+
+  registration:
+    reg_no: [Reg No, Reg. No., "No", ID, Form No.]
+    name: [Full name, Name, Amazina, Names]
+    surname: [Surname, Family name]
+    first_name: [First name, Given name, Given names]
+    sex: [Sex, Gender, Igitsina]
+    age: [Age, Imyaka]
+    dob: [Date of birth, DOB, Itariki y'amavuko]
+    phone: [Phone, Tel, Telephone, Telefone, Phone number]
+    national_id: [National ID, ID number, Indangamuntu, ID, NID]
+    household_size: [Household size, HH size, HH, Household members, Abagize urugo]
+    disability: [Disability, PWD, Ubumuga]
+    province: [Province, Intara]
+    district: [District, Akarere]
+    sector: [Sector, Umurenge]
+    cell: [Cell, Akagari]
+    village: [Village, Umudugudu]
+    project: [Project, Project code, Umushinga]
+    reg_date: [Registration date, Date registered, Date, Itariki]
+
+  service:
+    reg_no: [Reg No, Form No., Reg. No.]
+    activity: [Activity, Igikorwa]
+    date: [Date, Service date, Itariki]
+    service_type: [Service received, Service, Service type]
+
+  indicator_result:
+    project: [Project, Project code]
+    district: [District, Akarere]
+    period: [Month, Reporting period, Period]
+    indicator: [Indicator, Indicator code]
+    sex: [Sex, Gender]
+    target: [Target, Monthly target]
+    actual: [Actual, Achieved, Result]
+    entered_by: [Reported by, Entered by]
+    comment: [Comments, Comment, Notes]
+
+  donor:
+    donor_id: [Donor ID]
+    donor_name: [Donor name, Donor, Name]
+    donor_type: [Type, Donor type]
+    country: [Country]
+    thematic_interests: [Thematic interests, Interests]
+    contact_person: [Contact person, Contact]      # personal data: dropped at ingestion
+    email: [Email, E-mail]                         # personal data: dropped at ingestion
+    phone: [Phone, Telephone, Tel]                 # personal data: dropped at ingestion
+    notes: [Notes]
+
+  opportunity:
+    opportunity_id: [Opp ID, Opportunity ID]
+    title: [Opportunity title, Title]
+    donor: [Donor, Donor name]
+    thematic_fit: [Thematic fit, Theme]
+    stage: [Stage]
+    deadline: [Deadline]
+    requested: [Requested amount, Requested amount (RWF), Amount requested]
+    awarded: [Awarded amount, Awarded amount (RWF), Amount awarded]
+    probability: [Probability]
+    owner: [Owner]
+    next_action: [Next action]
+    next_action_date: [Next action date]
+
+# Fields that hold personal data. ingest.py uses them for duplicate matching and
+# pseudonymisation, then removes them: they never reach data/staging/.
+personal_fields:
+  registration: [name, surname, first_name, phone, national_id, dob]
+  donor: [contact_person, email, phone]

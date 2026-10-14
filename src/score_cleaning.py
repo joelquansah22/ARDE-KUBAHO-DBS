@@ -1,0 +1,440 @@
+"""Score the cleaning against the synthetic answer key (synthetic data only).
+
+This is a TESTING tool, not part of the production pipeline: it is the only script
+allowed to read data/ground_truth/. It answers four questions:
+
+  a. For each kind of injected problem: how many were fixed, flagged or missed?
+  b. Totals for officer habits and for genuine errors, kept separate
+     (target: at least 95% of genuine errors fixed or flagged; any type below 90% is marked).
+  c. False corrections: comparing EVERY cleaned cell with the true value, how many
+     clean values did the pipeline wrongly change?
+  d. Duplicate beneficiaries: precision and recall at several matching thresholds.
+
+Results go to docs/phase2_cleaning_scorecard.md and data/staging/score_*.csv.
+
+HOW TO RUN
+    python src/score_cleaning.py      (after ingest.py and clean.py)
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import math
+from collections import defaultdict
+from math import comb
+
+import pandas as pd
+from rapidfuzz import fuzz
+
+import ingest
+from clean import is_blank, norm_key
+from common import load_settings, load_yaml, resolve_path
+
+# For each source field: (column in the cleaned table, column in the answer key, how to compare)
+COMPARE = {
+    "activity": {
+        "date": ("date", "date", "date"), "planned_date": ("planned_date", "planned_date", "date"),
+        "entry_date": ("entry_date", "entry_date", "date"), "project": ("project_id", "project_id", "text"),
+        "activity": ("activity_id", "activity_id", "text"), "province": ("province", "province", "text"),
+        "district": ("district", "district", "text"), "sector": ("sector", "sector", "text"),
+        "cell": ("cell", "cell", "text"), "village": ("location_id", "location_id", "text"),
+        "status": ("status", "status", "text"),
+        "female": ("participants_female", "participants_female", "num"),
+        "male": ("participants_male", "participants_male", "num"),
+        "total": ("participants_total", "participants_total", "num"), "cost": ("cost_rwf", "cost_rwf", "num"),
+        "officer": ("field_officer", "field_officer", "text"),
+    },
+    "registration": {
+        "sex": ("sex", "sex", "text"), "age": ("age", "age", "num"), "dob": ("age", "age", "age1"),
+        "household_size": ("household_size", "household_size", "num"),
+        "disability": ("disability", "disability", "text"), "province": ("province", "province", "text"),
+        "district": ("district", "district", "text"), "sector": ("sector", "sector", "text"),
+        "cell": ("cell", "cell", "text"), "village": ("location_id", "location_id", "text"),
+        "project": ("project_id", "project_id", "text"), "reg_date": ("registration_date", "registration_date", "date"),
+    },
+    "service": {"date": ("date", "date", "date"), "activity": ("activity_id", "activity_id", "text")},
+    "indicator_result": {
+        "project": ("project_id", "project_id", "text"), "district": ("district", "district", "text"),
+        "period": ("period", "period", "date"), "indicator": ("indicator_code", "indicator_code", "text"),
+        "sex": ("sex", "sex", "text"), "target": ("target_value", "target_value", "num"),
+        "actual": ("actual_value", "actual_value", "num"), "entered_by": ("entered_by", "entered_by", "text"),
+    },
+    "donor": {"donor_type": ("donor_type", "donor_type", "text")},
+    "opportunity": {
+        "stage": ("stage", "stage", "text"), "deadline": ("deadline", "deadline", "date"),
+        "requested": ("requested_amount_rwf", "requested_amount_rwf", "num1pct"),
+        "awarded": ("awarded_amount_rwf", "awarded_amount_rwf", "num1pct"),
+        "probability": ("probability", "probability", "num"),
+        "next_action_date": ("next_action_date", "next_action_date", "date"),
+        "owner": ("owner", "owner", "text"), "thematic_fit": ("thematic_fit", "thematic_fit", "text"),
+        "donor": ("donor_key", "donor_key", "text"),
+    },
+}
+# A wrong value in one of these fields can make another field wrong too ("knock-on").
+DEPENDS_ON = {"village": {"district", "village", "sector"}, "sector": {"district", "village", "sector"},
+              "cell": {"district", "village", "sector"}, "province": {"district", "province"},
+              "project": {"project", "activity"}, "age": {"age", "dob"}}
+# Problems where the cell value is right and only a flag is the correct response.
+FLAG_ONLY = {"late_entry"}
+LAYOUT_ROW_CODES = {"blank_row": "blank_row_removed", "totals_row": "totals_row_removed",
+                    "duplicate_activity_row": "exact_duplicate_row"}
+
+
+def equal(clean, truth, kind) -> bool:
+    if is_blank(clean) and is_blank(truth):
+        return True
+    if is_blank(clean) or is_blank(truth):
+        return False
+    if kind == "date":
+        return str(clean)[:10] == str(truth)[:10]
+    if kind in ("num", "num1pct", "age1"):
+        try:
+            c, t = float(clean), float(truth)
+        except (TypeError, ValueError):
+            return False
+        if kind == "age1":
+            return abs(c - t) <= 1
+        return math.isclose(c, t, rel_tol=0.01 if kind == "num1pct" else 1e-9, abs_tol=1e-6)
+    return norm_key(clean) == norm_key(truth)
+
+
+def md_table(df: pd.DataFrame) -> str:
+    """A Markdown table without needing extra libraries."""
+    cols = list(df.columns)
+    lines = ["| " + " | ".join(str(c) for c in cols) + " |", "|" + "|".join("---" for _ in cols) + "|"]
+    for row in df.itertuples(index=False):
+        lines.append("| " + " | ".join("" if (isinstance(v, float) and math.isnan(v)) else str(v) for v in row) + " |")
+    return "\n".join(lines)
+
+
+class Scorer:
+    def __init__(self, staging=None, truth=None, raw=None, docs=None):
+        self.docs = docs or resolve_path("docs")
+        self.staging = staging or resolve_path("staging")
+        self.truth_dir = truth or resolve_path("ground_truth")
+        self.raw = raw or resolve_path("raw")
+        self.settings = load_settings()
+        self.groups = load_yaml("synthetic.yaml")["error_groups"]
+        self.log = pd.read_csv(self.truth_dir / "SYNTHETIC_injected_errors_log.csv", dtype=str, keep_default_na=False)
+        self.issues = pd.read_parquet(self.staging / "issues.parquet")
+        self.inventory = pd.read_csv(self.staging / "sheet_inventory.csv", dtype=str, keep_default_na=False)
+        self.clean = {e: pd.read_parquet(self.staging / f"clean_{e}.parquet") for e in COMPARE}
+        self.completeness = pd.read_parquet(self.staging / "clean_report_completeness.parquet")
+        self._index()
+
+    # ---------------------------------------------------------------- lookups
+    @staticmethod
+    def pos(file, sheet, row):
+        return (file, sheet, int(float(row)))
+
+    def _index(self):
+        self.clean_rows = {e: {self.pos(r["source_file"], r["source_sheet"], r["source_row"]): r
+                               for r in df.to_dict("records")} for e, df in self.clean.items()}
+        self.flags = defaultdict(set)      # (pos, field) -> codes flagged
+        self.codes_at = defaultdict(set)   # pos -> every code
+        for r in self.issues.dropna(subset=["source_row"]).to_dict("records"):
+            p = self.pos(r["source_file"], r["source_sheet"], r["source_row"])
+            self.codes_at[p].add(r["issue_code"])
+            if r["action"] == "flagged":
+                self.flags[(p, r["field"])].add(r["issue_code"])
+        self.missing_reports = set(self.issues.loc[self.issues["issue_code"] == "report_missing", "clean_value"])
+        self.header_row = {(r.source_file, r.source_sheet): int(r.header_row)
+                           for r in self.inventory.itertuples() if r.header_row}
+        self.fields_in_sheet = {(r.source_file, r.source_sheet): set(r.fields_found.split(", "))
+                                for r in self.inventory.itertuples()}
+        self.log_cells = defaultdict(set)  # pos -> fields with an injected problem
+        for r in self.log.itertuples():
+            if r.source_row:
+                self.log_cells[self.pos(r.source_file, r.source_sheet, r.source_row)].add(r.field)
+        # Answer key, one dict per Excel row.
+        t = lambda name: pd.read_csv(self.truth_dir / f"SYNTHETIC_truth_{name}.csv", dtype=str, keep_default_na=False)
+        people, locs = t("people"), t("locations")
+        regs = t("registrations").merge(
+            people[["person_id", "sex", "household_size", "disability", "district", "location_id", "project_id"]],
+            on="person_id").merge(locs[["location_id", "province", "sector", "cell", "village"]], on="location_id")
+        regs["disability"] = regs["disability"].map({"True": "yes", "False": "no"})
+        self.truth_regs = regs
+        frames = {"activity": t("activities"), "registration": regs, "service": t("services"),
+                  "indicator_result": t("indicator_results"), "donor": t("donors"), "opportunity": t("opportunities")}
+        # The true donor of each opportunity, expressed as the donor_key the pipeline gave that donor.
+        donors = frames["donor"]
+        key_of = {}
+        for r in donors.to_dict("records"):
+            row = self.clean_rows["donor"].get(self.pos(r["source_file"], r["source_sheet"], r["source_row"]))
+            key_of[r["donor_id"]] = row["donor_key"] if row else None
+        frames["opportunity"]["donor_key"] = frames["opportunity"]["donor_id"].map(key_of)
+        self.truth = {}
+        for entity, df in frames.items():
+            df = df[df["source_row"] != ""]
+            self.truth[entity] = {self.pos(r["source_file"], r["source_sheet"], r["source_row"]): r
+                                  for r in df.to_dict("records")}
+
+    def staged_text(self) -> set[str]:
+        """Every text value written to data/staging/, for the personal-data checks."""
+        values = set()
+        for path in self.staging.glob("*.parquet"):
+            df = pd.read_parquet(path)
+            for col in df.columns:
+                if df[col].dtype == object or str(df[col].dtype).startswith("str"):
+                    values.update(norm_key(v) for v in df[col].dropna().astype(str))
+        return values
+
+    # ---------------------------------------------------------------- (a) and (b)
+    def outcome(self, r) -> tuple[str, str]:
+        """Return (fixed | flagged | missed, note) for one injected problem."""
+        etype = r.error_type
+        if etype == "missing_monthly_report":
+            return ("flagged", "") if r.record_id in self.missing_reports else ("missed", "")
+        p = self.pos(r.source_file, r.source_sheet, r.source_row)
+        if etype in ("title_row", "merged_header_row"):
+            ok = self.header_row.get((r.source_file, r.source_sheet), 0) > p[2]
+            return ("fixed", "") if ok else ("missed", "")
+        if etype in LAYOUT_ROW_CODES:
+            return ("fixed", "") if LAYOUT_ROW_CODES[etype] in self.codes_at[p] else ("missed", "")
+        if etype == "duplicate_beneficiary":
+            first = self.truth_regs[(self.truth_regs["person_id"] == r.true_value)
+                                    & (self.truth_regs["is_duplicate"] == "False")].iloc[0]
+            first_pos = self.pos(first["source_file"], first["source_sheet"], first["source_row"])
+            a, b = self.clean_rows["registration"].get(p), self.clean_rows["registration"].get(first_pos)
+            same = a is not None and b is not None and a["beneficiary_key"] == b["beneficiary_key"]
+            return ("fixed", "") if same else ("missed", "not matched to first registration")
+        if etype == "personal_data_individual_donor":
+            row = self.clean_rows["donor"].get(p)
+            ok = row is not None and str(row["donor_name"]).startswith("Individual donor") \
+                and norm_key(r.messy_value) not in self.staged
+            return ("fixed", "") if ok else ("missed", "name still present")
+        if etype == "personal_data_contact":
+            return ("fixed", "") if norm_key(r.messy_value) not in self.staged else ("missed", "contact still present")
+        if etype == "phone_leading_zero_lost":
+            return ("fixed", "") if "phone_leading_zero_restored" in self.codes_at[p] else ("missed", "")
+        if etype == "id_stored_as_number":
+            return ("flagged", "") if "id_stored_as_number" in self.flags[(p, "national_id")] else ("missed", "")
+        entity = r.entity
+        spec = COMPARE.get(entity, {}).get(r.field)
+        clean_row = self.clean_rows.get(entity, {}).get(p)
+        truth_row = self.truth.get(entity, {}).get(p)
+        if spec and clean_row is not None and truth_row is not None and etype not in FLAG_ONLY:
+            clean_col, truth_col, kind = spec
+            if equal(clean_row.get(clean_col), truth_row.get(truth_col), kind):
+                return "fixed", ""
+        if self.flags.get((p, r.field)):
+            return "flagged", ", ".join(sorted(self.flags[(p, r.field)]))
+        if clean_row is None:
+            return "missed", "row missing from cleaned table"
+        if spec and not is_blank(clean_row.get(spec[0])):
+            return "missed", f"wrong value: {clean_row.get(spec[0])} (true {truth_row.get(spec[1]) if truth_row else '?'})"
+        return "missed", ""
+
+    def score_injected(self) -> pd.DataFrame:
+        self.staged = self.staged_text()
+        log = self.log[self.log["expected_handling"] != "undetectable"].copy()
+        results = [self.outcome(r) for r in log.itertuples()]
+        log["outcome"] = [o for o, _ in results]
+        log["outcome_note"] = [n for _, n in results]
+        group_of = {t: g for g, types in self.groups.items() for t in types}
+        log["group"] = log["error_type"].map(group_of).fillna("unclassified")
+        self.scored = log
+        return log
+
+    @staticmethod
+    def tally(df: pd.DataFrame, by: list[str]) -> pd.DataFrame:
+        out = (df.pivot_table(index=by, columns="outcome", values="error_id", aggfunc="count", fill_value=0)
+               .reindex(columns=["fixed", "flagged", "missed"], fill_value=0).reset_index())
+        out["total"] = out[["fixed", "flagged", "missed"]].sum(axis=1)
+        out["fixed_or_flagged_%"] = (100 * (out["fixed"] + out["flagged"]) / out["total"]).round(1)
+        return out
+
+    # ---------------------------------------------------------------- (c) false corrections
+    def false_corrections(self) -> tuple[pd.DataFrame, int]:
+        rows, compared = [], 0
+        for entity, spec in COMPARE.items():
+            raw = pd.read_parquet(self.staging / f"ingested_{entity}.parquet")
+            raw_rows = {self.pos(r["source_file"], r["source_sheet"], r["source_row"]): r for r in raw.to_dict("records")}
+            for p, clean_row in self.clean_rows[entity].items():
+                truth_row = self.truth[entity].get(p)
+                if truth_row is None:
+                    continue
+                present = self.fields_in_sheet.get((p[0], p[1]), set())
+                injected = self.log_cells.get(p, set())
+                for fld, (clean_col, truth_col, kind) in spec.items():
+                    if fld not in present or fld in injected:
+                        continue
+                    if fld == "age" and "dob" in present:
+                        continue
+                    compared += 1
+                    if not equal(clean_row.get(clean_col), truth_row.get(truth_col), kind):
+                        knock_on = bool(DEPENDS_ON.get(fld, set()) & injected)
+                        rows.append(dict(entity=entity, field=fld, source_file=p[0], source_sheet=p[1],
+                                         source_row=p[2], raw_value=raw_rows.get(p, {}).get(fld),
+                                         clean_value=clean_row.get(clean_col), true_value=truth_row.get(truth_col),
+                                         kind="knock-on from an injected error on the same row" if knock_on
+                                         else "clean value wrongly changed"))
+        return pd.DataFrame(rows), compared
+
+    def false_flags(self) -> pd.DataFrame:
+        multi = set(self.truth_regs.loc[self.truth_regs["is_duplicate"] == "True", "person_id"])
+        reg_person = {p: r["person_id"] for p, r in self.truth["registration"].items()}
+        rows = []
+        for (p, fld), codes in self.flags.items():
+            if self.log_cells.get(p):
+                continue
+            for code in codes:
+                if code == "possible_duplicate_person" and reg_person.get(p) in multi:
+                    continue
+                rows.append(dict(source_file=p[0], source_sheet=p[1], source_row=p[2], field=fld, issue_code=code))
+        return pd.DataFrame(rows, columns=["source_file", "source_sheet", "source_row", "field", "issue_code"])
+
+    def lost_and_spurious(self) -> tuple[int, int]:
+        lost = sum(1 for e in COMPARE for p in self.truth[e] if p not in self.clean_rows[e])
+        spurious = sum(1 for e in COMPARE for p in self.clean_rows[e] if p not in self.truth[e])
+        return lost, spurious
+
+    # ---------------------------------------------------------------- (d) duplicates
+    def duplicate_matching(self) -> tuple[pd.DataFrame, list[float]]:
+        ids = ingest.load_registration_identities(self.raw, self.settings)
+        person = {p: r["person_id"] for p, r in self.truth["registration"].items()}
+        ids["person_id"] = [person[self.pos(f, s, r)] for f, s, r in
+                            zip(ids["source_file"], ids["source_sheet"], ids["source_row"])]
+        true_pairs = sum(comb(k, 2) for k in ids["person_id"].value_counts())
+        rows = []
+        thresholds = sorted(set(self.settings["duplicate_matching"]["thresholds_to_compare"]
+                                + [self.settings["duplicate_matching"]["name_similarity_threshold"]]))
+        variants = [("full rules (as used by the pipeline)", True, True),
+                    ("names + vetoes, no ID rule", False, True),
+                    ("names only, no vetoes, no ID rule", False, False)]
+        for (variant, use_id, use_veto), t in [(v, t) for v in variants for t in thresholds]:
+            ids["cluster"] = ingest.cluster_identities(ids, t, self.settings, use_id, use_veto)
+            predicted = sum(comb(k, 2) for k in ids["cluster"].value_counts())
+            tp = sum(comb(k, 2) for k in ids.groupby(["cluster", "person_id"]).size())
+            merged_wrongly = int((ids.groupby("cluster")["person_id"].nunique() > 1).sum())
+            rows.append(dict(rules=variant, threshold=t, configured="yes" if t == self.settings["duplicate_matching"][
+                "name_similarity_threshold"] else "", true_pairs=true_pairs, pairs_found=predicted,
+                             correct_pairs=tp, wrong_pairs=predicted - tp, missed_pairs=true_pairs - tp,
+                             precision=round(tp / predicted, 3) if predicted else None,
+                             recall=round(tp / true_pairs, 3) if true_pairs else None,
+                             clusters_mixing_different_people=merged_wrongly))
+        # Name scores of the true duplicate pairs, to show where they fall against the thresholds.
+        scores = []
+        for _, g in ids.groupby("person_id"):
+            names = g["name"].tolist()
+            scores += [fuzz.token_sort_ratio(a, b) for i, a in enumerate(names) for b in names[i + 1:]]
+        return pd.DataFrame(rows), sorted(scores)
+
+    # ---------------------------------------------------------------- report
+    def run(self) -> dict:
+        scored = self.score_injected()
+        by_type = self.tally(scored, ["group", "error_type"]).sort_values(["group", "fixed_or_flagged_%"])
+        by_type["below_90%"] = by_type["fixed_or_flagged_%"].map(lambda v: "YES" if v < 90 else "")
+        by_group = self.tally(scored, ["group"])
+        false_corr, compared = self.false_corrections()
+        false_flag = self.false_flags()
+        lost, spurious = self.lost_and_spurious()
+        dupes, dup_scores = self.duplicate_matching()
+        out = self.staging
+        by_type.to_csv(out / "score_by_error_type.csv", index=False)
+        scored.to_csv(out / "score_injected_errors.csv", index=False)
+        false_corr.to_csv(out / "score_false_corrections.csv", index=False)
+        false_flag.to_csv(out / "score_false_flags.csv", index=False)
+        dupes.to_csv(out / "score_duplicate_thresholds.csv", index=False)
+        result = dict(by_type=by_type, by_group=by_group, false_corrections=false_corr, compared=compared,
+                      false_flags=false_flag, lost=lost, spurious=spurious, duplicates=dupes,
+                      duplicate_scores=dup_scores, scored=scored)
+        self.write_markdown(result)
+        return result
+
+    def write_markdown(self, r: dict):
+        genuine = r["by_group"].set_index("group").loc["genuine_errors"]
+        fc = r["false_corrections"]
+        wrong = int((fc["kind"] == "clean value wrongly changed").sum()) if len(fc) else 0
+        knock = len(fc) - wrong
+        excluded = int((self.log["expected_handling"] == "undetectable").sum())
+        below = r["by_type"][r["by_type"]["below_90%"] == "YES"]
+        missed = r["scored"][r["scored"]["outcome"] == "missed"]
+        thresholds = load_settings()["duplicate_matching"]
+        lines = [
+            "# Phase 2 cleaning scorecard (synthetic data)",
+            "",
+            f"*Generated by `src/score_cleaning.py` on {dt.date.today():%d %B %Y}. Do not edit by hand.*",
+            "",
+            "Scores the pipeline (`ingest.py` + `clean.py`) against the synthetic answer key. "
+            f"{excluded} problems that cannot be detected from the files are excluded: "
+            + ", ".join(f"{n} {t.replace('_', ' ')}" for t, n in
+                        self.log[self.log["expected_handling"] == "undetectable"]["error_type"].value_counts().items())
+            + " (see docs/decision_log.md).",
+            "",
+            "**Fixed** = the cleaned value equals the true value. **Flagged** = the pipeline marked the cell or "
+            "row for review. **Missed** = neither.",
+            "",
+            "## Headline",
+            "",
+            f"- Genuine errors fixed or flagged: **{genuine['fixed_or_flagged_%']}%** "
+            f"({int(genuine['fixed'] + genuine['flagged']):,} of {int(genuine['total']):,}). Target 95%: "
+            f"**{'met' if genuine['fixed_or_flagged_%'] >= 95 else 'NOT met'}**.",
+            f"- Error types below 90%: **{len(below)}**"
+            + (f" ({', '.join(below['error_type'])})" if len(below) else "") + ".",
+            f"- False corrections: **{wrong}** clean values wrongly changed, out of {r['compared']:,} clean cells "
+            f"compared ({100 * wrong / max(1, r['compared']):.3f}%). A further {knock} cells were wrong only as a "
+            "knock-on from an injected error on the same row.",
+            f"- Rows lost: {r['lost']}. Rows in the cleaned tables that should not be there: {r['spurious']}.",
+            "",
+            "## (b) Totals by group",
+            "",
+            md_table(r["by_group"]),
+            "",
+            "## (a) Fixed, flagged and missed by error type",
+            "",
+            md_table(r["by_type"]),
+            "",
+            "## (c) False corrections",
+            "",
+            "Every cleaned cell that had no injected problem was compared with its true value.",
+            "",
+        ]
+        if len(fc):
+            summary = fc.groupby(["kind", "entity", "field"]).size().reset_index(name="cells")
+            lines += [md_table(summary), "", "Examples:", "",
+                      md_table(fc.head(15)[["entity", "field", "source_file", "source_row", "raw_value",
+                                            "clean_value", "true_value", "kind"]]), ""]
+        else:
+            lines += ["None found.", ""]
+        ff = r["false_flags"]
+        lines += ["Flags on rows with no injected problem at all (shown for information; a flag sends a row for "
+                  "review, it does not change a value):", ""]
+        lines += [md_table(ff.groupby("issue_code").size().reset_index(name="rows")) if len(ff) else "None.", ""]
+        scores = r["duplicate_scores"]
+        lines += [
+            "## (d) Duplicate beneficiaries: matching threshold",
+            "",
+            "Pairs of registrations belonging to the same person. Precision = share of matched pairs that are "
+            "right; recall = share of true pairs found. Records with the same national ID are always matched. "
+            "Otherwise names must score at least the threshold, be in the same district and of the same "
+            f"sex, and are kept apart if phones differ by more than {thresholds['max_phone_digit_difference']} "
+            f"digit, IDs differ, or ages differ by more than {thresholds['max_age_difference_years']} years.",
+            "",
+            md_table(r["duplicates"]),
+            "",
+            f"Name scores of the {len(scores)} true duplicate pairs: lowest {min(scores):.0f}, "
+            + ", ".join(f"{sum(s < t for s in scores)} below {t}" for t in thresholds["thresholds_to_compare"]) + ".",
+            "",
+            "## Missed problems (all)",
+            "",
+        ]
+        lines += [md_table(missed[["error_type", "source_file", "source_sheet", "source_row", "field", "true_value",
+                                   "messy_value", "outcome_note"]].head(60)) if len(missed) else "None.", ""]
+        if len(missed) > 60:
+            lines += [f"... and {len(missed) - 60} more in data/staging/score_injected_errors.csv", ""]
+        (self.docs / "phase2_cleaning_scorecard.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def main():
+    if not load_settings()["synthetic_mode"]:
+        print("Scoring needs the synthetic answer key; synthetic_mode is off, so nothing to do.")
+        return
+    r = Scorer().run()
+    print(r["by_group"].to_string(index=False))
+    print(f"False corrections: {len(r['false_corrections'])} of {r['compared']} cells compared")
+    print("Scorecard written to docs/phase2_cleaning_scorecard.md")
+
+
+if __name__ == "__main__":
+    main()

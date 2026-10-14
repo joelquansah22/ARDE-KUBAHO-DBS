@@ -21,6 +21,7 @@ STEPS = [
     ("Generate synthetic data", "generate_synthetic", "generate", 1),
     ("Ingest and pseudonymise", "ingest", "main", 2),
     ("Clean and standardise", "clean", "main", 2),
+    ("Score cleaning against the answer key (synthetic only)", "score_cleaning", "main", 2),
     ("Validate data quality", "validate", "main", 3),
     ("Build star schema", "model", "main", 3),
     ("Compute indicators", "indicators", "main", 4),
