@@ -32,8 +32,8 @@ Traffic-light status (% of target achieved, from `config/settings.yaml`): on tra
 | Definition | People who gained access to an improved water source (a borehole or water point built or rehabilitated by the project) during the period. |
 | Numerator | People gaining access to an improved water source during the period. |
 | Denominator | None (a count). |
-| Calculation rule | Reported: the sum of the monthly values in the indicator reports. Derived: the number of different registered people who received a "water point access" service (activity ACT01) during the period. |
-| Counting rule | Reported values are counts typed by officers and may include community members who are not registered. Derived values count each registered person once per period, however many services they received. |
+| Calculation rule | Reported: the sum of the monthly values in the indicator reports. Derived: the people served recorded in the activity records, i.e. the participants of water-point activities (activity ACT01) that took place during the month (completed or delayed), in the district where the activity took place. |
+| Counting rule | Both sources count people served by water-point activities as recorded by officers (not registered beneficiaries), so they are comparable. A person served by two water-point activities may be counted twice in both sources. |
 | Coverage | Reported values cover the monthly reports received out of those expected. |
 | Disaggregation | none |
 | Target-setting rule | An annual target per project and district from the work plan, split into equal monthly targets. |
@@ -42,7 +42,7 @@ Traffic-light status (% of target achieved, from `config/settings.yaml`): on tra
 | Availability | available |
 | Owner | To be confirmed with partner (suggested - MEAL officer) |
 | Higher is better | Yes |
-| Notes | The two sources measure different things (all people reached versus registered beneficiaries), so a gap is expected; the reconciliation shows how large it is. |
+| Notes | Reported and derived values are compared month by month in the reconciliation table; a gap above the tolerance points to a reporting or recording problem to follow up. |
 
 ## WASH-02: Number of household latrines constructed or rehabilitated
 
@@ -101,8 +101,8 @@ Traffic-light status (% of target achieved, from `config/settings.yaml`): on tra
 | Definition | Water user committees newly established during the period that meet the functionality criteria. |
 | Numerator | Committees established and functional during the period. |
 | Denominator | None (a count). |
-| Calculation rule | The sum of the quarterly values in the indicator reports. |
-| Counting rule | Each committee is counted once, in the quarter it is established. To be confirmed with partner whether the reports count NEW committees (which add up over a year, as calculated here) or ALL functional committees at the end of the quarter (which must not be added up). |
+| Calculation rule | The latest quarterly value in the indicator reports for the period. |
+| Counting rule | Treated as a SNAPSHOT (aggregation: latest): a quarter or year shows the latest reported number of functional committees, not a sum. To be confirmed with partner whether the reports count new committees (which would add up, aggregation: sum) or all functional committees at the end of the quarter (as assumed here). |
 | Coverage | The quarterly reports received out of those expected. |
 | Disaggregation | none |
 | Target-setting rule | An annual target per project and district from the work plan, split into quarters. |
@@ -125,7 +125,7 @@ Traffic-light status (% of target achieved, from `config/settings.yaml`): on tra
 | Numerator | Farmers trained during the period. |
 | Denominator | None (a count). |
 | Calculation rule | Reported: the sum of the monthly values in the indicator reports, by sex. Derived: the number of different registered people who received a "farmer training" service (activity ACT10) during the period, by sex. |
-| Counting rule | Derived values count each registered person once per period, however many sessions they attended (not attendance). Reported values are counts typed by officers. |
+| Counting rule | Each month counts different registered people (not attendance): a farmer at four sessions in one month counts once. Reported values are counts typed by officers for the same thing. |
 | Coverage | Reported values cover the monthly reports received out of those expected. |
 | Disaggregation | sex |
 | Target-setting rule | An annual target per project, district and sex from the work plan, split into equal monthly targets. |
@@ -134,7 +134,7 @@ Traffic-light status (% of target achieved, from `config/settings.yaml`): on tra
 | Availability | available |
 | Owner | To be confirmed with partner (suggested - agriculture project manager) |
 | Higher is better | Yes |
-| Notes | The definition of "trained" (one session, or the full course) needs to be agreed. |
+| Notes | The definition of "trained" (one session, or the full course) needs to be agreed. Quarters and years add up the months, as the reports do, so a farmer trained in two different months counts in both. |
 
 ## AGR-02: Hectares under solar-powered or improved irrigation
 

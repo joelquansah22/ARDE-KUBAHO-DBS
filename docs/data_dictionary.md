@@ -18,25 +18,25 @@ No table holds names, phone numbers or national ID numbers. People and donors ar
 | `dim_location` | dimension | 152 | location_id | One row per village, plus one row per district (for results reported at district level, such as monthly indicator reports). District rows have no sector, cell or village. Provinces and districts are Rwanda's real ones; sectors, cells and villages are synthetic while on demonstration data. |
 | `dim_indicator` | dimension | 12 | indicator_id | One row per MEAL indicator in config/indicator_catalogue.yaml (draft, for co-design with ARDE/KUBAHO staff). |
 | `dim_date` | dimension | 1,461 | date | One row per calendar day, with Rwanda's fiscal year (July to June). |
-| `dim_beneficiary` | dimension | 1,509 | beneficiary_key | One row per person (after duplicate matching). No names, phone numbers or ID numbers: the person is identified only by a salted hash. Details come from the person's earliest registration that passed the data-quality checks. |
+| `dim_beneficiary` | dimension | 1,510 | beneficiary_key | One row per person (after duplicate matching). No names, phone numbers or ID numbers: the person is identified only by a salted hash. Details come from the person's earliest registration that passed the data-quality checks. |
 | `dim_donor` | dimension | 25 | donor_key | One row per donor. Organisations keep their names; individual donors appear only as "Individual donor #NNN". Contact names, emails and phone numbers are never stored. |
-| `fact_activity` | fact | 2,727 | source_file, source_sheet, source_row | One row per activity event from the activity monitoring files and digitised paper records. Rows that broke a critical rule are not here: they are in the quarantine table. |
+| `fact_activity` | fact | 2,745 | source_file, source_sheet, source_row | One row per activity event from the activity monitoring files and digitised paper records. Rows that broke a critical rule are not here: they are in the quarantine table. |
 | `fact_beneficiary_service` | fact | 4,475 | source_file, source_sheet, source_row | One row per service a registered person received. |
-| `fact_indicator_result` | fact | 586 | source_file, source_sheet, source_row | One row per indicator value reported in the monthly indicator reports (per project, district, month and, where relevant, sex). Rows that broke a critical rule are in the quarantine table instead. |
-| `fact_opportunity` | fact | 26 | opportunity_id | One row per funding opportunity in the donor tracker. |
+| `fact_indicator_result` | fact | 580 | source_file, source_sheet, source_row | One row per indicator value reported in the monthly indicator reports (per project, district, month and, where relevant, sex). Rows that broke a critical rule are in the quarantine table instead. |
+| `fact_opportunity` | fact | 28 | opportunity_id | One row per funding opportunity in the donor tracker. |
 | `dq_results` | data quality | 14 | rule_id | One row per data-quality rule (config/dq_rules.yaml), with how many records it checked and how many broke it. |
 | `dq_rule_results_by_file` | data quality | 183 | source_file, source_sheet, rule_id | Every data-quality rule scored separately for each source file and sheet, for finding which rule drives a low score. |
 | `dq_dimension_scores` | data quality | 7 | dimension | One row per data-quality dimension, plus an "overall" row (the average of the six). |
 | `dq_by_source_file` | data quality | 26 | source_file, source_sheet | One row per Excel file and sheet read, with how many of its rows had problems. |
 | `dq_by_field_officer` | data quality | 4 | field_officer | One row per field officer (activity records, indicator reports and registers that carry an officer code), with their data-quality results. |
-| `quarantine` | data quality | 240 | source_file, source_sheet, source_row | Every row that broke a critical rule, with the reasons. These rows are kept here, not in the fact tables, until the source Excel file is corrected and the pipeline is run again. |
-| `review_queue` | data quality | 287 | source_file, source_sheet, source_row | Every row with warnings (and no critical problem). The row is used in results, but a person should check it. |
+| `quarantine` | data quality | 222 | source_file, source_sheet, source_row | Every row that broke a critical rule, with the reasons. These rows are kept here, not in the fact tables, until the source Excel file is corrected and the pipeline is run again. |
+| `review_queue` | data quality | 253 | source_file, source_sheet, source_row | Every row with warnings (and no critical problem). The row is used in results, but a person should check it. |
 | `skipped_sheets` | data quality | 0 | source_file, source_sheet | Every sheet the pipeline could not read, with the reason and the column headers it did not recognise. |
 | `dq_info_measures` | data quality | 6 | metric_id | Data-quality measures shown on the dashboard instead of rows to review (info-level flags). |
 | `report_completeness` | data quality | 417 | project_id, district, period | One row per monthly indicator report that was due, and whether it arrived. |
-| `indicator_values` | indicator | 6,625 | value_id | One row per indicator value: for each indicator, source (reported or derived), project, district, period and breakdown. "All" in project_id or district means all projects or all districts together (worked out directly, not by adding up the rows below, so a person is never counted twice). |
-| `indicator_value_sources` | indicator | 147,177 | value_id, source_table, source_file, source_sheet, source_row, record_key | Traceability: for each indicator value, every record it was worked out from. Use it to go from any number on the dashboard back to the Excel rows. |
-| `indicator_reconciliation` | indicator | 1,045 | indicator_code, project_id, district, period_type, period, disaggregation | A key MEAL check: where an indicator is both reported and derived, the two values side by side. Gaps larger than the tolerance (settings: indicators.reconciliation_tolerance_pct) are flagged for follow-up. |
+| `indicator_values` | indicator | 6,609 | value_id | One row per indicator value: for each indicator, source (reported or derived), project, district, period and breakdown. "All" in project_id or district means all projects or all districts together (worked out directly, not by adding up the rows below, so a person is never counted twice). |
+| `indicator_value_sources` | indicator | 145,711 | value_id, source_table, source_file, source_sheet, source_row, record_key | Traceability: for each indicator value, every record it was worked out from. Use it to go from any number on the dashboard back to the Excel rows. |
+| `indicator_reconciliation` | indicator | 727 | indicator_code, project_id, district, period_type, period, disaggregation | A key MEAL check: where an indicator is both reported and derived LIKE FOR LIKE (catalogue: derived.like_for_like), the two monthly values side by side. Months are compared because that is the reporting grain where both sources count the same thing. Gaps larger than the tolerance (settings: indicators.reconciliation_tolerance_pct) are flagged for follow-up. A month with a report but no matching records counts as derived 0. |
 
 ## How the tables link
 
@@ -163,7 +163,7 @@ Rows: 1,461. Key: date.
 
 One row per person (after duplicate matching). No names, phone numbers or ID numbers: the person is identified only by a salted hash. Details come from the person's earliest registration that passed the data-quality checks.
 
-Rows: 1,509. Key: beneficiary_key.
+Rows: 1,510. Key: beneficiary_key.
 
 | Column | Type | Description |
 |---|---|---|
@@ -193,7 +193,7 @@ Rows: 25. Key: donor_key.
 
 One row per activity event from the activity monitoring files and digitised paper records. Rows that broke a critical rule are not here: they are in the quarantine table.
 
-Rows: 2,727. Key: source_file, source_sheet, source_row.
+Rows: 2,745. Key: source_file, source_sheet, source_row.
 
 | Column | Type | Description |
 |---|---|---|
@@ -234,7 +234,7 @@ Rows: 4,475. Key: source_file, source_sheet, source_row.
 
 One row per indicator value reported in the monthly indicator reports (per project, district, month and, where relevant, sex). Rows that broke a critical rule are in the quarantine table instead.
 
-Rows: 586. Key: source_file, source_sheet, source_row.
+Rows: 580. Key: source_file, source_sheet, source_row.
 
 | Column | Type | Description |
 |---|---|---|
@@ -256,7 +256,7 @@ Rows: 586. Key: source_file, source_sheet, source_row.
 
 One row per funding opportunity in the donor tracker.
 
-Rows: 26. Key: opportunity_id.
+Rows: 28. Key: opportunity_id.
 
 | Column | Type | Description |
 |---|---|---|
@@ -364,7 +364,7 @@ Rows: 4. Key: field_officer.
 
 Every row that broke a critical rule, with the reasons. These rows are kept here, not in the fact tables, until the source Excel file is corrected and the pipeline is run again.
 
-Rows: 240. Key: source_file, source_sheet, source_row.
+Rows: 222. Key: source_file, source_sheet, source_row.
 
 | Column | Type | Description |
 |---|---|---|
@@ -381,7 +381,7 @@ Rows: 240. Key: source_file, source_sheet, source_row.
 
 Every row with warnings (and no critical problem). The row is used in results, but a person should check it.
 
-Rows: 287. Key: source_file, source_sheet, source_row.
+Rows: 253. Key: source_file, source_sheet, source_row.
 
 | Column | Type | Description |
 |---|---|---|
@@ -442,7 +442,7 @@ Rows: 417. Key: project_id, district, period.
 
 One row per indicator value: for each indicator, source (reported or derived), project, district, period and breakdown. "All" in project_id or district means all projects or all districts together (worked out directly, not by adding up the rows below, so a person is never counted twice).
 
-Rows: 6,625. Key: value_id.
+Rows: 6,609. Key: value_id.
 
 | Column | Type | Description |
 |---|---|---|
@@ -450,6 +450,7 @@ Rows: 6,625. Key: value_id.
 | `indicator_id` | BIGINT | Indicator (links to dim_indicator). |
 | `indicator_code` | VARCHAR | Indicator code, e.g. AGR-01. |
 | `source` | VARCHAR | reported (from the monthly indicator reports) or derived (worked out from activity and beneficiary records). |
+| `aggregation` | VARCHAR | How months roll up into quarters and years (catalogue): sum (they add up), latest (the latest month's snapshot), average, or ratio (worked out again from the records for the whole period). |
 | `project_id` | VARCHAR | Project, or All. |
 | `district` | VARCHAR | District, or All. |
 | `period_type` | VARCHAR | month, quarter (fiscal quarter, Q1 = July to September) or fiscal_year. |
@@ -460,7 +461,11 @@ Rows: 6,625. Key: value_id.
 | `target` | DOUBLE | Target for the period (empty when no target is set, or when some months have no target). |
 | `actual` | DOUBLE | Value for the period (empty when no data arrived). |
 | `pct_achieved` | DOUBLE | Actual as a % of target (empty when there is no complete target). |
-| `status` | VARCHAR | on track, at risk, off track, no target set, target incomplete, or no data. |
+| `status` | VARCHAR | on track, at risk, off track, no target set, target incomplete (some months have no target: no traffic-light colour), or no data. |
+| `partial_pct_achieved` | DOUBLE | When the target is incomplete: actual as a % of target over the months that DO have a target (see target_note). |
+| `target_note` | VARCHAR | For an incomplete target, e.g. "partial: 9 of 12 months". |
+| `months_with_target` | BIGINT | Months in the period that have a value and a complete target. |
+| `months_with_data` | BIGINT | Months in the period that have a value (for a "latest" indicator, 1 - the month used). |
 | `numerator` | DOUBLE | The numerator behind the value (e.g. women reached), where the indicator is a ratio. |
 | `denominator` | DOUBLE | The denominator behind the value (e.g. people reached with sex recorded). |
 | `coverage_pct` | DOUBLE | How much of the relevant data the value could be worked out from, e.g. the % of planned activities whose timing could be checked, or the % of expected reports received. |
@@ -470,7 +475,7 @@ Rows: 6,625. Key: value_id.
 
 Traceability: for each indicator value, every record it was worked out from. Use it to go from any number on the dashboard back to the Excel rows.
 
-Rows: 147,177. Key: value_id, source_table, source_file, source_sheet, source_row, record_key.
+Rows: 145,711. Key: value_id, source_table, source_file, source_sheet, source_row, record_key.
 
 | Column | Type | Description |
 |---|---|---|
@@ -483,9 +488,9 @@ Rows: 147,177. Key: value_id, source_table, source_file, source_sheet, source_ro
 
 ## `indicator_reconciliation`
 
-A key MEAL check: where an indicator is both reported and derived, the two values side by side. Gaps larger than the tolerance (settings: indicators.reconciliation_tolerance_pct) are flagged for follow-up.
+A key MEAL check: where an indicator is both reported and derived LIKE FOR LIKE (catalogue: derived.like_for_like), the two monthly values side by side. Months are compared because that is the reporting grain where both sources count the same thing. Gaps larger than the tolerance (settings: indicators.reconciliation_tolerance_pct) are flagged for follow-up. A month with a report but no matching records counts as derived 0.
 
-Rows: 1,045. Key: indicator_code, project_id, district, period_type, period, disaggregation.
+Rows: 727. Key: indicator_code, project_id, district, period_type, period, disaggregation.
 
 | Column | Type | Description |
 |---|---|---|
@@ -493,9 +498,9 @@ Rows: 1,045. Key: indicator_code, project_id, district, period_type, period, dis
 | `indicator_id` | BIGINT | Indicator (links to dim_indicator). |
 | `project_id` | VARCHAR | Project, or All. |
 | `district` | VARCHAR | District, or All. |
-| `period_type` | VARCHAR | month, quarter or fiscal_year. |
-| `period` | VARCHAR | Period label. |
-| `period_start` | DATE | First day of the period. |
+| `period_type` | VARCHAR | month (the reconciliation is done month by month). |
+| `period` | VARCHAR | Month, e.g. 2024-03. |
+| `period_start` | DATE | First day of the month. |
 | `disaggregation` | VARCHAR | total, or sex=female / sex=male. |
 | `reported` | DOUBLE | Value from the monthly indicator reports. |
 | `derived` | DOUBLE | Value worked out from the activity and beneficiary records. |

@@ -358,6 +358,9 @@ tables:
       indicator_id: Indicator (links to dim_indicator).
       indicator_code: Indicator code, e.g. AGR-01.
       source: reported (from the monthly indicator reports) or derived (worked out from activity and beneficiary records).
+      aggregation: >-
+        How months roll up into quarters and years (catalogue): sum (they add up), latest (the latest month's snapshot),
+        average, or ratio (worked out again from the records for the whole period).
       project_id: Project, or All.
       district: District, or All.
       period_type: month, quarter (fiscal quarter, Q1 = July to September) or fiscal_year.
@@ -368,7 +371,14 @@ tables:
       target: Target for the period (empty when no target is set, or when some months have no target).
       actual: Value for the period (empty when no data arrived).
       pct_achieved: Actual as a % of target (empty when there is no complete target).
-      status: on track, at risk, off track, no target set, target incomplete, or no data.
+      status: >-
+        on track, at risk, off track, no target set, target incomplete (some months have no target: no traffic-light
+        colour), or no data.
+      partial_pct_achieved: >-
+        When the target is incomplete: actual as a % of target over the months that DO have a target (see target_note).
+      target_note: 'For an incomplete target, e.g. "partial: 9 of 12 months".'
+      months_with_target: Months in the period that have a value and a complete target.
+      months_with_data: Months in the period that have a value (for a "latest" indicator, 1 - the month used).
       numerator: The numerator behind the value (e.g. women reached), where the indicator is a ratio.
       denominator: The denominator behind the value (e.g. people reached with sex recorded).
       coverage_pct: >-
@@ -393,17 +403,19 @@ tables:
   indicator_reconciliation:
     kind: indicator
     description: >-
-      A key MEAL check: where an indicator is both reported and derived, the two values side by side. Gaps larger than
-      the tolerance (settings: indicators.reconciliation_tolerance_pct) are flagged for follow-up.
+      A key MEAL check: where an indicator is both reported and derived LIKE FOR LIKE (catalogue: derived.like_for_like),
+      the two monthly values side by side. Months are compared because that is the reporting grain where both sources
+      count the same thing. Gaps larger than the tolerance (settings: indicators.reconciliation_tolerance_pct) are
+      flagged for follow-up. A month with a report but no matching records counts as derived 0.
     key: [indicator_code, project_id, district, period_type, period, disaggregation]
     columns:
       indicator_code: Indicator code.
       indicator_id: Indicator (links to dim_indicator).
       project_id: Project, or All.
       district: District, or All.
-      period_type: month, quarter or fiscal_year.
-      period: Period label.
-      period_start: First day of the period.
+      period_type: month (the reconciliation is done month by month).
+      period: Month, e.g. 2024-03.
+      period_start: First day of the month.
       disaggregation: total, or sex=female / sex=male.
       reported: Value from the monthly indicator reports.
       derived: Value worked out from the activity and beneficiary records.

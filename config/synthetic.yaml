@@ -156,6 +156,28 @@ indicator_targets:
   AGR-04: {per_quarter: [1, 3]}      # cooperatives
 
 # -----------------------------------------------------------------------------
+# Reconciliation scenario (decision log D132)
+# -----------------------------------------------------------------------------
+# For these indicators the monthly report values are worked out from the SAME true activity and
+# register data the pipeline reads, so reported and derived values should agree. Discrepancies are
+# then planted at known rates and logged in data/ground_truth/SYNTHETIC_planted_discrepancies.csv:
+#   over-reporting   two officers inflate some of their monthly figures by 15 to 30%
+#   under-reporting  some months are reported 20 to 50% too low
+#   rounding         small 1 to 5% differences on larger numbers (should stay within the tolerance)
+reconciliation_scenario:
+  indicators:
+    WASH-01: {truth: activity_participants, activity_ids: [ACT01], statuses: [completed, delayed]}
+    AGR-01: {truth: unique_people, activity_ids: [ACT10]}
+  over_reporting_officers: [FO01, FO04]   # FO01: WASH-01 in Nyagatare and Kayonza; FO04: AGR-01 in Rulindo
+  over_report_share: 0.6           # share of those officers' months that are inflated
+  over_report_pct: [15, 30]
+  under_report_rate: 0.06
+  under_report_pct: [20, 50]
+  rounding_rate: 0.15
+  rounding_pct: [1, 5]
+  rounding_min_value: 20           # rounding differences only on values of at least 20
+
+# -----------------------------------------------------------------------------
 # How injected problems are grouped when the cleaning is scored (score_cleaning.py)
 # -----------------------------------------------------------------------------
 # officer_habits: consistent ways an officer formats things (not mistakes as such).
@@ -216,4 +238,4 @@ error_groups:
 
 # Content fingerprint of a correct run (see docs/synthetic_data.md).
 # Check your copy with:  python src/generate_synthetic.py --verify
-expected_fingerprint: d62680eec7338d7b664106c890deefea7403d310dcb4ba16c2d82dc3673bdd5a
+expected_fingerprint: c43d0b4d26e19fd06d26ca663777b6deaad2d86f16753e5ca3b292a63ce7e1ab   # since 14 Oct 2026, D132-D133 (was d62680ee...)

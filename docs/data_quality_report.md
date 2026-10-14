@@ -14,20 +14,20 @@ All sheets were read. None was skipped.
 
 | dimension | score % | rules |
 |---|---|---|
-| completeness | 96.8 | 4 |
-| validity | 99.5 | 3 |
-| consistency | 96.9 | 3 |
-| uniqueness | 97.6 | 2 |
-| timeliness | 88.8 | 1 |
-| accuracy | 99.2 | 1 |
+| completeness | 97.0 | 4 |
+| validity | 99.6 | 3 |
+| consistency | 97.4 | 3 |
+| uniqueness | 97.9 | 2 |
+| timeliness | 88.6 | 1 |
+| accuracy | 98.3 | 1 |
 
 Rules pulling their dimension down the most (points taken off the dimension score):
 
 | rule_id | dimension | description | score | dimension_impact |
 |---|---|---|---|---|
-| TIM-01 | timeliness | Activities are entered within the allowed number of days (late_entry_days in settings) | 88.8 | 11.2 |
-| COM-03 | completeness | Every indicator result has a target | 92.2 | 1.9 |
-| CON-01 | consistency | Female + male = total participants, and women are not more than the total | 94.4 | 1.9 |
+| TIM-01 | timeliness | Activities are entered within the allowed number of days (late_entry_days in settings) | 88.6 | 11.4 |
+| COM-03 | completeness | Every indicator result has a target | 92.9 | 1.8 |
+| ACC-01 | accuracy | Reported actual is not more than 3 times the target (flagged for review) | 98.3 | 1.7 |
 
 ## 3. Rules
 
@@ -36,65 +36,67 @@ Each rule's score is the percentage of the records it applies to that do not bre
 | rule_id | dimension | description | records_checked | records_failed | score % | critical_failures | warning_failures | info_failures | dimension_impact |
 |---|---|---|---|---|---|---|---|---|---|
 | COM-01 | completeness | Every sheet could be read (none skipped for unknown or missing columns) | 26 | 0 | 100.0 | 0 | 0 | 0 | 0.0 |
-| COM-02 | completeness | Required fields are filled in | 9556 | 117 | 98.8 | 117 | 0 | 0 | 0.3 |
-| COM-03 | completeness | Every indicator result has a target | 591 | 46 | 92.2 | 0 | 46 | 0 | 1.9 |
+| COM-02 | completeness | Required fields are filled in | 9554 | 110 | 98.8 | 110 | 0 | 0 | 0.3 |
+| COM-03 | completeness | Every indicator result has a target | 589 | 42 | 92.9 | 0 | 42 | 0 | 1.8 |
 | COM-04 | completeness | Expected monthly indicator reports were received | 417 | 16 | 96.2 | 0 | 0 | 16 | 0.9 |
-| VAL-01 | validity | Dates can be read and fall inside the project window | 9556 | 22 | 99.8 | 22 | 0 | 0 | 0.1 |
-| VAL-02 | validity | Codes are in the allowed lists (sex, status, district, village, project, activity, indicator, stage, donor) | 9581 | 17 | 99.8 | 14 | 3 | 0 | 0.1 |
-| VAL-03 | validity | Numbers are readable and possible (no negatives, percentages 0 to 100, plausible ages and household sizes) | 5081 | 53 | 99.0 | 53 | 0 | 0 | 0.3 |
-| CON-01 | consistency | Female + male = total participants, and women are not more than the total | 2894 | 162 | 94.4 | 38 | 124 | 0 | 1.9 |
-| CON-02 | consistency | The district belongs to the stated province | 4460 | 22 | 99.5 | 0 | 22 | 0 | 0.2 |
-| CON-03 | consistency | Status and dates agree (no "completed" activity done late; no entry before the activity) | 2894 | 96 | 96.7 | 21 | 75 | 0 | 1.1 |
-| UNI-01 | uniqueness | No activity row is entered twice | 2949 | 55 | 98.1 | 0 | 0 | 55 | 1.0 |
+| VAL-01 | validity | Dates can be read and fall inside the project window | 9554 | 24 | 99.7 | 24 | 0 | 0 | 0.1 |
+| VAL-02 | validity | Codes are in the allowed lists (sex, status, district, village, project, activity, indicator, stage, donor) | 9579 | 21 | 99.8 | 18 | 3 | 0 | 0.1 |
+| VAL-03 | validity | Numbers are readable and possible (no negatives, percentages 0 to 100, plausible ages and household sizes) | 5079 | 40 | 99.2 | 40 | 0 | 0 | 0.3 |
+| CON-01 | consistency | Female + male = total participants, and women are not more than the total | 2894 | 110 | 96.2 | 34 | 76 | 0 | 1.3 |
+| CON-02 | consistency | The district belongs to the stated province | 4460 | 32 | 99.3 | 0 | 32 | 0 | 0.2 |
+| CON-03 | consistency | Status and dates agree (no "completed" activity done late; no entry before the activity) | 2894 | 94 | 96.8 | 22 | 72 | 0 | 1.1 |
+| UNI-01 | uniqueness | No activity row is entered twice | 2929 | 35 | 98.8 | 0 | 0 | 35 | 0.6 |
 | UNI-02 | uniqueness | No unresolved suspected duplicate beneficiaries (after fuzzy matching) | 1566 | 46 | 97.1 | 0 | 46 | 0 | 1.5 |
-| TIM-01 | timeliness | Activities are entered within the allowed number of days (late_entry_days in settings) | 2493 | 280 | 88.8 | 0 | 0 | 280 | 11.2 |
-| ACC-01 | accuracy | Reported actual is not more than 3 times the target (flagged for review) | 591 | 5 | 99.2 | 0 | 5 | 0 | 0.8 |
+| TIM-01 | timeliness | Activities are entered within the allowed number of days (late_entry_days in settings) | 2472 | 283 | 88.6 | 0 | 0 | 283 | 11.4 |
+| ACC-01 | accuracy | Reported actual is not more than 3 times the target (flagged for review) | 589 | 10 | 98.3 | 0 | 10 | 0 | 1.7 |
 
 ## 4. Quarantined records
 
-**240 rows are quarantined.** They broke a critical rule, so they are not used in any result. They are kept, with their reasons, in the `quarantine` table of the warehouse: correct them in the source Excel file and run the pipeline again.
+**222 rows are quarantined.** They broke a critical rule, so they are not used in any result. They are kept, with their reasons, in the `quarantine` table of the warehouse: correct them in the source Excel file and run the pipeline again.
 
 By reason (a row can have more than one):
 
 | reason | rows |
 |---|---|
-| missing_required | 117 |
-| female_exceeds_total | 38 |
-| negative_value | 28 |
-| date_outside_project_window | 22 |
-| entry_before_activity | 21 |
-| sex_unmapped | 13 |
-| impossible_household_size | 10 |
-| impossible_age | 7 |
+| missing_required | 110 |
+| female_exceeds_total | 34 |
+| date_outside_project_window | 24 |
+| entry_before_activity | 22 |
+| negative_value | 20 |
+| sex_unmapped | 14 |
+| impossible_household_size | 8 |
+| impossible_age | 5 |
 | percent_over_100 | 4 |
-| probability_word | 4 |
-| village_unrecognised | 1 |
+| village_unrecognised | 3 |
+| probability_word | 2 |
+| district_unrecognised | 1 |
+| number_unreadable | 1 |
 
 By kind of record:
 
 | entity | rows |
 |---|---|
-| activity | 167 |
-| indicator_result | 5 |
-| opportunity | 4 |
-| registration | 64 |
+| activity | 149 |
+| indicator_result | 9 |
+| opportunity | 2 |
+| registration | 62 |
 
 ## 5. Review queue
 
-**287 rows** have warnings but no critical problem: they are used in results and listed in the `review_queue` table for the MEAL officer to check. Per month: average 7.9 rows, busiest month 16 (2024-03). At 2 minutes a row that is about 16 minutes a month on average; months over the 60-minute budget: 0.
+**253 rows** have warnings but no critical problem: they are used in results and listed in the `review_queue` table for the MEAL officer to check. Per month: average 7.0 rows, busiest month 12 (2024-08). At 2 minutes a row that is about 14 minutes a month on average; months over the 60-minute budget: 0.
 
-**People count:** 32 people have records pending a duplicate review, so the number of people reached may be slightly too high until that review is done.
+**People count:** 33 people have records pending a duplicate review, so the number of people reached may be slightly too high until that review is done.
 
 By reason:
 
 | reason | rows |
 |---|---|
-| sum_mismatch | 102 |
-| status_completed_but_late | 73 |
-| missing_target | 46 |
+| status_completed_but_late | 65 |
+| sum_mismatch | 64 |
 | possible_duplicate_person | 44 |
-| district_province_mismatch | 22 |
-| accuracy_outlier | 5 |
+| missing_target | 42 |
+| district_province_mismatch | 29 |
+| accuracy_outlier | 10 |
 | district_unrecognised | 3 |
 
 ## 6. Data-quality measures (no action needed on individual rows)
@@ -103,43 +105,43 @@ Each is defined once, in `config/dq_metrics.yaml`.
 
 | metric_id | metric | % | numerator | denominator | note |
 |---|---|---|---|---|---|
-| timeliness | Timeliness: activity records entered within the allowed days | 88.8 | 2213 | 2493 | Activities that took place, with a known day and an entry date; entered within late_entry_days (settings). Activities whose day is unknown cannot be judged and are left out. |
+| timeliness | Timeliness: activity records entered within the allowed days | 88.6 | 2189 | 2472 | Activities that took place, with a known day and an entry date; entered within late_entry_days (settings). Activities whose day is unknown cannot be judged and are left out. |
 | reporting_completeness | Reporting completeness: expected monthly reports received | 96.2 | 401 | 417 | Every project, district and month for which an indicator report was due (indicator CC-04). |
-| dates_known_day | Activity dates with a known day | 90.3 | 2493 | 2760 | Activities with a date; the rest were typed as a month only. |
-| on_time_checkable | Activities whose on-time status can be checked | 74.1 | 2130 | 2876 | Needs exact activity and planned dates (coverage of indicator CC-02). |
+| dates_known_day | Activity dates with a known day | 89.3 | 2472 | 2769 | Activities with a date; the rest were typed as a month only. |
+| on_time_checkable | Activities whose on-time status can be checked | 73.1 | 2102 | 2876 | Needs exact activity and planned dates (coverage of indicator CC-02). |
 | ids_typed_as_text | National IDs typed as text (all 16 digits kept) | 81.9 | 1250 | 1527 | An ID stored as a number in Excel loses its last digit, which cannot be recovered. |
-| people_not_pending_duplicate_review | People with no duplicate check pending | 97.9 | 1477 | 1509 | People (unique beneficiary keys) whose records are not waiting for a duplicate review. The people count on the dashboard includes the others, so it may be slightly too high until the review is done. |
+| people_not_pending_duplicate_review | People with no duplicate check pending | 97.8 | 1477 | 1510 | People (unique beneficiary keys) whose records are not waiting for a duplicate review. The people count on the dashboard includes the others, so it may be slightly too high until the review is done. |
 
 ## 7. By source file
 
 | source_file | source_sheet | entity | field_officer | rows_read | rows_quarantined | rows_for_review | rows_clean | score | skipped |
 |---|---|---|---|---|---|---|---|---|---|
-| SYNTHETIC_activity_monitoring_FO01.xlsx | Activities | activity | FO01 | 759 | 44 | 51 | 664 | 87.5 | False |
-| SYNTHETIC_activity_monitoring_FO02.xlsx | Activities | activity | FO02 | 802 | 34 | 62 | 706 | 88.0 | False |
-| SYNTHETIC_activity_monitoring_FO03.xlsx | Activities | activity | FO03 | 439 | 17 | 30 | 392 | 89.3 | False |
-| SYNTHETIC_activity_monitoring_FO04.xlsx | FY2023-24 | activity | FO04 | 172 | 7 | 11 | 154 | 89.5 | False |
-| SYNTHETIC_activity_monitoring_FO04.xlsx | FY2024-25 | activity | FO04 | 194 | 5 | 14 | 175 | 90.2 | False |
-| SYNTHETIC_activity_monitoring_FO04.xlsx | FY2025-26 | activity | FO04 | 164 | 7 | 5 | 152 | 92.7 | False |
+| SYNTHETIC_activity_monitoring_FO01.xlsx | Activities | activity | FO01 | 759 | 42 | 35 | 682 | 89.9 | False |
+| SYNTHETIC_activity_monitoring_FO02.xlsx | Activities | activity | FO02 | 802 | 30 | 57 | 715 | 89.2 | False |
+| SYNTHETIC_activity_monitoring_FO03.xlsx | Activities | activity | FO03 | 439 | 17 | 25 | 397 | 90.4 | False |
+| SYNTHETIC_activity_monitoring_FO04.xlsx | FY2023-24 | activity | FO04 | 172 | 8 | 5 | 159 | 92.4 | False |
+| SYNTHETIC_activity_monitoring_FO04.xlsx | FY2024-25 | activity | FO04 | 194 | 7 | 11 | 176 | 90.7 | False |
+| SYNTHETIC_activity_monitoring_FO04.xlsx | FY2025-26 | activity | FO04 | 164 | 8 | 8 | 148 | 90.2 | False |
 | SYNTHETIC_activity_monitoring_FO04.xlsx | FY2026-27 | activity | FO04 | 4 | 0 | 0 | 4 | 100.0 | False |
 | SYNTHETIC_beneficiary_register_FO01.xlsx | Register | registration |  | 342 | 7 | 7 | 328 | 95.9 | False |
 | SYNTHETIC_beneficiary_register_FO01.xlsx | Services | service |  | 1006 | 0 | 0 | 1006 | 100.0 | False |
-| SYNTHETIC_beneficiary_register_FO02.xlsx | Register | registration |  | 395 | 9 | 12 | 374 | 94.7 | False |
+| SYNTHETIC_beneficiary_register_FO02.xlsx | Register | registration |  | 395 | 7 | 12 | 376 | 95.2 | False |
 | SYNTHETIC_beneficiary_register_FO02.xlsx | Services | service |  | 1135 | 0 | 0 | 1135 | 100.0 | False |
 | SYNTHETIC_beneficiary_register_FO03.xlsx | Register | registration |  | 281 | 9 | 8 | 264 | 94.0 | False |
 | SYNTHETIC_beneficiary_register_FO03.xlsx | Services | service |  | 815 | 0 | 0 | 815 | 100.0 | False |
-| SYNTHETIC_beneficiary_register_FO04.xlsx | Register | registration |  | 278 | 12 | 3 | 263 | 94.6 | False |
+| SYNTHETIC_beneficiary_register_FO04.xlsx | Register | registration |  | 278 | 10 | 3 | 265 | 95.3 | False |
 | SYNTHETIC_beneficiary_register_FO04.xlsx | Services | service |  | 765 | 0 | 0 | 765 | 100.0 | False |
-| SYNTHETIC_digitised_paper_records.xlsx | Activities | activity |  | 360 | 53 | 14 | 293 | 81.4 | False |
-| SYNTHETIC_digitised_paper_records.xlsx | Registrations | registration |  | 270 | 27 | 19 | 224 | 83.0 | False |
+| SYNTHETIC_digitised_paper_records.xlsx | Activities | activity |  | 360 | 37 | 9 | 314 | 87.2 | False |
+| SYNTHETIC_digitised_paper_records.xlsx | Registrations | registration |  | 270 | 29 | 21 | 220 | 81.5 | False |
 | SYNTHETIC_digitised_paper_records.xlsx | Services | service |  | 754 | 0 | 0 | 754 | 100.0 | False |
 | SYNTHETIC_donor_opportunity_tracker.xlsx | Donors | donor |  | 25 | 0 | 0 | 25 | 100.0 | False |
-| SYNTHETIC_donor_opportunity_tracker.xlsx | Opportunities | opportunity |  | 30 | 4 | 0 | 26 | 86.7 | False |
-| SYNTHETIC_indicator_reports_AGRI.xlsx | FY2023-24 | indicator_result |  | 118 | 1 | 14 | 103 | 87.3 | False |
-| SYNTHETIC_indicator_reports_AGRI.xlsx | FY2024-25 | indicator_result |  | 120 | 1 | 17 | 102 | 85.0 | False |
-| SYNTHETIC_indicator_reports_AGRI.xlsx | FY2025-26 | indicator_result |  | 123 | 0 | 7 | 116 | 94.3 | False |
-| SYNTHETIC_indicator_reports_WASH.xlsx | FY2023-24 | indicator_result |  | 68 | 0 | 3 | 65 | 95.6 | False |
-| SYNTHETIC_indicator_reports_WASH.xlsx | FY2024-25 | indicator_result |  | 80 | 1 | 5 | 74 | 92.5 | False |
-| SYNTHETIC_indicator_reports_WASH.xlsx | FY2025-26 | indicator_result |  | 82 | 2 | 5 | 75 | 91.5 | False |
+| SYNTHETIC_donor_opportunity_tracker.xlsx | Opportunities | opportunity |  | 30 | 2 | 0 | 28 | 93.3 | False |
+| SYNTHETIC_indicator_reports_AGRI.xlsx | FY2023-24 | indicator_result |  | 121 | 1 | 13 | 107 | 88.4 | False |
+| SYNTHETIC_indicator_reports_AGRI.xlsx | FY2024-25 | indicator_result |  | 122 | 0 | 15 | 107 | 87.7 | False |
+| SYNTHETIC_indicator_reports_AGRI.xlsx | FY2025-26 | indicator_result |  | 118 | 1 | 6 | 111 | 94.1 | False |
+| SYNTHETIC_indicator_reports_WASH.xlsx | FY2023-24 | indicator_result |  | 66 | 4 | 5 | 57 | 86.4 | False |
+| SYNTHETIC_indicator_reports_WASH.xlsx | FY2024-25 | indicator_result |  | 78 | 2 | 6 | 70 | 89.7 | False |
+| SYNTHETIC_indicator_reports_WASH.xlsx | FY2025-26 | indicator_result |  | 84 | 1 | 7 | 76 | 90.5 | False |
 
 ## 8. By field officer
 
@@ -147,10 +149,10 @@ Activity records, indicator reports and registers that carry an officer code.
 
 | field_officer | rows | rows_quarantined | rows_for_review | late_entries | score |
 |---|---|---|---|---|---|
-| FO01 | 1015 | 63 | 62 | 92 | 87.7 |
-| FO02 | 1145 | 52 | 86 | 96 | 87.9 |
-| FO03 | 571 | 29 | 37 | 55 | 88.4 |
-| FO04 | 754 | 28 | 53 | 64 | 89.3 |
+| FO01 | 1016 | 57 | 58 | 90 | 88.7 |
+| FO02 | 1147 | 44 | 80 | 98 | 89.2 |
+| FO03 | 573 | 25 | 28 | 55 | 90.8 |
+| FO04 | 747 | 32 | 36 | 65 | 90.9 |
 
 ## How the scores are worked out
 

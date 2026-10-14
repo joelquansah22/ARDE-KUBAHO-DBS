@@ -247,6 +247,15 @@ class Scorer:
             return ("fixed", "") if norm_key(r.messy_value) not in self.staged else ("missed", "contact still present")
         if etype == "phone_leading_zero_lost":
             return ("fixed", "") if "phone_leading_zero_restored" in self.codes_at[p] else ("missed", "")
+        if etype == "amount_in_usd":
+            # The officer WROTE a USD amount; the right RWF value is that amount at the configured rate (the
+            # answer key's RWF figure is the generator's value before it rounded the USD amount it wrote).
+            import re
+            written = float(re.sub(r"[^0-9.]", "", str(r.messy_value)))
+            row = self.clean_rows["opportunity"].get(p)
+            rate = self.settings["currency"]["usd_to_rwf"]
+            ok = row is not None and math.isclose(float(row["requested_amount_rwf"]), written * rate, rel_tol=1e-9)
+            return ("fixed", "") if ok else ("missed", "USD amount not converted at the configured rate")
         if etype == "id_stored_as_number":
             return ("flagged", "") if "id_stored_as_number" in self.flags[(p, "national_id")] else ("missed", "")
         entity = r.entity
@@ -695,6 +704,84 @@ def frozen_side_table(name: str) -> pd.DataFrame:
     return pd.DataFrame(body, columns=header).set_index("measure")
 
 
+def score_reconciliation(truth_dir, db) -> dict | None:
+    """How well the reconciliation finds the discrepancies planted in the synthetic reports.
+
+    Scored at the reporting grain (project, district, month and, for AGR-01, sex) for every report row that was
+    submitted. Every flag on a row with no planted discrepancy is explained, where possible, by an injected data
+    problem: on the report side (the cleaned reported value differs from what the officer meant to report), or on
+    the records side (the derived value differs from the true value, e.g. because of quarantined rows).
+    """
+    import duckdb
+    planted_file = truth_dir / "SYNTHETIC_planted_discrepancies.csv"
+    if not planted_file.exists():
+        return None
+    truth = pd.read_csv(truth_dir / "SYNTHETIC_truth_indicator_results.csv", keep_default_na=False, dtype=str)
+    truth = truth[(truth["discrepancy"].notna()) & truth["indicator_code"].isin(["WASH-01", "AGR-01"])
+                  & (truth["submitted"] == "True")].copy()
+    truth["disaggregation"] = truth["sex"].map(lambda x: f"sex={x.lower()}" if x else "total")
+    truth["period"] = truth["period"].str[:7]
+    con = duckdb.connect(str(db), read_only=True)
+    rec = con.execute("""SELECT * FROM indicator_reconciliation
+                         WHERE project_id <> 'All' AND district <> 'All'""").df()
+    con.close()
+    keys = ["indicator_code", "project_id", "district", "period", "disaggregation"]
+    m = truth.merge(rec, on=keys, how="left")
+    m["kind"] = m["discrepancy"].replace("", "none")
+    for c in ("actual_value", "true_value"):
+        m[c] = pd.to_numeric(m[c])
+    m["flag"] = m["flag"].fillna(False).astype(bool)
+
+    def outcome(r):
+        if r.kind in ("over_report", "under_report"):
+            if r.flag:
+                return "caught"
+            return "missed (report row quarantined)" if pd.isna(r.reported) else "missed"
+        if not r.flag:
+            return "correctly within tolerance"
+        if not pd.isna(r.reported) and abs(r.reported - r.actual_value) > 1e-9:
+            return "flag explained: report-side data error"
+        if abs((0 if pd.isna(r.derived) else r.derived) - r.true_value) > 1e-9:
+            return "flag explained: records-side data issue"
+        return "false alarm (unexplained)"
+
+    m["outcome"] = [outcome(r) for r in m.itertuples()]
+    planted = m[m["kind"].isin(["over_report", "under_report"])]
+    flags = m[m["flag"]]
+    caught = int((planted["outcome"] == "caught").sum())
+    unexplained = int((m["outcome"] == "false alarm (unexplained)").sum())
+    rounding = m[m["kind"] == "rounding"]
+    summary = dict(
+        report_rows=len(m), planted=len(planted), caught=caught,
+        catch_rate=round(100 * caught / len(planted), 1) if len(planted) else None,
+        flags=len(flags), flags_on_planted=int(flags["kind"].isin(["over_report", "under_report"]).sum()),
+        precision=round(100 * caught / len(flags), 1) if len(flags) else None,
+        explained_flags=int(m["outcome"].str.startswith("flag explained").sum()), false_alarms=unexplained,
+        rounding_planted=len(rounding),
+        rounding_within=int((rounding["outcome"] == "correctly within tolerance").sum()))
+    table = (m.groupby(["indicator_code", "kind", "outcome"]).size().rename("report rows").reset_index())
+    m.to_csv(resolve_path("staging") / "score_reconciliation_rows.csv", index=False)
+    return dict(summary=summary, table=table, rows=m)
+
+
+def reconciliation_lines(r: dict) -> list[str]:
+    s = r["summary"]
+    return ["## Reconciliation scoring (main set)", "",
+            "The main set's WASH-01 and AGR-01 reports are worked out from the same true data as the activity and "
+            "register files, with discrepancies planted at known rates (decision log D132): two officers over-report "
+            "15 to 30% of the time, some months are under-reported by 20 to 50%, and a few figures have 1 to 5% rounding "
+            "differences that should stay within the tolerance. Scored on every submitted report row (project, district, "
+            "month and, for AGR-01, sex).", "",
+            f"- Planted discrepancies (over- and under-reporting) in submitted reports: **{s['planted']}**; flagged: "
+            f"**{s['caught']} ({s['catch_rate']}%)**.",
+            f"- Flags raised: {s['flags']}; on a planted discrepancy: {s['flags_on_planted']} (precision {s['precision']}%).",
+            f"- Other flags explained by an injected data problem (an extra zero in a report, quarantined or "
+            f"duplicate records...): {s['explained_flags']}. **Unexplained false alarms: {s['false_alarms']}.**",
+            f"- Planted rounding differences that stayed within the tolerance: {s['rounding_within']} of "
+            f"{s['rounding_planted']}.", "",
+            md_table(r["table"]), ""]
+
+
 def score_set(key: str) -> dict:
     import generate_synthetic
     name, raw_key, truth_key, staging_key, overlays, config = TEST_SETS[key]
@@ -707,7 +794,17 @@ def score_set(key: str) -> dict:
     print(f"Scoring: {name}")
     run = run_pipeline_on(raw, staging, overlays)
     result = Scorer(staging, truth, run["raw"], overlays=overlays).run()
-    return dict(key=key, name=name, run=run, result=result, staging=staging)
+    reconciliation = None
+    if key == "main":
+        # The main set also goes through the rest of the production pipeline, to score the reconciliation.
+        import indicators
+        import model
+        import validate
+        validate.run(staging)
+        model.run(staging)
+        indicators.run()
+        reconciliation = score_reconciliation(truth, resolve_path("warehouse"))
+    return dict(key=key, name=name, run=run, result=result, staging=staging, reconciliation=reconciliation)
 
 
 def main(argv: list[str] | None = None):
@@ -783,6 +880,8 @@ def main(argv: list[str] | None = None):
         lines += section_lines(x["result"], f"Results: {x['name']}", level="###")
         queue = review_queue_lines(x["staging"], f"Review queue and quarantine: {x['name']}")
         lines += ["#" + l if l.startswith("## ") or l.startswith("### ") else l for l in queue]
+    if results[0].get("reconciliation"):
+        lines += reconciliation_lines(results[0]["reconciliation"])
     lines += manual_lines()
     (resolve_path("docs") / "phase2_cleaning_scorecard.md").write_text("\n".join(lines), encoding="utf-8")
     print(side.to_string())

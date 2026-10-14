@@ -15,14 +15,14 @@
 | namesakes kept apart % | n/a | 100.0 | 100.0 | 90.2 | 100.0 |
 | privacy % | 100.0 | 100.0 | 100.0 | 100.0 | 100.0 |
 | types below 90% | 0 | 1 | 6 | 18 | 2 |
-| false corrections | 0 of 58,354 | 0 of 60,675 | 0 of 54,280 | 0 of 51,500 | 0 of 57,392 |
+| false corrections | 0 of 58,371 | 0 of 60,675 | 0 of 54,280 | 0 of 51,500 | 0 of 57,392 |
 | rows missing | 0 | 0 | 596 | 1143 | 0 |
 | duplicate precision | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |
-| duplicate recall (merged) | 0.864 | 0.59 | 0.53 | 0.434 | 0.53 |
+| duplicate recall (merged) | 0.848 | 0.59 | 0.53 | 0.434 | 0.53 |
 | duplicate recall (merged or reviewed) | 1.0 | 0.897 | 0.687 | 0.735 | 0.855 |
-| review queue per month (avg / busiest) | 7.9 / 16 | 12.1 / 25 | 8.2 / 13 | 9.3 / 15 | 9.5 / 16 |
+| review queue per month (avg / busiest) | 7.0 / 12 | 12.1 / 25 | 8.2 / 13 | 9.3 / 15 | 9.5 / 16 |
 | months over 1 hour | 0 | 0 | 0 | 0 | 0 |
-| rows quarantined | 240 | 275 | 1093 | 449 | 1237 |
+| rows quarantined | 222 | 275 | 1093 | 449 | 1237 |
 | sheets skipped | 0 | 0 | 1 | 3 | 0 |
 | crashed | no | no | no | no | no |
 
@@ -34,12 +34,12 @@ This round's fix 1 stops partial reads: a sheet missing any required field is no
 
 ## Known limitations
 
-- 19 problems in the main set cannot be detected from the files (accepted 14 October 2026):
+- 18 problems in the main set cannot be detected from the files (accepted 14 October 2026):
 
 | error_type | detail | count |
 |---|---|---|
-| status_completed_but_late | this file has no planned date, so lateness cannot be seen | 14 |
-| transcription_error | name spelling (cannot be detected without the paper form) | 5 |
+| status_completed_but_late | this file has no planned date, so lateness cannot be seen | 12 |
+| transcription_error | name spelling (cannot be detected without the paper form) | 6 |
 
 - Nicknames (e.g. `Jado` for Jean de Dieu) are not recognised; there is deliberately no nickname list.
 - Similar names, and initials matching a full name, are never merged without a phone or ID; they go to the review queue, so some true duplicates stay as two people until a person confirms them.
@@ -52,61 +52,61 @@ This round's fix 1 stops partial reads: a sheet missing any required field is no
 
 ### Results: Main set (seed 2023)
 
-- Genuine errors fixed or flagged: **99.8%** (1,213 of 1,216). Target 95%: **met**.
+- Genuine errors fixed or flagged: **99.8%** (1,149 of 1,151). Target 95%: **met**.
 - Error types below 90%: **0**.
-- False corrections: **0** clean values wrongly changed, out of 58,354 clean cells compared (0.000%); 0 more were wrong only as a knock-on from an injected error on the same row.
+- False corrections: **0** clean values wrongly changed, out of 58,371 clean cells compared (0.000%); 0 more were wrong only as a knock-on from an injected error on the same row.
 - Rows in the answer key missing from the cleaned tables: 0. Rows that should not be there: 0.
 
 #### (b) Totals by group
 
 | group | fixed | flagged | missed | total | fixed_or_flagged_% |
 |---|---|---|---|---|---|
-| genuine_errors | 357 | 856 | 3 | 1216 | 99.8 |
-| officer_habits | 12936 | 883 | 0 | 13819 | 100.0 |
+| genuine_errors | 345 | 804 | 2 | 1151 | 99.8 |
+| officer_habits | 12930 | 907 | 0 | 13837 | 100.0 |
 | privacy | 31 | 0 | 0 | 31 | 100.0 |
 
 #### (a) Fixed, flagged and missed by error type
 
 | group | error_type | fixed | flagged | missed | total | fixed_or_flagged_% | below_90% |
 |---|---|---|---|---|---|---|---|
-| genuine_errors | status_completed_but_late | 0 | 83 | 3 | 86 | 96.5 |  |
-| genuine_errors | accuracy_outlier | 0 | 5 | 0 | 5 | 100.0 |  |
-| genuine_errors | date_out_of_window | 0 | 22 | 0 | 22 | 100.0 |  |
-| genuine_errors | district_typo | 191 | 0 | 0 | 191 | 100.0 |  |
-| genuine_errors | district_wrong_province | 0 | 22 | 0 | 22 | 100.0 |  |
-| genuine_errors | duplicate_activity_row | 55 | 0 | 0 | 55 | 100.0 |  |
-| genuine_errors | duplicate_beneficiary | 57 | 9 | 0 | 66 | 100.0 |  |
-| genuine_errors | female_exceeds_total | 0 | 36 | 0 | 36 | 100.0 |  |
-| genuine_errors | impossible_age | 0 | 7 | 0 | 7 | 100.0 |  |
-| genuine_errors | impossible_household_size | 0 | 10 | 0 | 10 | 100.0 |  |
+| genuine_errors | status_completed_but_late | 0 | 79 | 2 | 81 | 97.5 |  |
+| genuine_errors | accuracy_outlier | 0 | 7 | 0 | 7 | 100.0 |  |
+| genuine_errors | date_out_of_window | 0 | 24 | 0 | 24 | 100.0 |  |
+| genuine_errors | district_typo | 209 | 1 | 0 | 210 | 100.0 |  |
+| genuine_errors | district_wrong_province | 0 | 32 | 0 | 32 | 100.0 |  |
+| genuine_errors | duplicate_activity_row | 35 | 0 | 0 | 35 | 100.0 |  |
+| genuine_errors | duplicate_beneficiary | 56 | 10 | 0 | 66 | 100.0 |  |
+| genuine_errors | female_exceeds_total | 0 | 31 | 0 | 31 | 100.0 |  |
+| genuine_errors | impossible_age | 0 | 5 | 0 | 5 | 100.0 |  |
+| genuine_errors | impossible_household_size | 0 | 8 | 0 | 8 | 100.0 |  |
 | genuine_errors | late_entry | 0 | 328 | 0 | 328 | 100.0 |  |
-| genuine_errors | missing_monthly_report | 0 | 16 | 0 | 16 | 100.0 |  |
-| genuine_errors | missing_required | 28 | 113 | 0 | 141 | 100.0 |  |
-| genuine_errors | missing_target | 0 | 46 | 0 | 46 | 100.0 |  |
-| genuine_errors | negative_value | 0 | 28 | 0 | 28 | 100.0 |  |
+| genuine_errors | missing_monthly_report | 0 | 15 | 0 | 15 | 100.0 |  |
+| genuine_errors | missing_required | 32 | 106 | 0 | 138 | 100.0 |  |
+| genuine_errors | missing_target | 0 | 42 | 0 | 42 | 100.0 |  |
+| genuine_errors | negative_value | 0 | 20 | 0 | 20 | 100.0 |  |
 | genuine_errors | percent_over_100 | 0 | 4 | 0 | 4 | 100.0 |  |
-| genuine_errors | sex_ambiguous_code_1 | 0 | 13 | 0 | 13 | 100.0 |  |
-| genuine_errors | sum_mismatch | 0 | 102 | 0 | 102 | 100.0 |  |
-| genuine_errors | transcription_error | 26 | 12 | 0 | 38 | 100.0 |  |
+| genuine_errors | sex_ambiguous_code_1 | 0 | 14 | 0 | 14 | 100.0 |  |
+| genuine_errors | sum_mismatch | 0 | 65 | 0 | 65 | 100.0 |  |
+| genuine_errors | transcription_error | 13 | 13 | 0 | 26 | 100.0 |  |
 | officer_habits | amount_in_usd | 3 | 0 | 0 | 3 | 100.0 |  |
-| officer_habits | blank_row | 85 | 0 | 0 | 85 | 100.0 |  |
-| officer_habits | date_dmy_text | 3949 | 0 | 0 | 3949 | 100.0 |  |
-| officer_habits | date_excel_serial | 2203 | 0 | 0 | 2203 | 100.0 |  |
-| officer_habits | date_month_year_text | 18 | 587 | 0 | 605 | 100.0 |  |
+| officer_habits | blank_row | 78 | 0 | 0 | 78 | 100.0 |  |
+| officer_habits | date_dmy_text | 3944 | 0 | 0 | 3944 | 100.0 |  |
+| officer_habits | date_excel_serial | 2191 | 0 | 0 | 2191 | 100.0 |  |
+| officer_habits | date_month_year_text | 20 | 614 | 0 | 634 | 100.0 |  |
 | officer_habits | disability_variant | 946 | 0 | 0 | 946 | 100.0 |  |
-| officer_habits | district_variant | 753 | 0 | 0 | 753 | 100.0 |  |
-| officer_habits | donor_name_variant | 10 | 0 | 0 | 10 | 100.0 |  |
-| officer_habits | donor_type_variant | 7 | 0 | 0 | 7 | 100.0 |  |
+| officer_habits | district_variant | 738 | 0 | 0 | 738 | 100.0 |  |
+| officer_habits | donor_name_variant | 7 | 0 | 0 | 7 | 100.0 |  |
+| officer_habits | donor_type_variant | 8 | 0 | 0 | 8 | 100.0 |  |
 | officer_habits | id_stored_as_number | 0 | 277 | 0 | 277 | 100.0 |  |
 | officer_habits | merged_header_row | 1 | 0 | 0 | 1 | 100.0 |  |
-| officer_habits | number_as_text | 1597 | 15 | 0 | 1612 | 100.0 |  |
+| officer_habits | number_as_text | 1692 | 14 | 0 | 1706 | 100.0 |  |
 | officer_habits | percent_as_fraction | 5 | 0 | 0 | 5 | 100.0 |  |
 | officer_habits | phone_leading_zero_lost | 277 | 0 | 0 | 277 | 100.0 |  |
-| officer_habits | probability_format | 10 | 4 | 0 | 14 | 100.0 |  |
-| officer_habits | province_variant | 1175 | 0 | 0 | 1175 | 100.0 |  |
-| officer_habits | sex_variant | 1020 | 0 | 0 | 1020 | 100.0 |  |
-| officer_habits | stage_variant | 14 | 0 | 0 | 14 | 100.0 |  |
-| officer_habits | status_variant | 842 | 0 | 0 | 842 | 100.0 |  |
+| officer_habits | probability_format | 10 | 2 | 0 | 12 | 100.0 |  |
+| officer_habits | province_variant | 1165 | 0 | 0 | 1165 | 100.0 |  |
+| officer_habits | sex_variant | 1019 | 0 | 0 | 1019 | 100.0 |  |
+| officer_habits | stage_variant | 7 | 0 | 0 | 7 | 100.0 |  |
+| officer_habits | status_variant | 798 | 0 | 0 | 798 | 100.0 |  |
 | officer_habits | title_row | 14 | 0 | 0 | 14 | 100.0 |  |
 | officer_habits | totals_row | 7 | 0 | 0 | 7 | 100.0 |  |
 | privacy | personal_data_contact | 25 | 0 | 0 | 25 | 100.0 |  |
@@ -120,7 +120,9 @@ None found.
 
 Flags on rows with no injected problem at all (for information; a flag does not change a value):
 
-None.
+| issue_code | rows |
+|---|---|
+| accuracy_outlier | 1 |
 
 #### (d) Duplicate beneficiaries: matching threshold
 
@@ -128,18 +130,18 @@ Pairs of registrations of the same person. Precision = share of matched pairs th
 
 | rules | threshold | configured | true_pairs | pairs_found | correct_pairs | wrong_pairs | missed_pairs | precision | recall | clusters_mixing_different_people | pairs_sent_to_review | true_pairs_in_review | recall_merged_or_reviewed | namesake_pairs_merged | namesake_pairs_reviewed |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| full rules (as used by the pipeline) | 80 |  | 66 | 57 | 57 | 0 | 9 | 1.0 | 0.864 | 0 | 9 | 9 | 1.0 | n/a | n/a |
-| full rules (as used by the pipeline) | 85 |  | 66 | 57 | 57 | 0 | 9 | 1.0 | 0.864 | 0 | 9 | 9 | 1.0 | n/a | n/a |
-| full rules (as used by the pipeline) | 88 | yes | 66 | 57 | 57 | 0 | 9 | 1.0 | 0.864 | 0 | 9 | 9 | 1.0 | n/a | n/a |
-| full rules (as used by the pipeline) | 92 |  | 66 | 57 | 57 | 0 | 9 | 1.0 | 0.864 | 0 | 9 | 9 | 1.0 | n/a | n/a |
-| names + vetoes, no ID rule | 80 |  | 66 | 56 | 56 | 0 | 10 | 1.0 | 0.848 | 0 | 9 | 9 | 0.985 | n/a | n/a |
-| names + vetoes, no ID rule | 85 |  | 66 | 55 | 55 | 0 | 11 | 1.0 | 0.833 | 0 | 9 | 9 | 0.97 | n/a | n/a |
-| names + vetoes, no ID rule | 88 | yes | 66 | 55 | 55 | 0 | 11 | 1.0 | 0.833 | 0 | 9 | 9 | 0.97 | n/a | n/a |
-| names + vetoes, no ID rule | 92 |  | 66 | 54 | 54 | 0 | 12 | 1.0 | 0.818 | 0 | 9 | 9 | 0.955 | n/a | n/a |
-| names only, no vetoes, no ID rule | 80 |  | 66 | 482 | 66 | 416 | 0 | 0.137 | 1.0 | 131 | 0 | 0 | 1.0 | n/a | n/a |
-| names only, no vetoes, no ID rule | 85 |  | 66 | 167 | 65 | 102 | 1 | 0.389 | 0.985 | 66 | 0 | 0 | 0.985 | n/a | n/a |
-| names only, no vetoes, no ID rule | 88 | yes | 66 | 128 | 65 | 63 | 1 | 0.508 | 0.985 | 46 | 0 | 0 | 0.985 | n/a | n/a |
-| names only, no vetoes, no ID rule | 92 |  | 66 | 105 | 64 | 41 | 2 | 0.61 | 0.97 | 32 | 0 | 0 | 0.97 | n/a | n/a |
+| full rules (as used by the pipeline) | 80 |  | 66 | 56 | 56 | 0 | 10 | 1.0 | 0.848 | 0 | 10 | 10 | 1.0 | n/a | n/a |
+| full rules (as used by the pipeline) | 85 |  | 66 | 56 | 56 | 0 | 10 | 1.0 | 0.848 | 0 | 10 | 10 | 1.0 | n/a | n/a |
+| full rules (as used by the pipeline) | 88 | yes | 66 | 56 | 56 | 0 | 10 | 1.0 | 0.848 | 0 | 10 | 10 | 1.0 | n/a | n/a |
+| full rules (as used by the pipeline) | 92 |  | 66 | 56 | 56 | 0 | 10 | 1.0 | 0.848 | 0 | 10 | 10 | 1.0 | n/a | n/a |
+| names + vetoes, no ID rule | 80 |  | 66 | 56 | 56 | 0 | 10 | 1.0 | 0.848 | 0 | 10 | 10 | 1.0 | n/a | n/a |
+| names + vetoes, no ID rule | 85 |  | 66 | 55 | 55 | 0 | 11 | 1.0 | 0.833 | 0 | 10 | 10 | 0.985 | n/a | n/a |
+| names + vetoes, no ID rule | 88 | yes | 66 | 55 | 55 | 0 | 11 | 1.0 | 0.833 | 0 | 10 | 10 | 0.985 | n/a | n/a |
+| names + vetoes, no ID rule | 92 |  | 66 | 54 | 54 | 0 | 12 | 1.0 | 0.818 | 0 | 10 | 10 | 0.97 | n/a | n/a |
+| names only, no vetoes, no ID rule | 80 |  | 66 | 508 | 66 | 442 | 0 | 0.13 | 1.0 | 130 | 0 | 0 | 1.0 | n/a | n/a |
+| names only, no vetoes, no ID rule | 85 |  | 66 | 159 | 65 | 94 | 1 | 0.409 | 0.985 | 67 | 0 | 0 | 0.985 | n/a | n/a |
+| names only, no vetoes, no ID rule | 88 | yes | 66 | 128 | 65 | 63 | 1 | 0.508 | 0.985 | 47 | 0 | 0 | 0.985 | n/a | n/a |
+| names only, no vetoes, no ID rule | 92 |  | 66 | 104 | 64 | 40 | 2 | 0.615 | 0.97 | 32 | 0 | 0 | 0.97 | n/a | n/a |
 
 Name scores of the 66 true duplicate pairs read by the pipeline: lowest 81, 0 below 80, 1 below 85, 1 below 88, 2 below 92.
 
@@ -147,25 +149,24 @@ Name scores of the 66 true duplicate pairs read by the pipeline: lowest 81, 0 be
 
 | error_type | outcome_note | count |
 |---|---|---|
-| status_completed_but_late | wrong value: completed (true delayed) | 3 |
+| status_completed_but_late | wrong value: completed (true delayed) | 2 |
 
 | error_type | source_file | source_sheet | source_row | field | true_value | messy_value | outcome_note |
 |---|---|---|---|---|---|---|---|
-| status_completed_but_late | SYNTHETIC_activity_monitoring_FO02.xlsx | Activities | 844.0 | status | delayed | completed | wrong value: completed (true delayed) |
-| status_completed_but_late | SYNTHETIC_activity_monitoring_FO04.xlsx | FY2025-26 | 157.0 | status | delayed | Completed | wrong value: completed (true delayed) |
-| status_completed_but_late | SYNTHETIC_activity_monitoring_FO04.xlsx | FY2025-26 | 166.0 | status | delayed | DONE | wrong value: completed (true delayed) |
+| status_completed_but_late | SYNTHETIC_activity_monitoring_FO02.xlsx | Activities | 823.0 | status | delayed | completed | wrong value: completed (true delayed) |
+| status_completed_but_late | SYNTHETIC_activity_monitoring_FO04.xlsx | FY2025-26 | 158.0 | status | delayed | Complete | wrong value: completed (true delayed) |
 
 ### Review queue and quarantine: Main set (seed 2023)
 
 Each flag has one of three levels (`flag_severity` in config/settings.yaml): **critical** = row quarantined until the source file is corrected; **warning** = row used, but goes to the MEAL officer's review queue; **info** = counted as a data-quality measure, no one acts on a row. A row with any critical flag is quarantined and not also counted in the review queue.
 
-Flags by level: critical 269, warning 377, info 1,568.
+Flags by level: critical 252, warning 334, info 1,633.
 
 #### Review queue (warnings) per month
 
 At 2 minutes a row (an assumption to check with the MEAL officer), the budget of 60 minutes a month allows 30 rows.
 
-- Rows to review over 36 months: **286**; per month: average **7.9**, median 8, busiest month 16 (2024-03), about 16 minutes a month on average.
+- Rows to review over 36 months: **251**; per month: average **7.0**, median 7, busiest month 12 (2024-08), about 14 minutes a month on average.
 - Months over the one-hour budget: **0**.
 - Rows with no month (e.g. donor records): 0.
 
@@ -173,82 +174,85 @@ What drives the review queue (a row can have more than one reason):
 
 | code | rows | per_month |
 |---|---|---|
-| sum_mismatch | 102 | 2.8 |
-| status_completed_but_late | 73 | 2.0 |
-| missing_target | 46 | 1.3 |
+| status_completed_but_late | 65 | 1.8 |
+| sum_mismatch | 64 | 1.8 |
 | possible_duplicate_person | 44 | 1.2 |
-| district_province_mismatch | 22 | 0.6 |
-| accuracy_outlier | 5 | 0.1 |
+| missing_target | 42 | 1.2 |
+| district_province_mismatch | 29 | 0.8 |
+| accuracy_outlier | 10 | 0.3 |
 | district_unrecognised | 3 | 0.1 |
 
 Rows to review by month:
 
 | month | rows to review | minutes | quarantined |
 |---|---|---|---|
-| 2023-07 | 2 | 4 | 4 |
-| 2023-08 | 1 | 2 | 5 |
-| 2023-09 | 10 | 20 | 2 |
-| 2023-10 | 6 | 12 | 4 |
-| 2023-11 | 5 | 10 | 8 |
-| 2023-12 | 9 | 18 | 11 |
-| 2024-01 | 5 | 10 | 6 |
-| 2024-02 | 11 | 22 | 7 |
-| 2024-03 | 16 | 32 | 3 |
-| 2024-04 | 8 | 16 | 12 |
-| 2024-05 | 10 | 20 | 8 |
-| 2024-06 | 4 | 8 | 5 |
-| 2024-07 | 9 | 18 | 7 |
-| 2024-08 | 9 | 18 | 6 |
-| 2024-09 | 7 | 14 | 4 |
-| 2024-10 | 3 | 6 | 5 |
-| 2024-11 | 11 | 22 | 0 |
-| 2024-12 | 12 | 24 | 9 |
-| 2025-01 | 7 | 14 | 5 |
-| 2025-02 | 8 | 16 | 5 |
-| 2025-03 | 14 | 28 | 6 |
-| 2025-04 | 7 | 14 | 12 |
-| 2025-05 | 8 | 16 | 11 |
-| 2025-06 | 8 | 16 | 14 |
-| 2025-07 | 11 | 22 | 2 |
-| 2025-08 | 8 | 16 | 8 |
-| 2025-09 | 13 | 26 | 7 |
-| 2025-10 | 4 | 8 | 6 |
-| 2025-11 | 6 | 12 | 4 |
-| 2025-12 | 10 | 20 | 4 |
-| 2026-01 | 8 | 16 | 9 |
-| 2026-02 | 5 | 10 | 2 |
-| 2026-03 | 4 | 8 | 14 |
-| 2026-04 | 5 | 10 | 5 |
-| 2026-05 | 12 | 24 | 3 |
-| 2026-06 | 10 | 20 | 10 |
+| 2023-07 | 3 | 6 | 5 |
+| 2023-08 | 7 | 14 | 3 |
+| 2023-09 | 4 | 8 | 2 |
+| 2023-10 | 5 | 10 | 7 |
+| 2023-11 | 3 | 6 | 13 |
+| 2023-12 | 9 | 18 | 6 |
+| 2024-01 | 5 | 10 | 8 |
+| 2024-02 | 7 | 14 | 5 |
+| 2024-03 | 11 | 22 | 5 |
+| 2024-04 | 3 | 6 | 7 |
+| 2024-05 | 7 | 14 | 6 |
+| 2024-06 | 9 | 18 | 3 |
+| 2024-07 | 9 | 18 | 5 |
+| 2024-08 | 12 | 24 | 8 |
+| 2024-09 | 9 | 18 | 4 |
+| 2024-10 | 8 | 16 | 3 |
+| 2024-11 | 8 | 16 | 3 |
+| 2024-12 | 10 | 20 | 7 |
+| 2025-01 | 9 | 18 | 8 |
+| 2025-02 | 8 | 16 | 4 |
+| 2025-03 | 2 | 4 | 5 |
+| 2025-04 | 10 | 20 | 15 |
+| 2025-05 | 5 | 10 | 6 |
+| 2025-06 | 11 | 22 | 5 |
+| 2025-07 | 10 | 20 | 5 |
+| 2025-08 | 5 | 10 | 3 |
+| 2025-09 | 10 | 20 | 8 |
+| 2025-10 | 2 | 4 | 4 |
+| 2025-11 | 3 | 6 | 6 |
+| 2025-12 | 11 | 22 | 7 |
+| 2026-01 | 6 | 12 | 6 |
+| 2026-02 | 5 | 10 | 6 |
+| 2026-03 | 5 | 10 | 9 |
+| 2026-04 | 6 | 12 | 7 |
+| 2026-05 | 8 | 16 | 6 |
+| 2026-06 | 6 | 12 | 8 |
 
 #### Quarantined rows (critical)
 
-- Rows quarantined: **240** (per month: average 6.5, busiest 14). These are fixed in the source Excel file, not in the queue.
+- Rows quarantined: **222** (per month: average 6.1, busiest 15). These are fixed in the source Excel file, not in the queue.
 
 | code | rows |
 |---|---|
-| missing_required | 117 |
-| female_exceeds_total | 38 |
-| negative_value | 28 |
-| date_outside_project_window | 22 |
-| entry_before_activity | 21 |
-| sex_unmapped | 13 |
-| impossible_household_size | 10 |
-| impossible_age | 7 |
+| missing_required | 110 |
+| female_exceeds_total | 34 |
+| date_outside_project_window | 24 |
+| entry_before_activity | 22 |
+| negative_value | 20 |
+| sex_unmapped | 14 |
+| impossible_household_size | 8 |
+| impossible_age | 5 |
 | percent_over_100 | 4 |
-| probability_word | 4 |
-| village_unrecognised | 1 |
+| village_unrecognised | 3 |
+| probability_word | 2 |
+| district_unrecognised | 1 |
+| number_unreadable | 1 |
 
 #### Info-level measures (for the dashboard, not for review)
 
 | metric | percent | numerator | denominator | note |
 |---|---|---|---|---|
-| Timeliness: activity records entered within 30 days | 88.8 | 2213 | 2493 | activities with an exact date and an entry date |
-| Activity dates with a known day | 90.3 | 2493 | 2760 | the rest were typed as a month only |
-| Activities whose on-time status can be checked | 74.1 | 2130 | 2876 | needs exact activity and planned dates |
-| National IDs typed as text (all 16 digits kept) | 81.9 | 1250 | 1527 | an ID stored as a number loses its last digit, which cannot be recovered |
-| Reporting completeness: expected monthly reports received | 96.2 | 401 | 417 | indicator CC-04 |
+| Timeliness: activity records entered within the allowed days | 88.6 | 2189 | 2472 | Activities that took place, with a known day and an entry date; entered within late_entry_days (settings). Activities whose day is unknown cannot be judged and are left out. |
+| Reporting completeness: expected monthly reports received | 96.2 | 401 | 417 | Every project, district and month for which an indicator report was due (indicator CC-04). |
+| Activity dates with a known day | 89.3 | 2472 | 2769 | Activities with a date; the rest were typed as a month only. |
+| Activities whose on-time status can be checked | 73.1 | 2102 | 2876 | Needs exact activity and planned dates (coverage of indicator CC-02). |
+| National IDs typed as text (all 16 digits kept) | 81.9 | 1250 | 1527 | An ID stored as a number in Excel loses its last digit, which cannot be recovered. |
+| People with no duplicate check pending | 97.8 | 1477 | 1510 | People (unique beneficiary keys) whose records are not waiting for a duplicate review. The people count on the dashboard includes the others, so it may be slightly too high until the review is done. |
 
 ## Held-out 2 after this round's fixes (seen data)
 
@@ -522,11 +526,12 @@ Rows to review by month:
 
 | metric | percent | numerator | denominator | note |
 |---|---|---|---|---|
-| Timeliness: activity records entered within 30 days | 89.6 | 1972 | 2202 | activities with an exact date and an entry date |
-| Activity dates with a known day | 91.3 | 2237 | 2451 | the rest were typed as a month only |
-| Activities whose on-time status can be checked | 73.4 | 1897 | 2584 | needs exact activity and planned dates |
-| National IDs typed as text (all 16 digits kept) | 79.0 | 1086 | 1375 | an ID stored as a number loses its last digit, which cannot be recovered |
-| Reporting completeness: expected monthly reports received | 94.0 | 392 | 417 | indicator CC-04 |
+| Timeliness: activity records entered within the allowed days | 89.6 | 1972 | 2202 | Activities that took place, with a known day and an entry date; entered within late_entry_days (settings). Activities whose day is unknown cannot be judged and are left out. |
+| Reporting completeness: expected monthly reports received | 94.0 | 392 | 417 | Every project, district and month for which an indicator report was due (indicator CC-04). |
+| Activity dates with a known day | 91.3 | 2237 | 2451 | Activities with a date; the rest were typed as a month only. |
+| Activities whose on-time status can be checked | 73.4 | 1897 | 2584 | Needs exact activity and planned dates (coverage of indicator CC-02). |
+| National IDs typed as text (all 16 digits kept) | 79.0 | 1086 | 1375 | An ID stored as a number in Excel loses its last digit, which cannot be recovered. |
+| People with no duplicate check pending | 94.7 | 1336 | 1411 | People (unique beneficiary keys) whose records are not waiting for a duplicate review. The people count on the dashboard includes the others, so it may be slightly too high until the review is done. |
 
 ## Held-out 2 after the fixes + FO06 mapping in config (seen data)
 
@@ -786,11 +791,35 @@ Rows to review by month:
 
 | metric | percent | numerator | denominator | note |
 |---|---|---|---|---|
-| Timeliness: activity records entered within 30 days | 89.7 | 2043 | 2278 | activities with an exact date and an entry date |
-| Activity dates with a known day | 91.8 | 2405 | 2619 | the rest were typed as a month only |
-| Activities whose on-time status can be checked | 69.6 | 2077 | 2985 | needs exact activity and planned dates |
-| National IDs typed as text (all 16 digits kept) | 81.4 | 1268 | 1557 | an ID stored as a number loses its last digit, which cannot be recovered |
-| Reporting completeness: expected monthly reports received | 94.0 | 392 | 417 | indicator CC-04 |
+| Timeliness: activity records entered within the allowed days | 89.7 | 2043 | 2278 | Activities that took place, with a known day and an entry date; entered within late_entry_days (settings). Activities whose day is unknown cannot be judged and are left out. |
+| Reporting completeness: expected monthly reports received | 94.0 | 392 | 417 | Every project, district and month for which an indicator report was due (indicator CC-04). |
+| Activity dates with a known day | 91.8 | 2405 | 2619 | Activities with a date; the rest were typed as a month only. |
+| Activities whose on-time status can be checked | 69.6 | 2077 | 2985 | Needs exact activity and planned dates (coverage of indicator CC-02). |
+| National IDs typed as text (all 16 digits kept) | 81.4 | 1268 | 1557 | An ID stored as a number in Excel loses its last digit, which cannot be recovered. |
+| People with no duplicate check pending | 95.0 | 1510 | 1590 | People (unique beneficiary keys) whose records are not waiting for a duplicate review. The people count on the dashboard includes the others, so it may be slightly too high until the review is done. |
+
+## Reconciliation scoring (main set)
+
+The main set's WASH-01 and AGR-01 reports are worked out from the same true data as the activity and register files, with discrepancies planted at known rates (decision log D132): two officers over-report 15 to 30% of the time, some months are under-reported by 20 to 50%, and a few figures have 1 to 5% rounding differences that should stay within the tolerance. Scored on every submitted report row (project, district, month and, for AGR-01, sex).
+
+- Planted discrepancies (over- and under-reporting) in submitted reports: **60**; flagged: **60 (100.0%)**.
+- Flags raised: 75; on a planted discrepancy: 60 (precision 80.0%).
+- Other flags explained by an injected data problem (an extra zero in a report, quarantined or duplicate records...): 15. **Unexplained false alarms: 0.**
+- Planted rounding differences that stayed within the tolerance: 5 of 5.
+
+| indicator_code | kind | outcome | report rows |
+|---|---|---|---|
+| AGR-01 | none | correctly within tolerance | 162 |
+| AGR-01 | none | flag explained: records-side data issue | 5 |
+| AGR-01 | none | flag explained: report-side data error | 2 |
+| AGR-01 | over_report | caught | 26 |
+| AGR-01 | under_report | caught | 9 |
+| WASH-01 | none | correctly within tolerance | 66 |
+| WASH-01 | none | flag explained: records-side data issue | 7 |
+| WASH-01 | none | flag explained: report-side data error | 1 |
+| WASH-01 | over_report | caught | 24 |
+| WASH-01 | rounding | correctly within tolerance | 5 |
+| WASH-01 | under_report | caught | 1 |
 
 ## Hand-made test files (data/holdout/manual)
 

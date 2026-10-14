@@ -22,8 +22,13 @@ python src/generate_synthetic.py --verify
 It prints `OK` if your files match this content fingerprint (SHA-256):
 
 ```
-d62680eec7338d7b664106c890deefea7403d310dcb4ba16c2d82dc3673bdd5a
+c43d0b4d26e19fd06d26ca663777b6deaad2d86f16753e5ca3b292a63ce7e1ab
 ```
+
+(Changed on 14 October 2026, when the monthly WASH-01 and AGR-01 reports started being worked out from the same
+true data as the activity and register files, with planted discrepancies; decision log D132. Before that it was
+`d62680eec7338d7b664106c890deefea7403d310dcb4ba16c2d82dc3673bdd5a`: the frozen scorecards v1 and v2 were produced
+on that earlier version.)
 
 The fingerprint covers every cell of every `SYNTHETIC_*.xlsx` file and every answer-key CSV.
 It ignores the save time that Excel stores inside each file, which is why the file bytes can differ

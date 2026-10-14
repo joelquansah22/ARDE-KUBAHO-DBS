@@ -25,3 +25,4 @@ PyYAML==6.0.3      # reads the config/*.yaml files
 pyarrow==25.0.1    # Parquet export of the star schema for Power BI
 rapidfuzz==3.14.6  # fuzzy matching of duplicate beneficiaries
 fpdf2==2.8.9       # PDF donor report
+matplotlib==3.11.2  # charts in the PDF donor report (approved; kaleido is not used)

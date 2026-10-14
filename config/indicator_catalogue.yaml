@@ -9,12 +9,19 @@
 # Staff can edit the plain-English fields freely. indicators.py uses these fields:
 #   availability   available, or "data source not yet available" (left out of all calculations)
 #   calculation    reported: values typed into the monthly indicator reports
-#                    aggregation: sum (values for months add up to the quarter and year)
 #                  derived: values worked out by the pipeline from activity and beneficiary records
 #                    method: unique_people | share_women | on_time | cost_per_person | report_completeness
 #                    activity_ids: which activities count (codes from the activity list)
 #                  When an indicator has both, indicators.py compares them (the reconciliation table).
 #   higher_is_better   true if a bigger value is good (the direction of the indicator)
+#   aggregation    how months roll up into quarters and fiscal years:
+#                    sum      running totals that add up (people trained, latrines built)
+#                    latest   snapshots: the value of the latest month in the period (functional committees)
+#                    average  the average of the months (a reported percentage)
+#                    ratio    worked out again from the records over the whole period (% women, cost per person)
+#   derived.counts      exactly what the derived value counts, written to match the reported definition
+#   derived.like_for_like  true if the derived value measures the same thing as the reported one; only then are
+#                    the two compared in the reconciliation table
 #
 # Activity codes (ACT01...) refer to the activity list in the programme master file. With real
 # data, check them against ARDE/KUBAHO's own activity list.
@@ -36,25 +43,33 @@ indicators:
     numerator: People gaining access to an improved water source during the period.
     denominator: None (a count).
     calculation_rule: >-
-      Reported: the sum of the monthly values in the indicator reports. Derived: the number of different
-      registered people who received a "water point access" service (activity ACT01) during the period.
+      Reported: the sum of the monthly values in the indicator reports. Derived: the people served recorded in the
+      activity records, i.e. the participants of water-point activities (activity ACT01) that took place during the
+      month (completed or delayed), in the district where the activity took place.
     counting_rule: >-
-      Reported values are counts typed by officers and may include community members who are not registered.
-      Derived values count each registered person once per period, however many services they received.
+      Both sources count people served by water-point activities as recorded by officers (not registered
+      beneficiaries), so they are comparable. A person served by two water-point activities may be counted twice in
+      both sources.
     coverage_rule: Reported values cover the monthly reports received out of those expected.
     disaggregation: none
     target_setting_rule: An annual target per project and district from the work plan, split into equal monthly targets.
     frequency: monthly
+    aggregation: sum            # running total: the months add up
     data_source: Monthly indicator report (field officers); beneficiary registers and service records (derived).
     owner: To be confirmed with partner (suggested - MEAL officer)
     higher_is_better: true
     availability: available
     calculation:
-      reported: {aggregation: sum}
-      derived: {method: unique_people, activity_ids: [ACT01]}
+      reported: {}
+      derived:
+        method: activity_participants
+        activity_ids: [ACT01]
+        statuses: [completed, delayed]
+        counts: Participants recorded on water-point activities (ACT01) done in the month, by activity district.
+        like_for_like: true
     notes: >-
-      The two sources measure different things (all people reached versus registered beneficiaries), so a gap is
-      expected; the reconciliation shows how large it is.
+      Reported and derived values are compared month by month in the reconciliation table; a gap above the tolerance
+      points to a reporting or recording problem to follow up.
 
   - code: WASH-02
     name: Number of household latrines constructed or rehabilitated
@@ -71,12 +86,13 @@ indicators:
     disaggregation: none
     target_setting_rule: An annual target per project and district from the work plan, split into equal monthly targets.
     frequency: monthly
+    aggregation: sum            # running total: the months add up
     data_source: Monthly indicator report (field officers).
     owner: To be confirmed with partner (suggested - WASH project manager)
     higher_is_better: true
     availability: available
     calculation:
-      reported: {aggregation: sum}
+      reported: {}
     notes: Activity records count construction events, not latrines, so this cannot be derived from them.
 
   - code: WASH-03
@@ -96,6 +112,7 @@ indicators:
     disaggregation: none
     target_setting_rule: To be agreed with ARDE/KUBAHO after a baseline survey.
     frequency: quarterly
+    aggregation: average            # average of the months
     data_source: Household survey (DATA SOURCE NOT YET AVAILABLE)
     owner: To be confirmed with partner (suggested - MEAL officer)
     higher_is_better: true
@@ -114,21 +131,22 @@ indicators:
     unit: number
     numerator: Committees established and functional during the period.
     denominator: None (a count).
-    calculation_rule: The sum of the quarterly values in the indicator reports.
+    calculation_rule: The latest quarterly value in the indicator reports for the period.
     counting_rule: >-
-      Each committee is counted once, in the quarter it is established. To be confirmed with partner whether the
-      reports count NEW committees (which add up over a year, as calculated here) or ALL functional committees at
-      the end of the quarter (which must not be added up).
+      Treated as a SNAPSHOT (aggregation: latest): a quarter or year shows the latest reported number of functional
+      committees, not a sum. To be confirmed with partner whether the reports count new committees (which would add
+      up, aggregation: sum) or all functional committees at the end of the quarter (as assumed here).
     coverage_rule: The quarterly reports received out of those expected.
     disaggregation: none
     target_setting_rule: An annual target per project and district from the work plan, split into quarters.
     frequency: quarterly
+    aggregation: latest            # snapshot: the latest month in the period (TO BE CONFIRMED WITH PARTNER)
     data_source: Quarterly figure in the monthly indicator report (field officers).
     owner: To be confirmed with partner (suggested - WASH project manager)
     higher_is_better: true
     availability: available
     calculation:
-      reported: {aggregation: sum}
+      reported: {}
     notes: The functionality criteria need to be written down with ARDE/KUBAHO.
 
   # ======================================================================= Agriculture / climate resilience
@@ -145,20 +163,27 @@ indicators:
       Reported: the sum of the monthly values in the indicator reports, by sex. Derived: the number of different
       registered people who received a "farmer training" service (activity ACT10) during the period, by sex.
     counting_rule: >-
-      Derived values count each registered person once per period, however many sessions they attended (not
-      attendance). Reported values are counts typed by officers.
+      Each month counts different registered people (not attendance): a farmer at four sessions in one month counts
+      once. Reported values are counts typed by officers for the same thing.
     coverage_rule: Reported values cover the monthly reports received out of those expected.
     disaggregation: sex
     target_setting_rule: An annual target per project, district and sex from the work plan, split into equal monthly targets.
     frequency: monthly
+    aggregation: sum            # running total: the months add up
     data_source: Monthly indicator report (field officers); beneficiary registers and service records (derived).
     owner: To be confirmed with partner (suggested - agriculture project manager)
     higher_is_better: true
     availability: available
     calculation:
-      reported: {aggregation: sum}
-      derived: {method: unique_people, activity_ids: [ACT10]}
-    notes: The definition of "trained" (one session, or the full course) needs to be agreed.
+      reported: {}
+      derived:
+        method: unique_people
+        activity_ids: [ACT10]
+        counts: Different registered people who received farmer training (ACT10) in the month, by sex, by registration district.
+        like_for_like: true
+    notes: >-
+      The definition of "trained" (one session, or the full course) needs to be agreed. Quarters and years add up
+      the months, as the reports do, so a farmer trained in two different months counts in both.
 
   - code: AGR-02
     name: Hectares under solar-powered or improved irrigation
@@ -175,12 +200,13 @@ indicators:
     disaggregation: none
     target_setting_rule: An annual target per project and district from the work plan, split into equal monthly targets.
     frequency: monthly
+    aggregation: sum            # running total: the months add up
     data_source: Monthly indicator report (field officers).
     owner: To be confirmed with partner (suggested - agriculture project manager)
     higher_is_better: true
     availability: available
     calculation:
-      reported: {aggregation: sum}
+      reported: {}
     notes: How areas are measured (GPS or estimate) needs to be agreed.
 
   - code: AGR-03
@@ -198,6 +224,7 @@ indicators:
     disaggregation: none
     target_setting_rule: To be agreed with ARDE/KUBAHO after a baseline survey.
     frequency: semi-annual
+    aggregation: average            # average of the months
     data_source: Farmer survey (DATA SOURCE NOT YET AVAILABLE)
     owner: To be confirmed with partner (suggested - MEAL officer)
     higher_is_better: true
@@ -222,12 +249,13 @@ indicators:
     disaggregation: none
     target_setting_rule: An annual target per project and district from the work plan, split into quarters.
     frequency: quarterly
+    aggregation: sum            # running total: the months add up
     data_source: Quarterly figure in the monthly indicator report (field officers).
     owner: To be confirmed with partner (suggested - agriculture project manager)
     higher_is_better: true
     availability: available
     calculation:
-      reported: {aggregation: sum}
+      reported: {}
     notes: The strengthening criteria need to be written down with ARDE/KUBAHO.
 
   # ======================================================================= Cross-cutting
@@ -248,6 +276,7 @@ indicators:
     disaggregation: none
     target_setting_rule: To be agreed with ARDE/KUBAHO (for example at least 50%).
     frequency: monthly
+    aggregation: ratio            # worked out again from the records for the whole period
     data_source: Beneficiary registers and service records (derived).
     owner: To be confirmed with partner (suggested - MEAL officer)
     higher_is_better: true
@@ -279,6 +308,7 @@ indicators:
     disaggregation: none
     target_setting_rule: To be agreed with ARDE/KUBAHO (for example 85%).
     frequency: monthly
+    aggregation: ratio            # worked out again from the records for the whole period
     data_source: Activity monitoring files and digitised paper records (derived).
     owner: To be confirmed with partner (suggested - programme managers)
     higher_is_better: true
@@ -306,6 +336,7 @@ indicators:
     disaggregation: none
     target_setting_rule: To be agreed with ARDE/KUBAHO (a benchmark per type of project).
     frequency: quarterly
+    aggregation: ratio            # worked out again from the records for the whole period
     data_source: Activity monitoring files (costs) and beneficiary registers and service records (people) (derived).
     owner: To be confirmed with partner (suggested - finance officer with MEAL officer)
     higher_is_better: false
@@ -332,6 +363,7 @@ indicators:
     disaggregation: none
     target_setting_rule: To be agreed with ARDE/KUBAHO (for example 100%).
     frequency: monthly
+    aggregation: ratio            # worked out again from the records for the whole period
     data_source: Monthly indicator reports compared with the reporting schedule (derived).
     owner: To be confirmed with partner (suggested - MEAL officer)
     higher_is_better: true

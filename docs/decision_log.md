@@ -338,6 +338,33 @@ Neither changed the cleaner. Both changed only how the scorer judges a cell, and
 | D128 | **Results on the synthetic data: none of the 1,045 comparisons is within tolerance.** 829 have a gap above 10%, 180 are reported only, 36 derived only. Derived values are 1% to 5% of the reported ones. Summed over the three fiscal years: WASH-01 reported 22,235 people against 238 derived; AGR-01 reported 7,830 farmers against 243 derived. **This is expected and says nothing about ARDE/KUBAHO:** the synthetic reports and registers were generated independently (D24), and the reports count everyone reached while the derived values count registered beneficiaries only. On real data this table is where over-reporting, under-registration or a mismatch in definitions would show up. The co-design session should agree which source is official for each indicator and what gap is acceptable. | Recorded for the report. |
 | D129 | Production pipeline including indicators: 15.3 seconds. | Brief target (under a minute) still met. |
 
+## Phase 4 follow-up (2026-10-14)
+
+### Like-for-like reconciliation
+
+| # | Decision | Reason |
+|---|---|---|
+| D130 | **Each derived value is defined in the catalogue to count the same thing as the report** (`derived.counts`, `derived.like_for_like`). WASH-01 (people with improved water) is now compared with the **people served recorded on activity records**: participants of water-point activities (ACT01, completed or delayed) in the month, by the district where the activity took place, not with registered beneficiaries. AGR-01 (farmers trained) is compared with **different registered training participants** (ACT10) in the month, by sex. Only indicators marked like-for-like are reconciled; every other indicator is reported only or derived only. | Team instruction. The Phase 4 comparison set registered beneficiaries against everyone reached, so every month failed. |
+| D131 | The reconciliation is done **month by month** (the reporting grain). At quarter and year level the reported figure is a running total of months (aggregation `sum`), so the monthly comparison is the like-for-like one. A month with a report but no matching records counts as derived 0 (a gap, not "reported only"). | Avoids comparing a sum of months with a count over the whole period. |
+
+### Synthetic data: a realistic reconciliation scenario
+
+| # | Decision | Reason |
+|---|---|---|
+| D132 | The **main set's WASH-01 and AGR-01 reports are now worked out from the same true data** as the activity and register files (`reconciliation_scenario` in `config/synthetic.yaml`), then discrepancies are planted and logged in `data/ground_truth/SYNTHETIC_planted_discrepancies.csv`: officers **FO01 and FO04 over-report** 60% of their months by 15 to 30% (FO01: WASH-01 in Nyagatare and Kayonza; FO04: AGR-01 in Rulindo); **6% of months are under-reported** by 20 to 50%; **rounding differences** of 1 to 5% on values of 20 or more. Their targets are now set from each year's true monthly average and the district's performance. Result: 73 planted (56 over, 12 under, 5 rounding); 8 sit in reports that were never submitted. | Team instruction. FO02 and FO04 were tried first, but together they cover every AGR-01 district, leaving no clean district to compare with, so FO01 and FO04 were used. |
+| D133 | **The main set's fingerprint changed** to `c43d0b4d26e19fd06d26ca663777b6deaad2d86f16753e5ca3b292a63ce7e1ab` (was `d62680ee...`). The frozen scorecards v1 and v2 stay as they are: they are tied to their commits and to the earlier data. The held-out sets were **not** regenerated; their configs switch the scenario off (`reconciliation_scenario: null`) so their documented fingerprints still hold (checked by the tests). | Team instruction. |
+| D134 | **Reconciliation scoring** (scorecard, main set; scored per submitted report row: project, district, month and, for AGR-01, sex): **60 of 60 planted over- and under-reports flagged (100%)**; 75 flags in all, so precision 80%; the other **15 flags are all explained by injected data problems** (3 by an error in the report itself, such as an extra zero; 12 by problems in the records, such as quarantined rows or duplicates not yet merged); **0 unexplained false alarms**; all **5 rounding differences stayed within the tolerance**. | Team instruction. The flags caused by data errors are not wrong: they point to real problems, just not to misreporting. |
+| D135 | **Cleaning scorecard on the regenerated main set:** genuine errors 99.8% fixed or flagged (unchanged), false corrections 0 of 58,371 cells, review queue 7.0 rows a month on average (busiest 12; was 7.9 and 16), 222 rows quarantined (was 240). One type fell below 90% at first: `amount_in_usd`, 1 of 3 (see D136). | Requested re-run. |
+| D136 | **Third scorer correction, found after seeing the results.** A USD amount is now judged against the amount the officer wrote, converted at the configured rate, not against the answer key's RWF figure. **Evidence:** in the regenerated set, 2 of the 3 USD amounts (both from individual donors) were "missed": RWF 7,250,000 against a key of 7,000,000, and 8,700,000 against 9,000,000. The generator rounds a USD amount to the nearest thousand before writing it (7,000,000 / 1,450 = 4,828, written as USD 5,000), so on small amounts the written USD figure is already 3 to 4% away from the key. The pipeline converted USD 5,000 correctly (5,000 x 1,450 = 7,250,000). After the correction: 3 of 3 fixed. The cleaner was not changed. | Recorded with evidence, as agreed for scorer corrections (D90, D91). |
+
+### Targets and rollups
+
+| # | Decision | Reason |
+|---|---|---|
+| D137 | No placeholder targets: derived indicators stay "no target set" until the co-design session. | Team decision. |
+| D138 | **Partly missing targets:** status "target incomplete" (no traffic-light colour), plus `partial_pct_achieved` worked out over the months that do have a target, labelled in `target_note`, e.g. "partial: 9 of 12 months". | Team instruction. |
+| D139 | **Every indicator has an `aggregation` field:** `sum` (running totals: WASH-01, WASH-02, AGR-01, AGR-02, AGR-04), `latest` (snapshots: **WASH-04, until the partner confirms**), `average` (WASH-03, AGR-03, not yet calculated) or `ratio` (CC-01 to CC-04, worked out again from the records over the whole period). `indicators.py` works out sum, latest and average indicators by month and rolls the months up into quarters and fiscal years by that method, including targets, coverage and traceability links. A test covers each method. Note: because AGR-01 is a running total (as in the reports), a farmer trained in two different months counts in both; each month itself counts different people. | Team instruction. |
+
 ## Open items to confirm with ARDE/KUBAHO and supervisors (brief Section 15)
 
 These do not block the prototype.
@@ -359,7 +386,7 @@ These do not block the prototype.
 - [ ] Minutes per review-queue row, checked with the MEAL officer (D60)
 - [ ] **Co-design session:** indicator definitions, owners and targets (docs/indicator_reference_sheets.xlsx); which source is official where reported and derived differ, and the acceptable gap (D128)
 - [ ] **Recommendation:** baseline and follow-up surveys for handwashing (WASH-03) and yield (AGR-03) (D117)
-- [ ] Whether WASH-04 counts new committees, or all functional committees (which must not be added up)
+- [ ] Whether WASH-04 counts new committees, or all functional committees (which must not be added up); treated as a snapshot (latest) until confirmed (D139)
 - [ ] **Partner question:** can registers carry an officer code? An optional column is now in the template (D99, D112)
 - [ ] Reporting schedule for indicator reports (D25)
 - [ ] USD to RWF exchange rate to use in reports (`currency.usd_to_rwf`, now 1,450)

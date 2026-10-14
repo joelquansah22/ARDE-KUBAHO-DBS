@@ -1,0 +1,4 @@
+# Extra tools for the project team only (not needed by NGO staff to run the prototype).
+# Install with:  python -m pip install -r requirements-dev.txt
+-r requirements.txt
+playwright==1.64.0   # saves dashboard screenshots for the report, using the installed Google Chrome

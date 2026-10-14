@@ -30,7 +30,8 @@ class FakeData:
         lineage = lambda i: dict(source_file="f.xlsx", source_sheet="S", source_row=i + 2)
         self.activities = pd.DataFrame([{**lineage(i), **r} for i, r in enumerate(activities)],
                                        columns=["source_file", "source_sheet", "source_row", "project_id", "district",
-                                                "date", "planned_date", "status", "on_time", "cost_rwf"])
+                                                "date", "planned_date", "status", "on_time", "cost_rwf",
+                                                "activity_id", "participants_total"])
         self.services = pd.DataFrame([{**lineage(i), **r} for i, r in enumerate(services)],
                                      columns=["source_file", "source_sheet", "source_row", "beneficiary_key",
                                               "activity_id", "project_id", "district", "sex", "date"])
@@ -51,9 +52,13 @@ def pick(values, **where):
     return v.iloc[0]
 
 
-def run_method(fn, data, code):
-    values, links = fn(data, CATALOGUE[code], S)
-    return indicators.add_status(values, CATALOGUE[code], S), links
+def run_method(fn, data, code, spec=None):
+    """Run one calculation exactly as the pipeline does (monthly values, then the catalogue's rollup)."""
+    spec = spec or CATALOGUE[code]
+    builder = indicators.IndicatorBuilder.__new__(indicators.IndicatorBuilder)
+    builder.settings, builder.data = S, data
+    values, links = builder.compute(spec, "test", fn)
+    return indicators.add_status(values, spec, S), links
 
 
 def service(key, sex, date, activity="ACT10", project="PRJ04", district="Kirehe"):
@@ -177,7 +182,9 @@ def test_missing_target_shows_no_target_set_never_0_or_100_percent():
     q = pick(values, period_type="quarter", period="FY2023/24 Q3", project_id="PRJ04", district="Kirehe",
              disaggregation="total")
     assert q["status"] == S["indicators"]["target_incomplete_label"]
-    assert pd.isna(q["pct_achieved"]) and pd.isna(q["target"])
+    assert pd.isna(q["pct_achieved"]) and pd.isna(q["target"])        # no RAG colour
+    assert q["partial_pct_achieved"] == 100.0                           # February: 20 of 20
+    assert q["target_note"] == "partial: 1 of 2 months"
 
 
 def test_an_expected_report_that_never_arrived_shows_no_data():
@@ -207,7 +214,7 @@ def test_reconciliation_flags_gaps_above_the_tolerance():
     assert rec.loc["2024-01", "status"] == "within tolerance" and not rec.loc["2024-01", "flag"]
     assert rec.loc["2024-02", "status"] == "gap above tolerance" and rec.loc["2024-02", "flag"]
     assert rec.loc["2024-02", "pct_difference"] == 3 * tol
-    assert rec.loc["2024-03", "status"] == "reported only"
+    assert rec.loc["2024-03", "status"] == "gap above tolerance" and rec.loc["2024-03", "derived"] == 0
     assert rec.loc["2024-04", "status"] == "derived only"
 
 
@@ -256,8 +263,9 @@ def test_every_value_traces_back_to_real_fact_rows(built):
 
 def test_a_derived_people_count_matches_its_source_rows(built):
     v, links = built["tables"]["indicator_values"], built["tables"]["indicator_value_sources"]
-    row = v[(v["indicator_code"] == "AGR-01") & (v["source"] == "derived") & (v["project_id"] == "All")
-            & (v["district"] == "All") & (v["period_type"] == "fiscal_year") & (v["disaggregation"] == "total")].iloc[0]
+    month = v[(v["indicator_code"] == "AGR-01") & (v["source"] == "derived") & (v["project_id"] == "All")
+              & (v["district"] == "All") & (v["period_type"] == "month") & (v["disaggregation"] == "total")]
+    row = month.sort_values("actual").iloc[-1]
     mine = links[links["value_id"] == row["value_id"]]
     con = duckdb.connect(str(built["db"]), read_only=True)
     services = con.execute("SELECT source_file, source_sheet, source_row, beneficiary_key FROM fact_beneficiary_service").df()
@@ -308,3 +316,75 @@ def test_indicator_tables_are_exported_and_described(built):
         assert (built["exports"] / f"{name}.csv").exists() and (built["exports"] / f"{name}.parquet").exists()
     text = (built["docs"] / "data_dictionary.md").read_text(encoding="utf-8")
     assert "## `indicator_reconciliation`" in text
+
+
+# ---------------------------------------------------------------- aggregation methods (catalogue: aggregation)
+def quarterly(code, values, project="PRJ01", district="Huye"):
+    return [result_row(code, m, v, project, district) for m, v in values]
+
+
+def result_row(code, month, value, project, district, target=10):
+    return dict(indicator_code=code, project_id=project, district=district, period_date=D(2024, month, 1),
+                target_value=target, actual_value=value, disaggregation_key="total")
+
+
+@pytest.mark.parametrize("aggregation, expected_q3, expected_fy", [
+    ("sum", 3 + 5 + 4, 3 + 5 + 4 + 6),
+    ("latest", 4, 6),                         # a snapshot: the latest month in the period
+    ("average", (3 + 5 + 4) / 3, (3 + 5 + 4 + 6) / 4),
+])
+def test_each_aggregation_method_rolls_months_up(aggregation, expected_q3, expected_fy):
+    spec = {**CATALOGUE["WASH-02"], "aggregation": aggregation}
+    rows = quarterly("WASH-02", [(1, 3), (2, 5), (3, 4), (4, 6)])
+    values, _ = run_method(indicators.reported, FakeData(results=rows), "WASH-02", spec)
+    q = pick(values, period_type="quarter", period="FY2023/24 Q3", project_id="PRJ01", district="Huye")
+    fy = pick(values, period_type="fiscal_year", period="FY2023/24", project_id="PRJ01", district="Huye")
+    assert q["actual"] == pytest.approx(expected_q3, abs=0.01)
+    assert fy["actual"] == pytest.approx(expected_fy, abs=0.01)
+
+
+def test_latest_uses_the_latest_target_too():
+    spec = {**CATALOGUE["WASH-04"]}
+    assert spec["aggregation"] == "latest"
+    rows = [result_row("WASH-04", 3, 2, "PRJ01", "Huye", target=4), result_row("WASH-04", 6, 3, "PRJ01", "Huye", target=5)]
+    values, links = run_method(indicators.reported, FakeData(results=rows), "WASH-04", spec)
+    fy = pick(values, period_type="fiscal_year", period="FY2023/24", project_id="PRJ01", district="Huye")
+    assert fy["actual"] == 3 and fy["target"] == 5 and fy["pct_achieved"] == 60.0     # not 5 of 9
+
+
+def test_ratio_is_worked_out_again_for_the_whole_period():
+    # CC-01: one woman in January and again in February, one man in February only.
+    # Months: 100% then 50%. The quarter is 1 woman of 2 different people = 50%, not the average 75%.
+    services = [service("BEN-W", "female", D(2024, 1, 5)), service("BEN-W", "female", D(2024, 2, 5)),
+                service("BEN-M", "male", D(2024, 2, 6))]
+    assert CATALOGUE["CC-01"]["aggregation"] == "ratio"
+    values, _ = run_method(indicators.share_women, FakeData(services=services), "CC-01")
+    q = pick(values, period_type="quarter", period="FY2023/24 Q3", project_id="All", district="All")
+    assert q["actual"] == 50.0
+
+
+def test_every_indicator_has_a_known_aggregation_method():
+    for code, ind in CATALOGUE.items():
+        assert ind["aggregation"] in {"sum", "latest", "average", "ratio"}, code
+    assert CATALOGUE["WASH-04"]["aggregation"] == "latest"     # until the partner confirms
+
+
+def test_like_for_like_people_served_from_activity_records():
+    acts = [dict(project_id="PRJ01", district="Huye", date=D(2024, 3, 2), planned_date=D(2024, 3, 1),
+                 status="completed", on_time=True, cost_rwf=1, activity_id="ACT01", participants_total=20),
+            dict(project_id="PRJ01", district="Huye", date=D(2024, 3, 9), planned_date=D(2024, 3, 9),
+                 status="delayed", on_time=False, cost_rwf=1, activity_id="ACT01", participants_total=15),
+            dict(project_id="PRJ01", district="Huye", date=D(2024, 3, 9), planned_date=D(2024, 3, 9),
+                 status="completed", on_time=True, cost_rwf=1, activity_id="ACT02", participants_total=99)]
+    values, _ = run_method(indicators.activity_participants, FakeData(activities=acts), "WASH-01")
+    assert pick(values, period_type="month", period="2024-03", project_id="PRJ01", district="Huye")["actual"] == 35
+    assert CATALOGUE["WASH-01"]["calculation"]["derived"]["like_for_like"] is True
+
+
+def test_reconciliation_finds_the_planted_discrepancies(built, synthetic):
+    import score_cleaning
+    r = score_cleaning.score_reconciliation(synthetic["truth"], built["db"])
+    s = r["summary"]
+    assert s["planted"] > 0 and s["catch_rate"] >= 95
+    assert s["false_alarms"] == 0
+    assert s["rounding_within"] == s["rounding_planted"]

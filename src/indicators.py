@@ -133,8 +133,17 @@ def fact_links(df: pd.DataFrame, table: str) -> pd.DataFrame:
 
 
 # ======================================================================================
-# Calculation methods: each returns (values, links). values has KEYS plus the measures.
+# Calculation methods. Each returns (values, links): values has KEYS plus
+#   actual, target, n_target_missing, partial_actual, partial_target, n_rows,
+#   numerator, denominator, coverage_numerator, coverage_denominator
+# and links has KEYS plus the lineage of every record used.
+# Methods for sum / latest / average indicators work by MONTH; quarters and years are then rolled
+# up by rollup(). Ratio methods work every period type directly from the records.
 # ======================================================================================
+def months_only(settings: dict) -> dict:
+    return {**settings, "indicators": {**settings["indicators"], "period_types": ["month"]}}
+
+
 def reported(data: Data, spec: dict, settings: dict):
     code = spec["code"]
     rows = data.results[data.results["indicator_code"] == code].copy()
@@ -142,30 +151,54 @@ def reported(data: Data, spec: dict, settings: dict):
     rows["sex"] = rows["disaggregation_key"].str.replace("sex=", "", regex=False)
     if not by_sex:
         rows = rows[rows["disaggregation_key"] == "total"]
-    long = with_disaggregation(expand(rows, "period_date", settings), by_sex)
+    monthly = months_only(settings)
+    long = with_disaggregation(expand(rows, "period_date", monthly), by_sex)
     if by_sex:                                    # the report's "total" rows are not double counted
         long = long[(long["disaggregation"] != "total") | (long["disaggregation_key"] != "total")]
+    long["has_target"] = long["target_value"].notna()
+    long["partial_actual_part"] = long["actual_value"].where(long["has_target"])
+    combine = "mean" if spec.get("aggregation") == "average" else "sum"
     g = long.groupby(KEYS, dropna=False)
     values = pd.DataFrame(dict(
-        actual=g["actual_value"].sum(min_count=1), target=g["target_value"].sum(min_count=1),
-        n_target_missing=g["target_value"].apply(lambda s: int(s.isna().sum())), n_rows=g.size())).reset_index()
+        actual=g["actual_value"].agg(combine) if combine == "mean" else g["actual_value"].sum(min_count=1),
+        target=g["target_value"].agg(combine) if combine == "mean" else g["target_value"].sum(min_count=1),
+        partial_actual=g["partial_actual_part"].sum(min_count=1),
+        partial_target=g["target_value"].sum(min_count=1),
+        n_target_missing=(~long["has_target"]).groupby([long[k] for k in KEYS], dropna=False).sum(),
+        n_rows=g.size())).reset_index()
     # Coverage: reports received out of those expected, for the months this indicator was due.
     is_due = data.completeness["indicators_due"].fillna("").map(lambda codes: code in codes.split(", "))
     due = data.completeness[is_due.astype(bool)]
-    exp = expand(due, "period", settings)
+    exp = expand(due, "period", monthly)
     disaggs = values["disaggregation"].unique() if len(values) else ["total"]
     exp = pd.concat([exp.assign(disaggregation=d) for d in disaggs], ignore_index=True)
     cov = exp.groupby(KEYS, dropna=False).agg(coverage_numerator=("submitted", "sum"),
                                               coverage_denominator=("submitted", "size")).reset_index()
-    values = cov.merge(values, on=KEYS, how="outer")   # an expected period with no report still shows (no data)
+    values = cov.merge(values, on=KEYS, how="outer")   # an expected month with no report still shows (no data)
     values["numerator"], values["denominator"] = values["actual"], np.nan
     return values, fact_links(long, "fact_indicator_result")
 
 
+def activity_participants(data: Data, spec: dict, settings: dict):
+    """People served as recorded on activity records (participants), like the reported figure."""
+    method = spec["calculation"]["derived"]
+    acts = data.activities[data.activities["activity_id"].isin(method["activity_ids"])
+                           & data.activities["status"].isin(method.get("statuses", ["completed", "delayed"]))]
+    long = with_disaggregation(expand(acts, "date", months_only(settings)), False)
+    long["has_count"] = long["participants_total"].notna()
+    g = long.groupby(KEYS)
+    values = pd.DataFrame(dict(actual=g["participants_total"].sum(min_count=1), n_rows=g.size(),
+                               coverage_numerator=g["has_count"].sum())).reset_index()
+    values["coverage_denominator"] = values["n_rows"]
+    values["numerator"], values["denominator"] = values["actual"], np.nan
+    return values, fact_links(long, "fact_activity")
+
+
 def unique_people(data: Data, spec: dict, settings: dict):
+    """Different registered people who received the listed services in the month (not attendance)."""
     method = spec["calculation"]["derived"]
     rows = data.services[data.services["activity_id"].isin(method["activity_ids"])]
-    long = with_disaggregation(expand(rows, "date", settings), spec.get("disaggregation") == "sex")
+    long = with_disaggregation(expand(rows, "date", months_only(settings)), spec.get("disaggregation") == "sex")
     g = long.groupby(KEYS, dropna=False)
     values = pd.DataFrame(dict(actual=g["beneficiary_key"].nunique(), n_rows=g.size())).reset_index()
     values["numerator"], values["denominator"] = values["actual"], np.nan
@@ -240,8 +273,68 @@ def report_completeness(data: Data, spec: dict, settings: dict):
                                source_row=None)
 
 
-DERIVED = {"unique_people": unique_people, "share_women": share_women, "on_time": on_time,
-           "cost_per_person": cost_per_person, "report_completeness": report_completeness}
+DERIVED = {"unique_people": unique_people, "activity_participants": activity_participants,
+           "share_women": share_women, "on_time": on_time, "cost_per_person": cost_per_person,
+           "report_completeness": report_completeness}
+
+
+# ======================================================================================
+# Rolling months up into quarters and fiscal years (catalogue field: aggregation)
+# ======================================================================================
+def rollup(month_values: pd.DataFrame, aggregation: str, settings: dict) -> pd.DataFrame:
+    """Quarter and fiscal-year values from the monthly values.
+
+    sum      the months add up (actual and target)
+    latest   the latest month in the period that has a value (a snapshot)
+    average  the average of the months
+    Each output row has month_value_ids: the monthly values it was made from (for traceability).
+    """
+    m = month_values[month_values["period_type"] == "month"].copy()
+    m["has_data"] = m["actual"].notna()
+    m["full_target"] = m["target"].notna() & (m["n_target_missing"].fillna(0) == 0)
+    start_month = settings["fiscal_year"]["start_month"]
+    out = []
+    for period_type in [p for p in settings["indicators"]["period_types"] if p != "month"]:
+        label, start = period_columns(m["period_start"], period_type, start_month)
+        mm = m.assign(period_type=period_type, period=label.values, period_start=start.values)
+        for key, g in mm.groupby(KEYS, dropna=False, sort=False):
+            data = g[g["has_data"]].sort_values("month_start")
+            row = dict(zip(KEYS, key))
+            row["coverage_numerator"] = g["coverage_numerator"].sum(min_count=1)
+            row["coverage_denominator"] = g["coverage_denominator"].sum(min_count=1)
+            if aggregation == "latest":
+                last = data.iloc[-1:] if len(data) else g.iloc[0:0]
+                used = last
+                row["actual"] = last["actual"].iloc[0] if len(last) else np.nan
+                full = bool(len(last) and last["full_target"].iloc[0])
+                row["target"] = last["target"].iloc[0] if full else np.nan
+                row["months_with_data"] = int(len(last))
+                row["months_with_target"] = int(full)
+                row["partial_actual"] = row["partial_target"] = np.nan
+                row["numerator"] = last["numerator"].iloc[0] if len(last) else np.nan
+                row["denominator"] = last["denominator"].iloc[0] if len(last) else np.nan
+                row["n_rows"] = last["n_rows"].sum()
+            else:
+                used = data
+                with_t = data[data["full_target"]]
+                row["months_with_data"] = int(len(data))
+                row["months_with_target"] = int(len(with_t))
+                if aggregation == "average":
+                    row["actual"] = data["actual"].mean() if len(data) else np.nan
+                    row["target"] = data["target"].mean() if len(data) and len(with_t) == len(data) else np.nan
+                    row["partial_actual"] = with_t["actual"].mean() if len(with_t) else np.nan
+                    row["partial_target"] = with_t["target"].mean() if len(with_t) else np.nan
+                else:   # sum
+                    row["actual"] = data["actual"].sum() if len(data) else np.nan
+                    row["target"] = data["target"].sum() if len(data) and len(with_t) == len(data) else np.nan
+                    row["partial_actual"] = with_t["actual"].sum() if len(with_t) else np.nan
+                    row["partial_target"] = with_t["target"].sum() if len(with_t) else np.nan
+                row["numerator"] = data["numerator"].sum(min_count=1)
+                row["denominator"] = data["denominator"].sum(min_count=1)
+                row["n_rows"] = data["n_rows"].sum()
+            row["month_value_ids"] = list(used["value_id"])
+            out.append(row)
+    return pd.DataFrame(out)
 
 
 # ======================================================================================
@@ -250,21 +343,40 @@ DERIVED = {"unique_people": unique_people, "share_women": share_women, "on_time"
 def add_status(values: pd.DataFrame, spec: dict, settings: dict) -> pd.DataFrame:
     tl, labels = settings["traffic_light"], settings["indicators"]
     v = values.copy()
-    if "target" not in v:
-        v["target"] = np.nan
-    if "n_target_missing" not in v:
-        v["n_target_missing"] = v["n_rows"].fillna(1)
+    for col in ("target", "partial_actual", "partial_target", "months_with_data", "months_with_target",
+                "n_target_missing"):
+        if col not in v:
+            v[col] = np.nan
+    month_level = v["period_type"] == "month"
+    # Monthly rows: one month, complete only if every breakdown in it had a target.
+    v.loc[month_level, "months_with_data"] = v.loc[month_level, "actual"].notna().astype(int)
+    full = v["target"].notna() & (v["n_target_missing"].fillna(0) == 0)
+    v.loc[month_level, "months_with_target"] = (full & v["actual"].notna())[month_level].astype(int)
     higher = bool(spec.get("higher_is_better", True))
     v["actual"] = v["actual"].round(2)
     no_data = v["actual"].isna()
-    no_target = v["target"].isna()
-    incomplete = ~no_target & (v["n_target_missing"].fillna(0) > 0)
-    ratio = (v["actual"] / v["target"]) if higher else (v["target"] / v["actual"])
-    v["pct_achieved"] = (100 * ratio).where(~no_data & ~no_target & ~incomplete).round(1)
-    v["target"] = v["target"].where(~incomplete)          # never show a part-target as if it were complete
+    complete = (~no_data & v["target"].notna()
+                & (v["months_with_target"].astype(float) == v["months_with_data"].astype(float)))
+    complete &= ~(month_level & (v["n_target_missing"].fillna(0) > 0))
+    some_target = ~no_data & ~complete & v["partial_target"].notna() & (v["partial_target"] != 0)
+
+    def pct(actual, target):
+        ratio = (actual / target) if higher else (target / actual)
+        return (100 * ratio).round(1)
+
+    v["pct_achieved"] = pct(v["actual"], v["target"]).where(complete)
+    v["target"] = v["target"].where(complete)        # never show a part-target as if it were complete
+    v["partial_pct_achieved"] = pct(v["partial_actual"], v["partial_target"]).where(some_target)
+    v["target_note"] = None
+    rollups = some_target & ~month_level
+    v.loc[rollups, "target_note"] = ("partial: " + v.loc[rollups, "months_with_target"].astype(int).astype(str)
+                                     + " of " + v.loc[rollups, "months_with_data"].astype(int).astype(str) + " months")
+    v.loc[some_target & month_level, "target_note"] = "partial: some breakdowns have no target"
+    b = lambda cond: pd.Series(cond).fillna(False).astype(bool).to_numpy()
     status = np.select(
-        [no_data, no_target, incomplete, v["pct_achieved"] >= tl["on_track_min"], v["pct_achieved"] >= tl["at_risk_min"]],
-        ["no data", labels["no_target_label"], labels["target_incomplete_label"], "on track", "at risk"],
+        [b(no_data), b(some_target), b(~complete), b(v["pct_achieved"] >= tl["on_track_min"]),
+         b(v["pct_achieved"] >= tl["at_risk_min"])],
+        ["no data", labels["target_incomplete_label"], labels["no_target_label"], "on track", "at risk"],
         default="off track")
     v["status"] = status
     v["coverage_pct"] = (100 * v["coverage_numerator"] / v["coverage_denominator"].replace(0, np.nan)).round(1)
@@ -274,12 +386,48 @@ def add_status(values: pd.DataFrame, spec: dict, settings: dict) -> pd.DataFrame
 # ======================================================================================
 # Running everything
 # ======================================================================================
+VALUE_COLUMNS = ["value_id", "indicator_id", "indicator_code", "source", "aggregation", "project_id", "district",
+                 "period_type", "period", "period_start", "disaggregation", "unit", "target", "actual",
+                 "pct_achieved", "status", "partial_pct_achieved", "target_note", "months_with_target",
+                 "months_with_data", "numerator", "denominator", "coverage_pct", "n_rows"]
+
+
 class IndicatorBuilder:
     def __init__(self, db: Path, settings: dict | None = None):
         self.settings = settings or load_settings()
         self.catalogue = load_yaml("indicator_catalogue.yaml")["indicators"]
         self.data = Data(db)
         self.id_of = dict(zip(self.data.dim_indicator["code"], self.data.dim_indicator["indicator_id"]))
+
+    def compute(self, spec: dict, source: str, fn) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Values (all periods) and links for one indicator and source."""
+        values, links = fn(self.data, spec, self.settings)
+        if not len(values):
+            return values, links
+        for col in ("target", "partial_actual", "partial_target", "n_target_missing"):
+            if col not in values:
+                values[col] = np.nan                  # derived values have no targets (yet)
+        aggregation = spec.get("aggregation", "sum")
+        ident = KEYS
+        if aggregation == "ratio":
+            return values, links
+        # Monthly values first, then quarters and years rolled up from them.
+        values = values.reset_index(drop=True)
+        values["value_id"] = -(np.arange(len(values)) + 1)           # temporary ids for the monthly values
+        values["month_start"] = values["period_start"]
+        rolled = rollup(values, aggregation, self.settings)
+        month_links = links.merge(values[["value_id"] + ident], on=ident, how="inner")
+        if len(rolled):
+            pairs = rolled[ident + ["month_value_ids"]].explode("month_value_ids").dropna(subset=["month_value_ids"])
+            pairs = pairs.rename(columns={"month_value_ids": "value_id"})
+            pairs["value_id"] = pairs["value_id"].astype(int)
+            rolled_links = pairs.merge(month_links.drop(columns=ident), on="value_id").drop(columns="value_id")
+        else:
+            rolled_links = month_links.iloc[0:0].drop(columns="value_id")
+        all_values = pd.concat([values.drop(columns=["value_id", "month_start"]),
+                                rolled.drop(columns="month_value_ids")], ignore_index=True)
+        all_links = pd.concat([month_links.drop(columns="value_id"), rolled_links], ignore_index=True)
+        return all_values, all_links
 
     def build(self) -> dict[str, pd.DataFrame]:
         all_values, all_links = [], []
@@ -293,12 +441,12 @@ class IndicatorBuilder:
             if "derived" in calc:
                 sources.append(("derived", DERIVED[calc["derived"]["method"]]))
             for source, fn in sources:
-                values, links = fn(self.data, spec, self.settings)
+                values, links = self.compute(spec, source, fn)
                 if not len(values):
                     continue
                 values = add_status(values, spec, self.settings)
                 values = values.assign(indicator_code=spec["code"], indicator_id=self.id_of[spec["code"]],
-                                       source=source, unit=spec["unit"])
+                                       source=source, unit=spec["unit"], aggregation=spec.get("aggregation", "sum"))
                 all_values.append(values)
                 all_links.append(links.assign(indicator_code=spec["code"], source=source))
         values = pd.concat(all_values, ignore_index=True)
@@ -310,35 +458,43 @@ class IndicatorBuilder:
         links = links.merge(values[["value_id"] + ident], on=ident, how="inner")
         links = links[["value_id"] + LINEAGE].drop_duplicates().reset_index(drop=True)
         links["source_row"] = links["source_row"].astype("Int64")
-        cols = ["value_id", "indicator_id", "indicator_code", "source", "project_id", "district", "period_type",
-                "period", "period_start", "disaggregation", "unit", "target", "actual", "pct_achieved", "status",
-                "numerator", "denominator", "coverage_pct", "n_rows"]
-        values = values[cols]
+        for col in ("months_with_target", "months_with_data"):
+            values[col] = values[col].astype("Int64")
+        values = values[VALUE_COLUMNS]
         return dict(indicator_values=values, indicator_value_sources=links,
                     indicator_reconciliation=self.reconcile(values))
 
     def reconcile(self, values: pd.DataFrame) -> pd.DataFrame:
-        """Reported versus derived, where an indicator has both."""
+        """Reported versus derived, MONTH BY MONTH, where the catalogue says the two are like for like.
+
+        Months are the reporting grain: the two sources are defined to count the same thing per month.
+        """
         tol = self.settings["indicators"]["reconciliation_tolerance_pct"]
         both = [s["code"] for s in self.catalogue if s.get("availability", "available") == "available"
-                and {"reported", "derived"} <= set(s.get("calculation", {}))]
+                and {"reported", "derived"} <= set(s.get("calculation", {}))
+                and s["calculation"]["derived"].get("like_for_like")]
         ident = ["indicator_code", "indicator_id"] + KEYS
-        v = values[values["indicator_code"].isin(both)]
+        v = values[values["indicator_code"].isin(both) & (values["period_type"] == "month")]
         rep = v[v["source"] == "reported"][ident + ["value_id", "actual"]].rename(
             columns={"value_id": "reported_value_id", "actual": "reported"})
         der = v[v["source"] == "derived"][ident + ["value_id", "actual"]].rename(
             columns={"value_id": "derived_value_id", "actual": "derived"})
         rec = rep.merge(der, on=ident, how="outer")
+        # A month with a report but no matching records means the records show zero.
+        rec.loc[rec["derived"].isna() & rec["reported"].notna(), "derived"] = 0.0
         rec["difference"] = rec["derived"] - rec["reported"]
         rec["pct_difference"] = (100 * rec["difference"] / rec["reported"].replace(0, np.nan)).round(1)
         rec["tolerance_pct"] = tol
+        b = lambda cond: pd.Series(cond).fillna(False).astype(bool).to_numpy()
         rec["status"] = np.select(
-            [rec["reported"].isna(), rec["derived"].isna(), rec["pct_difference"].abs() <= tol],
-            ["derived only", "reported only", "within tolerance"], default="gap above tolerance")
+            [b(rec["reported"].isna()), b((rec["reported"] == 0) & (rec["derived"] == 0)),
+             b(rec["reported"] == 0), b(rec["pct_difference"].abs() <= tol)],
+            ["derived only", "within tolerance", "gap above tolerance", "within tolerance"],
+            default="gap above tolerance")
         rec["flag"] = rec["status"] == "gap above tolerance"
         for c in ("reported_value_id", "derived_value_id"):
             rec[c] = rec[c].astype("Int64")
-        return rec.sort_values(["indicator_code", "period_type", "period_start", "project_id", "district",
+        return rec.sort_values(["indicator_code", "period_start", "project_id", "district",
                                 "disaggregation"]).reset_index(drop=True)[
             ["indicator_code", "indicator_id", "project_id", "district", "period_type", "period", "period_start",
              "disaggregation", "reported", "derived", "difference", "pct_difference", "tolerance_pct", "status",

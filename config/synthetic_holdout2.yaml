@@ -40,4 +40,8 @@ holdout_mess:
   namesake_phone_missing: 0.50
   namesake_id_missing: 0.50
 
+# Held-out sets keep the reports they were generated with (independent of the activity data), so their
+# documented fingerprints still hold: the reconciliation scenario (decision log D132) is off here.
+reconciliation_scenario: null
+
 expected_fingerprint: afd7098431eda4eff08d15076dde7b144934839dae1bb2e5eaa36a7464699f12

@@ -729,8 +729,53 @@ class World:
         self.services = services
 
     # ---------------------------------------------------------------- indicator reports
+    # ---------------------------------------------------------------- reconciliation scenario
+    def true_report_values(self, scenario: dict) -> dict:
+        """What each report SHOULD say, worked out from the true activity and register data.
+
+        Keys: (code, project_id, district, month, sex or None) -> true value.
+        """
+        truth: dict[tuple, float] = {}
+        persons = {p["person_id"]: p for p in self.people}
+        for code, rule in scenario["indicators"].items():
+            if rule["truth"] == "activity_participants":
+                for r in self.activity_records:
+                    if (r["activity_id"] in rule["activity_ids"] and r["status"] in rule["statuses"]
+                            and r["date"] is not None and r["participants_total"] is not None):
+                        key = (code, r["project_id"], r["district"], r["date"].replace(day=1), None)
+                        truth[key] = truth.get(key, 0) + r["participants_total"]
+            elif rule["truth"] == "unique_people":
+                seen: dict[tuple, set] = {}
+                for sv in self.services:
+                    if sv["activity_id"] in rule["activity_ids"]:
+                        person = persons[sv["person_id"]]
+                        key = (code, person["project_id"], person["district"], sv["date"].replace(day=1),
+                               person["sex"].title())
+                        seen.setdefault(key, set()).add(sv["person_id"])
+                truth.update({k: len(v) for k, v in seen.items()})
+        return truth
+
+    def plant(self, scenario: dict, true_value: int, officer: str) -> tuple[int, str | None]:
+        """Turn a true value into the reported value, sometimes with a planted discrepancy."""
+        if true_value <= 0:
+            return 0, None
+        if officer in scenario["over_reporting_officers"] and self.rand.chance(scenario["over_report_share"]):
+            pct = self.rand.uniform(*scenario["over_report_pct"])
+            return int(math.ceil(true_value * (1 + pct / 100))), "over_report"
+        if self.rand.chance(scenario["under_report_rate"]):
+            pct = self.rand.uniform(*scenario["under_report_pct"])
+            return int(math.floor(true_value * (1 - pct / 100))), "under_report"
+        if true_value >= scenario["rounding_min_value"] and self.rand.chance(scenario["rounding_rate"]):
+            pct = self.rand.uniform(*scenario["rounding_pct"]) * self.rand.pick([-1, 1])
+            reported = int(round(true_value * (1 + pct / 100)))
+            return reported, ("rounding" if reported != true_value else None)
+        return true_value, None
+
     def build_indicator_reports(self):
         targets = self.cfg["indicator_targets"]
+        scenario = self.cfg.get("reconciliation_scenario")
+        truth = self.true_report_values(scenario) if scenario else {}
+        self.planted: list[dict] = []
         rows, expected = [], []
         for project in self.projects.values():
             for district in project["districts"]:
@@ -750,6 +795,10 @@ class World:
                                          reporter=self.officer_of[district]))
                     fy = fiscal_year_label(month)
                     for code in due:
+                        if scenario and code in scenario["indicators"]:
+                            self.scenario_rows(rows, scenario, truth, code, project, district, month, fy,
+                                               performance, fy_targets)
+                            continue
                         spec = targets[code]
                         key = (code, fy)
                         if key not in fy_targets:   # targets are set once per fiscal year
@@ -775,8 +824,34 @@ class World:
                                              entered_by=self.officer_of[district]))
         for i, r in enumerate(rows, 1):
             r["result_id"] = f"IRR{i:05d}"
+        for planted in self.planted:
+            planted["result_id"] = planted.pop("_row")["result_id"]
         self.indicator_rows = rows
         self.expected_reports = expected
+
+    def scenario_rows(self, rows, scenario, truth, code, project, district, month, fy, performance, fy_targets):
+        """Report rows for an indicator whose values come from the true activity and register data."""
+        by_sex = self.indicators[code]["disaggregation"] == "sex"
+        for sex in (["Female", "Male"] if by_sex else [None]):
+            key = (code, sex, fy)
+            if key not in fy_targets:
+                # A realistic annual target: the true monthly average for the year, adjusted for the
+                # district's performance, so that some districts look on track and others do not.
+                months = [m for m in self._project_months(project) if fiscal_year_label(m) == fy]
+                mean = sum(truth.get((code, project["project_id"], district, m, sex), 0) for m in months) / len(months)
+                fy_targets[key] = max(1, int(round(mean / performance)))
+            true_value = truth.get((code, project["project_id"], district, month, sex), 0)
+            officer = self.officer_of[district]
+            reported, kind = self.plant(scenario, true_value, officer)
+            row = dict(project_id=project["project_id"], programme_id=project["programme_id"], district=district,
+                       period=month, fiscal_year=fy, indicator_code=code, sex=sex, target_value=fy_targets[key],
+                       actual_value=reported, entered_by=officer, true_value=true_value, discrepancy=kind)
+            rows.append(row)
+            if kind:
+                self.planted.append(dict(_row=row, indicator_code=code, project_id=project["project_id"],
+                                         district=district, period=month, sex=sex, officer=officer, kind=kind,
+                                         true_value=true_value, reported_value=reported,
+                                         pct_difference=round(100 * (reported - true_value) / true_value, 1)))
 
     # ---------------------------------------------------------------- donors
     def build_donors(self):
@@ -1776,6 +1851,11 @@ def write_answer_key(world: World, mw: MessyWriter, truth_dir: Path):
 
     ind = _with_position(world.indicator_rows, mw.indicator_positions, "result_id")
     ind["submitted"] = ind["source_row"].notna()
+    if world.cfg.get("reconciliation_scenario"):
+        planted = pd.DataFrame(world.planted)
+        planted = planted.merge(ind[["result_id", "source_file", "source_sheet", "source_row", "submitted"]],
+                                on="result_id", how="left")
+        planted.to_csv(truth_dir / f"{PREFIX}planted_discrepancies.csv", index=False)
     ind.to_csv(truth_dir / f"{PREFIX}truth_indicator_results.csv", index=False)
     exp = pd.DataFrame(world.expected_reports)
     missing = {(m["project_id"], m["district"], m["period"]) for m in mw.missing_reports}
