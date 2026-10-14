@@ -71,6 +71,7 @@ fields:
     village: [Village, Umudugudu]
     project: [Project, Project code, Umushinga]
     reg_date: [Registration date, Date registered, Date, Itariki]
+    officer: [Officer code, Officer, Field officer, FO code]      # optional
 
   service:
     reg_no: [Reg No, Form No., Reg. No.]

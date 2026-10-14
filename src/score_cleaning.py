@@ -53,7 +53,7 @@ COMPARE = {
         "female": ("participants_female", "participants_female", "num"),
         "male": ("participants_male", "participants_male", "num"),
         "total": ("participants_total", "participants_total", "num"), "cost": ("cost_rwf", "cost_rwf", "num"),
-        "officer": ("field_officer", "field_officer", "text"),
+        "officer": ("officer_code", "field_officer", "text"),
     },
     "registration": {
         "sex": ("sex", "sex", "text"), "age": ("age", "age", "num"), "dob": ("age", "age_from_dob", "num"),
@@ -505,12 +505,14 @@ def review_queue_lines(staging, title: str) -> list[str]:
     s = load_settings()
     status = pd.read_parquet(staging / "clean_row_status.parquet")
     issues = pd.read_parquet(staging / "issues.parquet")
-    info = pd.read_parquet(staging / "clean_dq_info_metrics.parquet")
+    import validate
+    info = validate.Validator(staging).metrics()           # the single definitions (config/dq_metrics.yaml)
     per_row = s["review_minutes_per_row"]
     budget = s["review_budget_minutes_per_month"]
     review = status[status["status"] == "review"]
-    window = pd.period_range(s["reporting_window"]["start"], s["reporting_window"]["end"], freq="M").astype(str)
-    monthly = review.groupby("month").size().reindex(window, fill_value=0)
+    import validate
+    monthly = validate.review_queue_monthly(review, s)      # same definition as the data-quality report
+    window = monthly.index
     over = monthly[monthly * per_row > budget]
     drivers = (review.assign(code=review["warning_codes"].str.split(", ")).explode("code")
                .groupby("code").size().sort_values(ascending=False))
@@ -606,9 +608,8 @@ def queue_summary(staging) -> dict:
     """Review-queue and quarantine figures for one test set (for the side-by-side table)."""
     settings = load_settings()
     status = pd.read_parquet(staging / "clean_row_status.parquet")
-    window = pd.period_range(settings["reporting_window"]["start"], settings["reporting_window"]["end"],
-                             freq="M").astype(str)
-    review = status[status["status"] == "review"].groupby("month").size().reindex(window, fill_value=0)
+    import validate
+    review = validate.review_queue_monthly(status[status["status"] == "review"], settings)
     budget = settings["review_budget_minutes_per_month"] // settings["review_minutes_per_row"]
     return dict(review_avg=round(review.mean(), 1), review_max=int(review.max()),
                 months_over=int((review > budget).sum()),

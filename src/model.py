@@ -40,7 +40,6 @@ PERSONAL_COLUMNS = {"name", "surname", "first_name", "phone", "national_id", "do
                     "contact_person", "email", "reg_no"}
 # Tables whose "name" column names a thing (a programme, project or indicator), not a person.
 NAMED_THINGS = {"dim_programme", "dim_project", "dim_indicator"}
-QUALITY_WORDS = {"missing_target": "no target set", "accuracy_outlier": "actual more than 3 x target"}
 
 
 class ModelError(Exception):
@@ -66,6 +65,16 @@ class ModelBuilder:
         q = read("dq_quarantine")
         self.quarantined = {(f, s, int(r)) for f, s, r in zip(q["source_file"], q["source_sheet"], q["source_row"])}
         self.review = read("dq_review_queue")
+        # Worst severity of the problems on each kept row: warning > info > ok (critical rows are quarantined).
+        issues = read("issues")
+        issues = issues[issues["severity"].isin(["info", "warning"]) & issues["source_row"].notna()]
+        rank = issues.assign(rank=issues["severity"].map({"info": 1, "warning": 2}))
+        worst = rank.groupby(POSITION)["rank"].max()
+        self.quality = {(f, s, int(r)): {1: "info", 2: "warning"}[v] for (f, s, r), v in worst.items()}
+
+    def quality_flag(self, df: pd.DataFrame) -> list[str]:
+        return [self.quality.get((f, s, int(r)), "ok")
+                for f, s, r in zip(df["source_file"], df["source_sheet"], df["source_row"])]
 
     # ================================================================ dimensions
     def dim_programme(self) -> pd.DataFrame:
@@ -90,11 +99,12 @@ class ModelBuilder:
 
     def dim_location(self) -> pd.DataFrame:
         villages = self.read("ref_location")[["location_id", "province", "district", "sector", "cell", "village"]]
+        villages = villages.assign(location_level="village")
         d2p = district_to_province()
         districts = sorted(set(villages["district"]) | set(self.read("clean_indicator_result")["district"].dropna()))
         district_rows = pd.DataFrame(dict(location_id=[f"DIST-{d}" for d in districts],
                                           province=[d2p[d] for d in districts], district=districts,
-                                          sector=None, cell=None, village=None))
+                                          sector=None, cell=None, village=None, location_level="district"))
         return pd.concat([villages, district_rows], ignore_index=True)
 
     def dim_indicator(self) -> pd.DataFrame:
@@ -127,6 +137,8 @@ class ModelBuilder:
         # Details from the person's earliest registration that passed the checks.
         good = regs[~regs["quarantined"]].sort_values(["registration_date", "source_file", "source_row"],
                                                       na_position="last").drop_duplicates("beneficiary_key")
+        pending = self.read("dq_people_pending_review")
+        pending_keys = set(pending.loc[pending["pending_duplicate_review"], "beneficiary_key"])
         dim = pd.DataFrame(dict(beneficiary_key=good["beneficiary_key"], sex=good["sex"], age_band=good["age_band"],
                                 household_size=good["household_size"].astype("Int64"),
                                 disability_flag=good["disability"].map({"yes": True, "no": False}),
@@ -135,6 +147,7 @@ class ModelBuilder:
         others = (set(regs["beneficiary_key"]) | set(services["beneficiary_key"].dropna())) - set(dim["beneficiary_key"])
         if others:
             dim = pd.concat([dim, pd.DataFrame(dict(beneficiary_key=sorted(others)))], ignore_index=True)
+        dim["pending_duplicate_review"] = dim["beneficiary_key"].isin(pending_keys)
         return dim.reset_index(drop=True)
 
     def dim_donor(self) -> pd.DataFrame:
@@ -148,8 +161,11 @@ class ModelBuilder:
         # astype fails loudly if one ever gets through).
         for col in ("participants_total", "participants_female", "participants_male"):
             df[col] = df[col].astype("Int64")
+        df["quality_flag"] = self.quality_flag(df)
+        df["on_time"] = df["on_time"].astype("boolean")
         return df[["activity_id", "location_id", "date", "participants_total", "participants_female",
-                   "participants_male", "cost_rwf", "planned_date", "entry_date", "status"] + POSITION].copy()
+                   "participants_male", "cost_rwf", "planned_date", "entry_date", "status", "on_time",
+                   "officer_code", "quality_flag"] + POSITION].copy()
 
     def fact_beneficiary_service(self) -> pd.DataFrame:
         df = _drop_quarantined(self.read("clean_service"), self.quarantined)
@@ -157,22 +173,14 @@ class ModelBuilder:
 
     def fact_indicator_result(self, indicators: pd.DataFrame) -> pd.DataFrame:
         df = _drop_quarantined(self.read("clean_indicator_result"), self.quarantined)
-        warnings = {(f, s, int(r)): reasons for f, s, r, reasons in
-                    zip(self.review["source_file"], self.review["source_sheet"], self.review["source_row"],
-                        self.review["reasons"])}
         id_of = dict(zip(indicators["code"], indicators["indicator_id"]))
-
-        def flag(pos):
-            codes = [c for c in warnings.get(pos, "").split(", ") if c]
-            return "; ".join(QUALITY_WORDS.get(c, c.replace("_", " ")) for c in codes) or "ok"
 
         return pd.DataFrame(dict(
             indicator_id=df["indicator_code"].map(id_of), project_id=df["project_id"],
             location_id="DIST-" + df["district"], period_date=df["period"], target_value=df["target_value"],
             actual_value=df["actual_value"], disaggregation_key=df["disaggregation_key"],
             source_file=df["source_file"], source_sheet=df["source_sheet"], source_row=df["source_row"],
-            entered_by=df["entered_by"],
-            quality_flag=[flag((f, s, int(r))) for f, s, r in zip(df["source_file"], df["source_sheet"], df["source_row"])]))
+            entered_by=df["entered_by"], officer_code=df["officer_code"], quality_flag=self.quality_flag(df)))
 
     def fact_opportunity(self) -> pd.DataFrame:
         df = _drop_quarantined(self.read("clean_opportunity"), self.quarantined)
@@ -191,6 +199,7 @@ class ModelBuilder:
         dims["dim_date"] = self.dim_date(facts)
         dims["dim_beneficiary"] = self.dim_beneficiary(facts["fact_beneficiary_service"])
         dq = dict(dq_results=self.read("dq_results"), dq_dimension_scores=self.read("dq_dimension_scores"),
+                  dq_rule_results_by_file=self.read("dq_rule_results_by_file"),
                   dq_by_source_file=self.read("dq_by_source_file"), dq_by_field_officer=self.read("dq_by_field_officer"),
                   quarantine=self.read("dq_quarantine"), review_queue=self.read("dq_review_queue"),
                   skipped_sheets=self.read("dq_skipped_sheets"), dq_info_measures=self.read("dq_info_measures"),
@@ -223,6 +232,15 @@ class ModelBuilder:
             leaked = banned & set(df.columns)
             if leaked:
                 problems.append(f"{name}: personal-data columns present: {sorted(leaked)}")
+        # A fact table links to ONE level of location only, so a district total can never add a district
+        # row to its own villages (data_dictionary.yaml: location_level on the fact table).
+        levels = dict(zip(tables["dim_location"]["location_id"], tables["dim_location"]["location_level"]))
+        for name, spec in self.dictionary["tables"].items():
+            if spec.get("location_level"):
+                found = {levels.get(v) for v in tables[name]["location_id"].dropna()}
+                if found - {spec["location_level"]}:
+                    problems.append(f"{name}: links to location level(s) {sorted(found)}, "
+                                    f"expected only {spec['location_level']}")
         for child, parent in self.dictionary["relationships"]:
             ct, cc = child.split(".")
             pt, pc = parent.split(".")

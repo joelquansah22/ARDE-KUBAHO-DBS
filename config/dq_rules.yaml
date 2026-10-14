@@ -18,7 +18,9 @@
 #   description  plain-English rule
 #   entities     which kind of record it applies to (the denominator)
 #   flags        the issue codes (from clean.py / ingest.py) that mean the rule is broken
-#   special      for rules whose denominator is not records: expected_reports or sheets
+#   special      for a rule whose denominator is not records: sheets
+#   metric       for a rule that IS a data-quality measure: its score is that measure, defined once in
+#                config/dq_metrics.yaml (so the rule, the report and the dashboard always agree)
 # =============================================================================
 
 dimensions: [completeness, validity, consistency, uniqueness, timeliness, accuracy]
@@ -43,7 +45,7 @@ rules:
   - id: COM-04
     dimension: completeness
     description: Expected monthly indicator reports were received
-    special: expected_reports
+    metric: reporting_completeness      # score = this measure (config/dq_metrics.yaml)
     flags: [report_missing]
 
   # ---------------------------------------------------------------- validity
@@ -100,8 +102,8 @@ rules:
   - id: TIM-01
     dimension: timeliness
     description: Activities are entered within the allowed number of days (late_entry_days in settings)
-    entities: [activity]
-    flags: [late_entry, late_entry_possible]
+    metric: timeliness                  # score = this measure (config/dq_metrics.yaml)
+    flags: [late_entry]
 
   # ---------------------------------------------------------------- accuracy (proxy)
   - id: ACC-01

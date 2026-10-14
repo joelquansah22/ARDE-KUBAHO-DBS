@@ -57,6 +57,9 @@ tables:
       sector: Sector (empty for a district row).
       cell: Cell (empty for a district row).
       village: Village (empty for a district row).
+      location_level: >-
+        village or district. Each fact table links to one level only (fact_activity to villages, fact_indicator_result
+        to districts), so never add up rows of different levels; group by the district column instead.
 
   dim_indicator:
     kind: dimension
@@ -99,6 +102,9 @@ tables:
       household_size: Number of people in the household.
       disability_flag: True if the person reported a disability.
       location_id: Village where the person registered (links to dim_location).
+      pending_duplicate_review: >-
+        True if any of this person's records is waiting for a duplicate review. A people count includes these, so it
+        may be slightly too high until the review is done ("includes N people pending duplicate review").
 
   dim_donor:
     kind: dimension
@@ -116,6 +122,7 @@ tables:
   # ------------------------------------------------------------------ facts
   fact_activity:
     kind: fact
+    location_level: village
     description: >-
       One row per activity event from the activity monitoring files and digitised paper records. Rows that broke a
       critical rule are not here: they are in the quarantine table.
@@ -131,6 +138,13 @@ tables:
       planned_date: Day it was planned for.
       entry_date: Day it was typed into Excel.
       status: planned, completed, delayed or cancelled.
+      on_time: >-
+        True if completed within the allowed days of its planned date (on_time_tolerance_days in settings), False if
+        delayed, cancelled or completed late, empty if it cannot be checked (planned, or only the month is known).
+      officer_code: Code of the field officer who ran the activity, where the source file gives it.
+      quality_flag: >-
+        ok, or the worst problem left on this kept row: info (only counted) or warning (in the review queue).
+        Rows with a critical problem are in the quarantine table, not here.
       source_file: Excel file the row came from.
       source_sheet: Sheet in that file.
       source_row: Row number in that sheet, as shown in Excel.
@@ -150,6 +164,7 @@ tables:
 
   fact_indicator_result:
     kind: fact
+    location_level: district
     description: >-
       One row per indicator value reported in the monthly indicator reports (per project, district, month and,
       where relevant, sex). Rows that broke a critical rule are in the quarantine table instead.
@@ -165,8 +180,11 @@ tables:
       source_file: Excel file the row came from.
       source_sheet: Sheet in that file.
       source_row: Row number in that sheet, as shown in Excel.
-      entered_by: Officer code of the person who reported it.
-      quality_flag: ok, or the warnings on the row (e.g. "no target set; actual more than 3 x target").
+      entered_by: Officer code of the person who reported it, as written.
+      officer_code: The same officer code, standardised (capital letters).
+      quality_flag: >-
+        ok, or the worst problem left on this kept row: info (only counted) or warning (in the review queue, e.g. no
+        target set, or actual more than 3 x target). Rows with a critical problem are in the quarantine table.
 
   fact_opportunity:
     kind: fact
@@ -204,6 +222,25 @@ tables:
       critical_failures: Failures that quarantined a row.
       warning_failures: Failures that sent a row to the review queue.
       info_failures: Failures that are only counted.
+      dimension_impact: >-
+        Points this rule takes off its dimension score (the dimension score is the average of its rules), to show
+        which rule is driving a low score.
+
+  dq_rule_results_by_file:
+    kind: data quality
+    description: Every data-quality rule scored separately for each source file and sheet, for finding which rule drives a low score.
+    key: [source_file, source_sheet, rule_id]
+    columns:
+      source_file: Excel file.
+      source_sheet: Sheet in that file.
+      rule_id: Rule code (links to dq_results).
+      dimension: The rule's dimension.
+      records_checked: Records in this sheet the rule applies to.
+      records_failed: Records in this sheet that broke it.
+      score: Percentage that passed (0 to 100).
+      critical_failures: Failures that quarantined a row.
+      warning_failures: Failures that sent a row to the review queue.
+      info_failures: Failures that are only counted.
 
   dq_dimension_scores:
     kind: data quality
@@ -232,7 +269,7 @@ tables:
 
   dq_by_field_officer:
     kind: data quality
-    description: One row per field officer (activity records and indicator reports), with their data-quality results.
+    description: One row per field officer (activity records, indicator reports and registers that carry an officer code), with their data-quality results.
     key: field_officer
     columns:
       field_officer: Officer code.
@@ -287,8 +324,9 @@ tables:
   dq_info_measures:
     kind: data quality
     description: Data-quality measures shown on the dashboard instead of rows to review (info-level flags).
-    key: metric
+    key: metric_id
     columns:
+      metric_id: Short code of the measure (defined once in config/dq_metrics.yaml).
       metric: What is measured, e.g. timeliness.
       percent: The measure (0 to 100).
       numerator: Records meeting the standard.
@@ -322,4 +360,5 @@ relationships:
   - [fact_indicator_result.location_id, dim_location.location_id]
   - [fact_indicator_result.period_date, dim_date.date]
   - [fact_opportunity.donor_key, dim_donor.donor_key]
+  - [dq_rule_results_by_file.rule_id, dq_results.rule_id]
   - [report_completeness.project_id, dim_project.project_id]

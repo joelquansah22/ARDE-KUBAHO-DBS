@@ -10,7 +10,7 @@ All sheets were read. None was skipped.
 
 ## 2. Overall data-quality score
 
-**Overall score: 96.1%** (the average of the six dimension scores below).
+**Overall score: 96.5%** (the average of the six dimension scores below).
 
 | dimension | score % | rules |
 |---|---|---|
@@ -18,29 +18,37 @@ All sheets were read. None was skipped.
 | validity | 99.5 | 3 |
 | consistency | 96.9 | 3 |
 | uniqueness | 97.6 | 2 |
-| timeliness | 86.5 | 1 |
+| timeliness | 88.8 | 1 |
 | accuracy | 99.2 | 1 |
+
+Rules pulling their dimension down the most (points taken off the dimension score):
+
+| rule_id | dimension | description | score | dimension_impact |
+|---|---|---|---|---|
+| TIM-01 | timeliness | Activities are entered within the allowed number of days (late_entry_days in settings) | 88.8 | 11.2 |
+| COM-03 | completeness | Every indicator result has a target | 92.2 | 1.9 |
+| CON-01 | consistency | Female + male = total participants, and women are not more than the total | 94.4 | 1.9 |
 
 ## 3. Rules
 
-Each rule's score is the percentage of the records it applies to that do not break it. Whether a failure quarantines a row, sends it for review or is only counted is shown in the last three columns.
+Each rule's score is the percentage of the records it applies to that do not break it. Rules marked with a measure use the single definition in `config/dq_metrics.yaml`, the same number shown in section 6. Whether a failure quarantines a row, sends it for review or is only counted is shown in the severity columns. Scores per source file are in the `dq_rule_results_by_file` table.
 
-| rule_id | dimension | description | records_checked | records_failed | score % | critical_failures | warning_failures | info_failures |
-|---|---|---|---|---|---|---|---|---|
-| COM-01 | completeness | Every sheet could be read (none skipped for unknown or missing columns) | 26 | 0 | 100.0 | 0 | 0 | 0 |
-| COM-02 | completeness | Required fields are filled in | 9556 | 117 | 98.8 | 117 | 0 | 0 |
-| COM-03 | completeness | Every indicator result has a target | 591 | 46 | 92.2 | 0 | 46 | 0 |
-| COM-04 | completeness | Expected monthly indicator reports were received | 417 | 16 | 96.2 | 0 | 0 | 16 |
-| VAL-01 | validity | Dates can be read and fall inside the project window | 9556 | 22 | 99.8 | 22 | 0 | 0 |
-| VAL-02 | validity | Codes are in the allowed lists (sex, status, district, village, project, activity, indicator, stage, donor) | 9581 | 17 | 99.8 | 14 | 3 | 0 |
-| VAL-03 | validity | Numbers are readable and possible (no negatives, percentages 0 to 100, plausible ages and household sizes) | 5081 | 53 | 99.0 | 53 | 0 | 0 |
-| CON-01 | consistency | Female + male = total participants, and women are not more than the total | 2894 | 162 | 94.4 | 38 | 124 | 0 |
-| CON-02 | consistency | The district belongs to the stated province | 4460 | 22 | 99.5 | 0 | 22 | 0 |
-| CON-03 | consistency | Status and dates agree (no "completed" activity done late; no entry before the activity) | 2894 | 96 | 96.7 | 21 | 75 | 0 |
-| UNI-01 | uniqueness | No activity row is entered twice | 2949 | 55 | 98.1 | 0 | 0 | 55 |
-| UNI-02 | uniqueness | No unresolved suspected duplicate beneficiaries (after fuzzy matching) | 1566 | 46 | 97.1 | 0 | 46 | 0 |
-| TIM-01 | timeliness | Activities are entered within the allowed number of days (late_entry_days in settings) | 2894 | 391 | 86.5 | 0 | 0 | 391 |
-| ACC-01 | accuracy | Reported actual is not more than 3 times the target (flagged for review) | 591 | 5 | 99.2 | 0 | 5 | 0 |
+| rule_id | dimension | description | records_checked | records_failed | score % | critical_failures | warning_failures | info_failures | dimension_impact |
+|---|---|---|---|---|---|---|---|---|---|
+| COM-01 | completeness | Every sheet could be read (none skipped for unknown or missing columns) | 26 | 0 | 100.0 | 0 | 0 | 0 | 0.0 |
+| COM-02 | completeness | Required fields are filled in | 9556 | 117 | 98.8 | 117 | 0 | 0 | 0.3 |
+| COM-03 | completeness | Every indicator result has a target | 591 | 46 | 92.2 | 0 | 46 | 0 | 1.9 |
+| COM-04 | completeness | Expected monthly indicator reports were received | 417 | 16 | 96.2 | 0 | 0 | 16 | 0.9 |
+| VAL-01 | validity | Dates can be read and fall inside the project window | 9556 | 22 | 99.8 | 22 | 0 | 0 | 0.1 |
+| VAL-02 | validity | Codes are in the allowed lists (sex, status, district, village, project, activity, indicator, stage, donor) | 9581 | 17 | 99.8 | 14 | 3 | 0 | 0.1 |
+| VAL-03 | validity | Numbers are readable and possible (no negatives, percentages 0 to 100, plausible ages and household sizes) | 5081 | 53 | 99.0 | 53 | 0 | 0 | 0.3 |
+| CON-01 | consistency | Female + male = total participants, and women are not more than the total | 2894 | 162 | 94.4 | 38 | 124 | 0 | 1.9 |
+| CON-02 | consistency | The district belongs to the stated province | 4460 | 22 | 99.5 | 0 | 22 | 0 | 0.2 |
+| CON-03 | consistency | Status and dates agree (no "completed" activity done late; no entry before the activity) | 2894 | 96 | 96.7 | 21 | 75 | 0 | 1.1 |
+| UNI-01 | uniqueness | No activity row is entered twice | 2949 | 55 | 98.1 | 0 | 0 | 55 | 1.0 |
+| UNI-02 | uniqueness | No unresolved suspected duplicate beneficiaries (after fuzzy matching) | 1566 | 46 | 97.1 | 0 | 46 | 0 | 1.5 |
+| TIM-01 | timeliness | Activities are entered within the allowed number of days (late_entry_days in settings) | 2493 | 280 | 88.8 | 0 | 0 | 280 | 11.2 |
+| ACC-01 | accuracy | Reported actual is not more than 3 times the target (flagged for review) | 591 | 5 | 99.2 | 0 | 5 | 0 | 0.8 |
 
 ## 4. Quarantined records
 
@@ -75,6 +83,8 @@ By kind of record:
 
 **287 rows** have warnings but no critical problem: they are used in results and listed in the `review_queue` table for the MEAL officer to check. Per month: average 7.9 rows, busiest month 16 (2024-03). At 2 minutes a row that is about 16 minutes a month on average; months over the 60-minute budget: 0.
 
+**People count:** 32 people have records pending a duplicate review, so the number of people reached may be slightly too high until that review is done.
+
 By reason:
 
 | reason | rows |
@@ -89,13 +99,16 @@ By reason:
 
 ## 6. Data-quality measures (no action needed on individual rows)
 
-| metric | % | numerator | denominator | note |
-|---|---|---|---|---|
-| Timeliness: activity records entered within 30 days | 88.8 | 2213 | 2493 | activities with an exact date and an entry date |
-| Activity dates with a known day | 90.3 | 2493 | 2760 | the rest were typed as a month only |
-| Activities whose on-time status can be checked | 74.1 | 2130 | 2876 | needs exact activity and planned dates |
-| National IDs typed as text (all 16 digits kept) | 81.9 | 1250 | 1527 | an ID stored as a number loses its last digit, which cannot be recovered |
-| Reporting completeness: expected monthly reports received | 96.2 | 401 | 417 | indicator CC-04 |
+Each is defined once, in `config/dq_metrics.yaml`.
+
+| metric_id | metric | % | numerator | denominator | note |
+|---|---|---|---|---|---|
+| timeliness | Timeliness: activity records entered within the allowed days | 88.8 | 2213 | 2493 | Activities that took place, with a known day and an entry date; entered within late_entry_days (settings). Activities whose day is unknown cannot be judged and are left out. |
+| reporting_completeness | Reporting completeness: expected monthly reports received | 96.2 | 401 | 417 | Every project, district and month for which an indicator report was due (indicator CC-04). |
+| dates_known_day | Activity dates with a known day | 90.3 | 2493 | 2760 | Activities with a date; the rest were typed as a month only. |
+| on_time_checkable | Activities whose on-time status can be checked | 74.1 | 2130 | 2876 | Needs exact activity and planned dates (coverage of indicator CC-02). |
+| ids_typed_as_text | National IDs typed as text (all 16 digits kept) | 81.9 | 1250 | 1527 | An ID stored as a number in Excel loses its last digit, which cannot be recovered. |
+| people_not_pending_duplicate_review | People with no duplicate check pending | 97.9 | 1477 | 1509 | People (unique beneficiary keys) whose records are not waiting for a duplicate review. The people count on the dashboard includes the others, so it may be slightly too high until the review is done. |
 
 ## 7. By source file
 
@@ -128,19 +141,23 @@ By reason:
 | SYNTHETIC_indicator_reports_WASH.xlsx | FY2024-25 | indicator_result |  | 80 | 1 | 5 | 74 | 92.5 | False |
 | SYNTHETIC_indicator_reports_WASH.xlsx | FY2025-26 | indicator_result |  | 82 | 2 | 5 | 75 | 91.5 | False |
 
-## 8. By field officer (activity records and indicator reports)
+## 8. By field officer
+
+Activity records, indicator reports and registers that carry an officer code.
 
 | field_officer | rows | rows_quarantined | rows_for_review | late_entries | score |
 |---|---|---|---|---|---|
-| FO01 | 1015 | 63 | 62 | 102 | 87.7 |
-| FO02 | 1145 | 52 | 86 | 122 | 87.9 |
-| FO03 | 571 | 29 | 37 | 63 | 88.4 |
-| FO04 | 754 | 28 | 53 | 104 | 89.3 |
+| FO01 | 1015 | 63 | 62 | 92 | 87.7 |
+| FO02 | 1145 | 52 | 86 | 96 | 87.9 |
+| FO03 | 571 | 29 | 37 | 55 | 88.4 |
+| FO04 | 754 | 28 | 53 | 64 | 89.3 |
 
 ## How the scores are worked out
 
 - Rule score = % of the records the rule applies to that do not break it (config/dq_rules.yaml).
+- A rule linked to a measure uses that measure's single definition (config/dq_metrics.yaml).
 - Dimension score = average of its rules. Overall score = average of the six dimensions.
+- Dimension impact = points a rule takes off its dimension score.
 - Source-file and officer scores = % of rows with no critical or warning problem.
 - Severity levels are set in config/settings.yaml (flag_severity).
 - The before/after comparison (raw files versus cleaned data) is added in Phase 7 (evaluate.py).

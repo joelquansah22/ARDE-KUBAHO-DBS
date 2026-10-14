@@ -1,0 +1,72 @@
+# =============================================================================
+# Data-quality measures: ONE definition each, used everywhere
+# =============================================================================
+# Every measure that appears in more than one place (data-quality rule scores,
+# the data-quality report, the dashboard, the scorecards) is defined here once.
+# validate.py works them out from these definitions; nothing else recalculates them.
+#
+# How a definition works:
+#   table        which cleaned table the records come from
+#   denominator  which records are measured (all conditions must be true)
+#   numerator    which of those meet the standard
+#   percent      = numerator / denominator x 100
+#
+# A condition is "column: test". Tests:
+#   notnull / null              the cell is filled in / empty
+#   true / false                a yes/no column
+#   [a, b, c]                   the value is one of these
+#   "<= setting:a.b"            the value is at most the number in settings.yaml at a: b:
+# =============================================================================
+
+metrics:
+  timeliness:
+    name: "Timeliness: activity records entered within the allowed days"
+    note: >-
+      Activities that took place, with a known day and an entry date; entered within late_entry_days (settings).
+      Activities whose day is unknown cannot be judged and are left out.
+    table: activity
+    denominator: {entry_lag_days: notnull, date_is_approximate: false}
+    numerator: {entry_lag_days: "<= setting:data_quality.late_entry_days"}
+    show_on_dashboard: true
+
+  reporting_completeness:
+    name: "Reporting completeness: expected monthly reports received"
+    note: Every project, district and month for which an indicator report was due (indicator CC-04).
+    table: report_completeness
+    denominator: {}
+    numerator: {submitted: true}
+    show_on_dashboard: true
+
+  dates_known_day:
+    name: Activity dates with a known day
+    note: Activities with a date; the rest were typed as a month only.
+    table: activity
+    denominator: {date: notnull}
+    numerator: {date_is_approximate: false}
+    show_on_dashboard: true
+
+  on_time_checkable:
+    name: Activities whose on-time status can be checked
+    note: Needs exact activity and planned dates (coverage of indicator CC-02).
+    table: activity
+    denominator: {status: [completed, delayed, cancelled]}
+    numerator: {on_time: notnull}
+    show_on_dashboard: true
+
+  ids_typed_as_text:
+    name: National IDs typed as text (all 16 digits kept)
+    note: An ID stored as a number in Excel loses its last digit, which cannot be recovered.
+    table: registration
+    denominator: {has_national_id: true}
+    numerator: {id_stored_as_text: true}
+    show_on_dashboard: true
+
+  people_not_pending_duplicate_review:
+    name: People with no duplicate check pending
+    note: >-
+      People (unique beneficiary keys) whose records are not waiting for a duplicate review. The people count on
+      the dashboard includes the others, so it may be slightly too high until the review is done.
+    table: people
+    denominator: {}
+    numerator: {pending_duplicate_review: false}
+    show_on_dashboard: true

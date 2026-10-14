@@ -60,6 +60,7 @@ templates:
         - {header: Village, required: true, type: text}
         - {header: Project, required: true, list: projects}
         - {header: Registration date, required: true, type: date}
+        - {header: Officer code, required: false, list: officers, note: "Optional: the field officer who registered this person"}
       Services:
         - {header: Reg No, required: true, type: text}
         - {header: Activity, required: true, list: activities}

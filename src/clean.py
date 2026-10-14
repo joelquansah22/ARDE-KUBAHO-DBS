@@ -547,7 +547,7 @@ class Cleaner:
                 planned_date_is_approximate=planned.approx, entry_date=entry.value, status=status,
                 participants_female=female, participants_male=male, participants_total=total, cost_rwf=cost,
                 entry_lag_days=(entry.value - date.value).days if entry.value and date.value else None,
-                on_time=on_time, field_officer=(norm_text(rec.get("officer")) or "").upper() or None,
+                on_time=on_time, officer_code=(norm_text(rec.get("officer")) or "").upper() or None,
                 entered_by=rec.get("entered_by")))
         return pd.DataFrame(out)
 
@@ -602,6 +602,7 @@ class Cleaner:
                 district=district, location_id=loc["location_id"], sector=loc["sector"], cell=loc["cell"],
                 village=loc["village"], project_id=project_id, registration_date=reg_date.value,
                 registration_date_is_approximate=reg_date.approx,
+                officer_code=(norm_text(rec.get("officer")) or "").upper() or None,
                 has_national_id=rec.get("has_national_id") == "True",
                 id_stored_as_text=rec.get("id_stored_as_text") == "True"))
         return pd.DataFrame(out)
@@ -658,6 +659,7 @@ class Cleaner:
                 indicator_code=code, project_id=project_id, district=district, period=period.value,
                 sex=sex, disaggregation_key=f"sex={sex}" if sex else "total", target_value=target,
                 actual_value=actual, entered_by=norm_text(rec.get("entered_by")),
+                officer_code=(norm_text(rec.get("entered_by")) or "").upper() or None,
                 comment=norm_text(rec.get("comment"))))
         return pd.DataFrame(out)
 
@@ -794,34 +796,6 @@ def row_status(tables: dict, issues: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def info_metrics(tables: dict, issues: pd.DataFrame, settings: dict) -> pd.DataFrame:
-    """Data-quality measures shown on the dashboard instead of rows to review."""
-    acts, regs = tables["activity"], tables["registration"]
-    late = settings["data_quality"]["late_entry_days"]
-    rows = []
-
-    def add(metric, num, den, note):
-        rows.append(dict(metric=metric, numerator=int(num), denominator=int(den),
-                         percent=round(100 * num / den, 1) if den else None, note=note))
-
-    timed = acts[acts["entry_lag_days"].notna() & ~acts["date_is_approximate"].astype(bool)]
-    add(f"Timeliness: activity records entered within {late} days", (timed["entry_lag_days"] <= late).sum(),
-        len(timed), "activities with an exact date and an entry date")
-    dated = acts[acts["date"].notna()]
-    add("Activity dates with a known day", (~dated["date_is_approximate"].astype(bool)).sum(), len(dated),
-        "the rest were typed as a month only")
-    judged = acts[acts["status"].isin(["completed", "delayed", "cancelled"])]
-    add("Activities whose on-time status can be checked", judged["on_time"].notna().sum(), len(judged),
-        "needs exact activity and planned dates")
-    with_id = regs[regs["has_national_id"].astype(bool)]
-    add("National IDs typed as text (all 16 digits kept)", with_id["id_stored_as_text"].astype(bool).sum(),
-        len(with_id), "an ID stored as a number loses its last digit, which cannot be recovered")
-    rc = tables["report_completeness"]
-    add("Reporting completeness: expected monthly reports received", rc["submitted"].sum(), len(rc),
-        "indicator CC-04")
-    return pd.DataFrame(rows)
-
-
 def run(staging=None) -> dict:
     """Clean every staged table. Returns the cleaned tables (used by tests and scoring)."""
     staging = staging or resolve_path("staging")
@@ -848,7 +822,6 @@ def run(staging=None) -> dict:
     issues = assign_severity(pd.concat([ingest_issues, cleaner.log.frame()], ignore_index=True), cleaner.s)
     tables["issues"] = issues
     tables["row_status"] = row_status(tables, issues)
-    tables["dq_info_metrics"] = info_metrics(tables, issues, cleaner.s)
     for name, df in tables.items():
         df.to_parquet(staging / (f"clean_{name}.parquet" if name != "issues" else "issues.parquet"), index=False)
     return tables

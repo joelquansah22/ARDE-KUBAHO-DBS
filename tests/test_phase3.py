@@ -114,10 +114,79 @@ def test_review_rows_are_not_quarantined(built):
     assert not positions(built["dq"]["review_queue"]) & positions(built["dq"]["quarantine"])
 
 
-def test_missing_target_rows_are_kept_with_a_quality_flag(built):
+def test_missing_target_rows_are_kept_with_a_warning_flag(built):
     f = built["tables"]["fact_indicator_result"]
     no_target = f[f["target_value"].isna()]
-    assert len(no_target) > 0 and no_target["quality_flag"].str.contains("no target set").all()
+    assert len(no_target) > 0 and (no_target["quality_flag"] == "warning").all()
+
+
+# ---------------------------------------------------------------- Phase 3 follow-up changes
+def test_quality_flag_is_the_worst_kept_severity(built):
+    for name in ("fact_activity", "fact_indicator_result"):
+        assert set(built["tables"][name]["quality_flag"]) <= {"ok", "info", "warning"}, name
+    issues = pd.read_parquet(built["staging"] / "issues.parquet")
+    warned = positions(issues[issues["severity"] == "warning"])
+    acts = built["tables"]["fact_activity"]
+    flagged = positions(acts[acts["quality_flag"] == "warning"])
+    assert flagged == warned & positions(acts)
+
+
+def test_officer_code_is_carried_into_the_facts(built):
+    assert built["tables"]["fact_activity"]["officer_code"].notna().all()
+    assert built["tables"]["fact_indicator_result"]["officer_code"].str.fullmatch(r"FO[0-9]{2}").all()
+
+
+def test_each_fact_links_to_one_location_level(built):
+    loc = built["tables"]["dim_location"].set_index("location_id")["location_level"]
+    assert set(built["tables"]["fact_activity"]["location_id"].map(loc)) == {"village"}
+    assert set(built["tables"]["fact_indicator_result"]["location_id"].map(loc)) == {"district"}
+
+
+def test_district_totals_never_add_district_rows_to_their_villages(built):
+    # Summing through the warehouse by district must equal summing the cleaned rows by district:
+    # if district-level rows were added to village rows, the warehouse total would be too high.
+    con = duckdb.connect(str(built["db"]), read_only=True)
+    via_model = con.execute("""
+        SELECT l.district, SUM(f.participants_total) AS total
+        FROM fact_activity f JOIN dim_location l USING (location_id) GROUP BY 1""").df().set_index("district")["total"]
+    con.close()
+    acts = built["tables"]["fact_activity"].merge(built["tables"]["dim_location"], on="location_id")
+    direct = acts.groupby("district")["participants_total"].sum()
+    assert via_model.sort_index().astype(int).equals(direct.sort_index().astype(int))
+    assert (acts["location_level"] == "village").all()
+
+
+def test_model_rejects_a_fact_linked_to_the_wrong_location_level(built):
+    tables = {k: v.copy() for k, v in built["tables"].items()}
+    tables["fact_activity"].loc[tables["fact_activity"].index[0], "location_id"] = "DIST-Huye"
+    problems = model.ModelBuilder(built["staging"]).check(tables)
+    assert any("location level" in p for p in problems)
+
+
+def test_people_pending_duplicate_review_are_counted(built):
+    people = built["tables"]["dim_beneficiary"]
+    measures = built["tables"]["dq_info_measures"].set_index("metric_id")
+    pending = int(people["pending_duplicate_review"].sum())
+    assert pending > 0
+    assert measures.loc["people_not_pending_duplicate_review", "denominator"] == len(people)
+    assert measures.loc["people_not_pending_duplicate_review", "numerator"] == len(people) - pending
+
+
+def test_each_measure_has_one_value_everywhere(built):
+    rules = built["tables"]["dq_results"].set_index("rule_id")
+    measures = built["tables"]["dq_info_measures"].set_index("metric_id")
+    assert rules.loc["TIM-01", "score"] == measures.loc["timeliness", "percent"]
+    assert rules.loc["COM-04", "score"] == measures.loc["reporting_completeness", "percent"]
+    report = (built["docs"] / "data_quality_report.md").read_text(encoding="utf-8")
+    assert report.count(f"| {measures.loc['timeliness', 'percent']} |") >= 1
+
+
+def test_rule_results_by_file_add_up_to_the_overall_results(built):
+    overall = built["tables"]["dq_results"].set_index("rule_id")
+    by_file = built["tables"]["dq_rule_results_by_file"].groupby("rule_id")[["records_checked", "records_failed"]].sum()
+    for rule in ("COM-02", "CON-01", "VAL-03", "TIM-01"):
+        assert by_file.loc[rule, "records_failed"] == overall.loc[rule, "records_failed"], rule
+        assert by_file.loc[rule, "records_checked"] == overall.loc[rule, "records_checked"], rule
 
 
 # ---------------------------------------------------------------- the star schema

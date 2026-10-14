@@ -296,6 +296,17 @@ Neither changed the cleaner. Both changed only how the scorer judges a cell, and
 | D108 | `python src/pipeline.py` runs ingest, clean, validate and model in one command: **15.5 seconds** on the main set (target under 60). | Brief Phase 3. |
 | D109 | Main-set results: overall data-quality score **96.1%** (completeness 96.8, validity 99.5, consistency 96.9, uniqueness 97.6, timeliness 86.5, accuracy 99.2); **240 rows quarantined** (167 activities, 64 registrations, 5 indicator results, 4 opportunities); **287 rows in the review queue**; no sheets skipped. Warehouse: 2,727 activity facts, 4,475 service facts, 586 indicator results, 26 opportunities, 1,509 people. | Recorded for the report. |
 
+## Phase 3 follow-up (2026-10-14)
+
+| # | Decision | Reason |
+|---|---|---|
+| D110 | **Data-model additions (approved):** `officer_code` on `fact_activity` and `fact_indicator_result` (where the source gives it); `quality_flag` on both facts with one scheme, the worst severity left on a kept row: `ok`, `info` or `warning` (critical rows are in quarantine); `location_level` (`village` / `district`) on `dim_location`. Also `on_time` on `fact_activity` (true / false / empty when it cannot be checked), needed for the coverage of indicator CC-02 in Phase 4. The words that used to be in `fact_indicator_result.quality_flag` (e.g. "no target set") now come from the indicator calculation itself (a missing target) and the review queue. | Team decision. |
+| D111 | **No sums across location levels:** each fact table declares its level in `config/data_dictionary.yaml` (`fact_activity` = village, `fact_indicator_result` = district) and the model refuses to save if a fact links to another level. A test checks that district totals through the warehouse equal the totals of the cleaned rows. | Team instruction. A district row added to its own villages would double the district total. |
+| D112 | The beneficiary register template has an optional **Officer code** column (dropdown of officer codes); `source_mappings.yaml` reads it, and data quality by officer then includes registers. | Team instruction (D99). Partner question added. |
+| D113 | **Why 1,509 people, not 1,500:** nine real people have two registrations whose names match but which have no phone or ID to confirm it. Under D71 such pairs are never merged, so each of the nine counts twice (9 extra keys). All 18 of their registrations are in the review queue; no key holds two different people. **32 people** have at least one registration pending duplicate review. This is stored as `dim_beneficiary.pending_duplicate_review` and as the measure "People with no duplicate check pending" (97.9%), so the dashboard can show "includes 32 people pending duplicate review". | Team instruction. |
+| D114 | **One definition per measure:** `config/dq_metrics.yaml` defines each data-quality measure once (which records are measured, which meet the standard), and `validate.py` is the only place that calculates them. Rules that are measures (TIM-01 timeliness, COM-04 reporting completeness) take their score from it; the report, the dashboard tables and the scorer all read the same numbers. Timeliness was 86.5% as a rule (late or possibly-late entries out of all 2,894 activities) and 88.8% as a measure (late entries out of the 2,493 activities that took place on a known day). **The single definition is the second**: an activity whose day is unknown cannot be judged late or on time, so it is left out of the denominator. The overall score moves from 96.1% to 96.5% as a result. Also checked: reporting completeness (96.2% in both places, now one calculation); the monthly review-queue figure (the scorer now uses `validate.review_queue_monthly`). | Team instruction. |
+| D115 | **Rule-level detail for the dashboard:** `dq_results` gains `dimension_impact` (points a rule takes off its dimension score), and a new table `dq_rule_results_by_file` scores every rule for every source sheet, with counts. | Team instruction: show which rule drives a low score. On the main set, TIM-01 (timeliness) takes 11.2 points off its dimension; the next is COM-03 (missing targets), 1.9 points. |
+
 ## Open items to confirm with ARDE/KUBAHO and supervisors (brief Section 15)
 
 These do not block the prototype.
@@ -315,6 +326,6 @@ These do not block the prototype.
 - [ ] Old district names and their candidate districts (D72, config/district_legacy_map.yaml)
 - [ ] **Partner question:** do staff ever write dates month first ("Mar 12, 2024")? They are not read until confirmed (D69, D82, D88)
 - [ ] Minutes per review-queue row, checked with the MEAL officer (D60)
-- [ ] Whether beneficiary registers can carry a field-officer code (D99)
+- [ ] **Partner question:** can registers carry an officer code? An optional column is now in the template (D99, D112)
 - [ ] Reporting schedule for indicator reports (D25)
 - [ ] USD to RWF exchange rate to use in reports (`currency.usd_to_rwf`, now 1,450)

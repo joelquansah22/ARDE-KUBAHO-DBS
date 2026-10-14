@@ -25,13 +25,14 @@ No table holds names, phone numbers or national ID numbers. People and donors ar
 | `fact_indicator_result` | fact | 586 | source_file, source_sheet, source_row | One row per indicator value reported in the monthly indicator reports (per project, district, month and, where relevant, sex). Rows that broke a critical rule are in the quarantine table instead. |
 | `fact_opportunity` | fact | 26 | opportunity_id | One row per funding opportunity in the donor tracker. |
 | `dq_results` | data quality | 14 | rule_id | One row per data-quality rule (config/dq_rules.yaml), with how many records it checked and how many broke it. |
+| `dq_rule_results_by_file` | data quality | 183 | source_file, source_sheet, rule_id | Every data-quality rule scored separately for each source file and sheet, for finding which rule drives a low score. |
 | `dq_dimension_scores` | data quality | 7 | dimension | One row per data-quality dimension, plus an "overall" row (the average of the six). |
 | `dq_by_source_file` | data quality | 26 | source_file, source_sheet | One row per Excel file and sheet read, with how many of its rows had problems. |
-| `dq_by_field_officer` | data quality | 4 | field_officer | One row per field officer (activity records and indicator reports), with their data-quality results. |
+| `dq_by_field_officer` | data quality | 4 | field_officer | One row per field officer (activity records, indicator reports and registers that carry an officer code), with their data-quality results. |
 | `quarantine` | data quality | 240 | source_file, source_sheet, source_row | Every row that broke a critical rule, with the reasons. These rows are kept here, not in the fact tables, until the source Excel file is corrected and the pipeline is run again. |
 | `review_queue` | data quality | 287 | source_file, source_sheet, source_row | Every row with warnings (and no critical problem). The row is used in results, but a person should check it. |
 | `skipped_sheets` | data quality | 0 | source_file, source_sheet | Every sheet the pipeline could not read, with the reason and the column headers it did not recognise. |
-| `dq_info_measures` | data quality | 5 | metric | Data-quality measures shown on the dashboard instead of rows to review (info-level flags). |
+| `dq_info_measures` | data quality | 6 | metric_id | Data-quality measures shown on the dashboard instead of rows to review (info-level flags). |
 | `report_completeness` | data quality | 417 | project_id, district, period | One row per monthly indicator report that was due, and whether it arrived. |
 
 ## How the tables link
@@ -53,6 +54,7 @@ No table holds names, phone numbers or national ID numbers. People and donors ar
 | `fact_indicator_result.location_id` | `dim_location.location_id` |
 | `fact_indicator_result.period_date` | `dim_date.date` |
 | `fact_opportunity.donor_key` | `dim_donor.donor_key` |
+| `dq_rule_results_by_file.rule_id` | `dq_results.rule_id` |
 | `report_completeness.project_id` | `dim_project.project_id` |
 
 ## `dim_programme`
@@ -113,6 +115,7 @@ Rows: 152. Key: location_id.
 | `sector` | VARCHAR | Sector (empty for a district row). |
 | `cell` | VARCHAR | Cell (empty for a district row). |
 | `village` | VARCHAR | Village (empty for a district row). |
+| `location_level` | VARCHAR | village or district. Each fact table links to one level only (fact_activity to villages, fact_indicator_result to districts), so never add up rows of different levels; group by the district column instead. |
 
 ## `dim_indicator`
 
@@ -161,6 +164,7 @@ Rows: 1,509. Key: beneficiary_key.
 | `household_size` | BIGINT | Number of people in the household. |
 | `disability_flag` | BOOLEAN | True if the person reported a disability. |
 | `location_id` | VARCHAR | Village where the person registered (links to dim_location). |
+| `pending_duplicate_review` | BOOLEAN | True if any of this person's records is waiting for a duplicate review. A people count includes these, so it may be slightly too high until the review is done ("includes N people pending duplicate review"). |
 
 ## `dim_donor`
 
@@ -194,6 +198,9 @@ Rows: 2,727. Key: source_file, source_sheet, source_row.
 | `planned_date` | DATE | Day it was planned for. |
 | `entry_date` | DATE | Day it was typed into Excel. |
 | `status` | VARCHAR | planned, completed, delayed or cancelled. |
+| `on_time` | BOOLEAN | True if completed within the allowed days of its planned date (on_time_tolerance_days in settings), False if delayed, cancelled or completed late, empty if it cannot be checked (planned, or only the month is known). |
+| `officer_code` | VARCHAR | Code of the field officer who ran the activity, where the source file gives it. |
+| `quality_flag` | VARCHAR | ok, or the worst problem left on this kept row: info (only counted) or warning (in the review queue). Rows with a critical problem are in the quarantine table, not here. |
 | `source_file` | VARCHAR | Excel file the row came from. |
 | `source_sheet` | VARCHAR | Sheet in that file. |
 | `source_row` | BIGINT | Row number in that sheet, as shown in Excel. |
@@ -232,8 +239,9 @@ Rows: 586. Key: source_file, source_sheet, source_row.
 | `source_file` | VARCHAR | Excel file the row came from. |
 | `source_sheet` | VARCHAR | Sheet in that file. |
 | `source_row` | BIGINT | Row number in that sheet, as shown in Excel. |
-| `entered_by` | VARCHAR | Officer code of the person who reported it. |
-| `quality_flag` | VARCHAR | ok, or the warnings on the row (e.g. "no target set; actual more than 3 x target"). |
+| `entered_by` | VARCHAR | Officer code of the person who reported it, as written. |
+| `officer_code` | VARCHAR | The same officer code, standardised (capital letters). |
+| `quality_flag` | VARCHAR | ok, or the worst problem left on this kept row: info (only counted) or warning (in the review queue, e.g. no target set, or actual more than 3 x target). Rows with a critical problem are in the quarantine table. |
 
 ## `fact_opportunity`
 
@@ -276,6 +284,26 @@ Rows: 14. Key: rule_id.
 | `critical_failures` | BIGINT | Failures that quarantined a row. |
 | `warning_failures` | BIGINT | Failures that sent a row to the review queue. |
 | `info_failures` | BIGINT | Failures that are only counted. |
+| `dimension_impact` | DOUBLE | Points this rule takes off its dimension score (the dimension score is the average of its rules), to show which rule is driving a low score. |
+
+## `dq_rule_results_by_file`
+
+Every data-quality rule scored separately for each source file and sheet, for finding which rule drives a low score.
+
+Rows: 183. Key: source_file, source_sheet, rule_id.
+
+| Column | Type | Description |
+|---|---|---|
+| `source_file` | VARCHAR | Excel file. |
+| `source_sheet` | VARCHAR | Sheet in that file. |
+| `rule_id` | VARCHAR | Rule code (links to dq_results). |
+| `dimension` | VARCHAR | The rule's dimension. |
+| `records_checked` | BIGINT | Records in this sheet the rule applies to. |
+| `records_failed` | BIGINT | Records in this sheet that broke it. |
+| `score` | DOUBLE | Percentage that passed (0 to 100). |
+| `critical_failures` | BIGINT | Failures that quarantined a row. |
+| `warning_failures` | BIGINT | Failures that sent a row to the review queue. |
+| `info_failures` | BIGINT | Failures that are only counted. |
 
 ## `dq_dimension_scores`
 
@@ -310,7 +338,7 @@ Rows: 26. Key: source_file, source_sheet.
 
 ## `dq_by_field_officer`
 
-One row per field officer (activity records and indicator reports), with their data-quality results.
+One row per field officer (activity records, indicator reports and registers that carry an officer code), with their data-quality results.
 
 Rows: 4. Key: field_officer.
 
@@ -365,21 +393,22 @@ Rows: 0. Key: source_file, source_sheet.
 
 | Column | Type | Description |
 |---|---|---|
-| `source_file` | INTEGER | Excel file. |
-| `source_sheet` | INTEGER | Sheet in that file. |
-| `entity` | INTEGER | Kind of record the sheet should hold. |
-| `reason` | INTEGER | Why it was skipped. |
-| `missing_required` | INTEGER | Required fields that were not found. |
-| `headers_found` | INTEGER | Column headers that were not recognised. |
+| `source_file` | VARCHAR | Excel file. |
+| `source_sheet` | VARCHAR | Sheet in that file. |
+| `entity` | VARCHAR | Kind of record the sheet should hold. |
+| `reason` | VARCHAR | Why it was skipped. |
+| `missing_required` | VARCHAR | Required fields that were not found. |
+| `headers_found` | VARCHAR | Column headers that were not recognised. |
 
 ## `dq_info_measures`
 
 Data-quality measures shown on the dashboard instead of rows to review (info-level flags).
 
-Rows: 5. Key: metric.
+Rows: 6. Key: metric_id.
 
 | Column | Type | Description |
 |---|---|---|
+| `metric_id` | VARCHAR | Short code of the measure (defined once in config/dq_metrics.yaml). |
 | `metric` | VARCHAR | What is measured, e.g. timeliness. |
 | `percent` | DOUBLE | The measure (0 to 100). |
 | `numerator` | BIGINT | Records meeting the standard. |
