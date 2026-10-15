@@ -11,7 +11,7 @@ f = ui.filters()
 run = ui.query
 cat = ui.catalogue()
 quarter, q_start, q_end = ui.current_quarter()
-st.title("Executive summary")
+ui.page_header("Executive summary", "home")
 sub, help_ = st.columns([3, 1], vertical_alignment="center")
 sub.markdown(f"<div class='muted'>{quarter} ({q_start:%d %b} to {q_end:%d %b %Y}) · {f.scope_text} · "
              f"data as of {ui.as_of():%d %B %Y}</div>", unsafe_allow_html=True)
@@ -44,7 +44,7 @@ with c1:
         st.markdown("<div class='small'>No indicator is off track or at risk this quarter.</div>", unsafe_allow_html=True)
     budgets = measures.budget_status(run, f.project_ids, ui.as_of(), ui.SETTINGS)
     for r in budgets[budgets["status"] == "over budget"].itertuples():
-        st.markdown(f"<div class='small' style='color:#9a6700'><b>▲ {r.project_id} {r.name}: {r.message}</b> "
+        st.markdown(f"<div class='small' style='color:{ui.WARNING}'><b>▲ {r.project_id} {r.name}: {r.message}</b> "
                     "(activity costs to date)</div>", unsafe_allow_html=True)
     st.page_link("pages/2_Indicators.py", label="See all indicators →", icon="🎯")
 

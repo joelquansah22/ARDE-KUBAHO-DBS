@@ -29,14 +29,20 @@ files:
   - pattern: "*donor_opportunity*.xlsx"
     sheets: {Donors: donor, Opportunities: opportunity}
 
+# Columns that are known and deliberately NOT read, so they are not reported as unrecognised:
+# KoboToolbox adds these to every export (time stamps, submission IDs, status).
+ignore_columns: [start, end, __version__, _id, _uuid, _submission_time, _validation_status, _notes, _status,
+                 _submitted_by, _tags, _index, meta/instanceID, meta/rootUuid, deviceid, username,
+                 entry_date]   # entry_date: the day an indicator report form was filled in (not used)
+
 # For each kind of record: the standard field names and every column header
 # that means that field. Reference sheets (ref_*) use their own column names as-is.
 fields:
   activity:
     row_no: ["No.", "No"]
     date: [Date, Activity date, "Itariki y'igikorwa", Date of activity]
-    planned_date: [Planned date, Planned for, Planned]
-    entry_date: [Date entered, Entry date, Reported on, Digitised on]
+    planned_date: [Planned date, Planned for, Planned, planned_date]           # planned_date: KoboToolbox
+    entry_date: [Date entered, Entry date, Reported on, Digitised on, entry_date, today]   # KoboToolbox: the day the form was filled in
     project: [Project, Project code, Project name, Umushinga]
     activity: [Activity, Activity name, Igikorwa]
     province: [Province, Intara]
@@ -50,7 +56,7 @@ fields:
     total: [Total, Total participants, Bose, Participants]
     cost: [Cost, Cost (RWF), Cost RWF, Amafaranga (RWF), Amafaranga]
     officer: [Officer, Entered by, FO, Field officer]
-    notes: [Notes, Comments]
+    notes: [Notes, Comments, comment]
 
   registration:
     reg_no: [Reg No, Reg. No., "No", ID, Form No.]
@@ -87,7 +93,7 @@ fields:
     sex: [Sex, Gender]
     target: [Target, Monthly target]
     actual: [Actual, Achieved, Result]
-    entered_by: [Reported by, Entered by]
+    entered_by: [Reported by, Entered by, Officer, officer]
     comment: [Comments, Comment, Notes]
 
   donor:

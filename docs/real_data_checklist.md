@@ -45,7 +45,8 @@ The salt makes the coded keys for people. The salt used with the synthetic data 
 
 - [ ] Delete everything in `data/raw/`, `data/staging/`, `data/warehouse/`, `data/exports/` (including
       `data/exports/donor_reports/`) and `data/ground_truth/`. The held-out folders (`data/holdout*`, `data/final_holdout`)
-      are only needed in the demo copy: delete them here.
+      are only needed in the demo copy: delete them here. Also delete `data/app/entries.db` (donor entries made during
+      demonstrations) and `data/kobo_test/` (synthetic Kobo exports).
 - [ ] In a command window in the project folder: `dir /s /b SYNTHETIC_*`. It must list **nothing** (no `.xlsx`,
       `.csv`, `.parquet` or `.pdf` file whose name starts with `SYNTHETIC_`).
 - [ ] The pipeline double-checks: with `synthetic_mode: false` it **stops** if any `SYNTHETIC_` file is in `data/raw/`,
@@ -83,6 +84,9 @@ activity_type`; `location_id, province, district, sector, cell, village`; `offic
 | `config/indicator_catalogue.yaml` | The indicator list itself, as agreed at the co-design session (names exactly as typed in the monthly reports) | [ ] |
 | `config/templates.yaml` | `projects`, `activities`, `officers` lists: replace `{from: synthetic_...}` with the real lists, then `python src/build_templates.py --force` | [ ] |
 | `config/district_legacy_map.yaml` | Old names confirmed with the field officers | [ ] |
+| `config/staff.yaml` | ARDE/KUBAHO's real staff codes for the Donor entry page | [ ] |
+| `forms/` | After the first real run: `python src/build_kobo_forms.py`, then upload the forms to ARDE/KUBAHO's own KoboToolbox account (`docs/kobo_guide.md`) | [ ] |
+| `config/theme.yaml` | Brand colours and logo confirmed with ARDE/KUBAHO | [ ] |
 | `config/settings.yaml` | `sex_mapping`, `activity_status_mapping`: any new spellings staff use | [ ] |
 | `config/settings.yaml` | Month-first dates: whether staff write `Mar 12, 2024` (partner question) | [ ] |
 

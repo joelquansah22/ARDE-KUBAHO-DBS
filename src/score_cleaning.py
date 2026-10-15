@@ -959,6 +959,97 @@ def final_round() -> Path:
     return out
 
 
+# ======================================================================================
+# KoboToolbox exports (the import adapter)
+# ======================================================================================
+KOBO_FIELDS = {
+    "activity": ["date", "planned_date", "entry_date", "project_id", "activity_id", "district", "village", "status",
+                 "participants_female", "participants_male", "participants_total", "cost_rwf"],
+    "indicator_result": ["project_id", "district", "period", "indicator_code", "sex", "target_value", "actual_value"],
+}
+
+
+def _same(a, b) -> bool:
+    blank = lambda v: v is None or (isinstance(v, float) and math.isnan(v)) or v == ""
+    if blank(a) or blank(b):
+        return blank(a) and blank(b)
+    try:
+        return abs(float(a) - float(b)) < 1e-6
+    except (TypeError, ValueError):
+        return str(a)[:10].casefold() == str(b)[:10].casefold()
+
+
+def score_kobo() -> dict:
+    """Run the pipeline on the Kobo test set and compare every cleaned cell from the two Kobo exports with the truth."""
+    import generate_kobo_exports as gk
+    root = resolve_path("kobo_test")
+    if not (root / "raw" / gk.ACTIVITY_FILE).exists():
+        gk.generate()
+    staging = root / "staging"
+    run = run_pipeline_on(root / "raw", staging, ())
+    status = pd.read_parquet(staging / "clean_row_status.parquet")
+    issues = pd.read_parquet(staging / "issues.parquet")
+    out = {"crash": run["crash"], "skipped": len(run["skipped"]), "files": {}}
+    for entity, truth_name, file_name in (("activity", "activities", gk.ACTIVITY_FILE),
+                                          ("indicator_result", "indicator_results", gk.INDICATOR_FILE)):
+        truth = pd.read_csv(root / "ground_truth" / f"SYNTHETIC_kobo_truth_{truth_name}.csv")
+        clean = pd.read_parquet(staging / f"clean_{entity}.parquet")
+        clean = clean[clean["source_file"] == file_name].set_index("source_row")
+        fields = KOBO_FIELDS[entity]
+        dups = truth[truth["duplicate_of_row"].notna()] if "duplicate_of_row" in truth else truth.iloc[0:0]
+        keep = truth[~truth.index.isin(dups.index)]
+        compared = correct = 0
+        wrong = []
+        for r in keep.itertuples():
+            row = clean.loc[r.source_row] if r.source_row in clean.index else None
+            for f in fields:
+                compared += 1
+                got = None if row is None else row.get(f)
+                if _same(got, getattr(r, f)):
+                    correct += 1
+                else:
+                    wrong.append(dict(row=r.source_row, field=f, true=getattr(r, f), cleaned=got))
+        removed = set(issues.loc[(issues["source_file"] == file_name) & (issues["issue_code"] == "exact_duplicate_row"),
+                                 "source_row"].astype(int))
+        st = status[status["source_file"] == file_name]
+        blank_costs = keep[keep.get("injected", pd.Series("", index=keep.index)).fillna("") != ""] \
+            if "injected" in keep else keep.iloc[0:0]
+        out["files"][file_name] = dict(
+            entity=entity, rows=len(truth), duplicates=len(dups), duplicates_removed=len(set(dups["source_row"]) & removed),
+            rows_kept=int(len(clean)), cells=compared, cells_correct=correct,
+            pct_correct=round(100 * correct / compared, 2) if compared else None,
+            blank_costs=len(blank_costs),
+            blank_costs_kept_blank=sum(1 for r in blank_costs.itertuples()
+                                       if r.source_row in clean.index and _same(clean.loc[r.source_row, "cost_rwf"], None)),
+            quarantined=int((st["status"] == "quarantine").sum()), to_review=int((st["status"] == "review").sum()),
+            review_reasons=", ".join(sorted({c for x in st["warning_codes"].dropna() for c in str(x).split(", ") if c})),
+            wrong=pd.DataFrame(wrong))
+    return out
+
+
+def kobo_lines(k: dict) -> list[str]:
+    lines = ["## KoboToolbox exports (import adapter)", "",
+             "A test set where two sources come from KoboToolbox instead of Excel (`src/generate_kobo_exports.py`, D190): "
+             "FO01's activities as an export with **XML values and headers**, and the WASH indicator reports as an export "
+             "with **labels**. They are made from the main set's true records, with what a Kobo form cannot prevent "
+             "injected: the same form submitted twice, and the optional cost left blank. Read with the production "
+             "configuration (no overlay).", "",
+             f"Sheets skipped: {k['skipped']}. Crash: {'YES' if k['crash'] else 'no'}.", "",
+             "| Export | Rows | Repeated submissions removed | Cells compared | Cells correct | Optional costs left blank, kept blank | Quarantined | To review (why) |",
+             "|---|---|---|---|---|---|---|---|"]
+    for name, f in k["files"].items():
+        lines.append(f"| {name} | {f['rows']} | {f['duplicates_removed']} of {f['duplicates']} | {f['cells']:,} | "
+                     f"{f['cells_correct']:,} ({f['pct_correct']}%) | "
+                     f"{f['blank_costs_kept_blank']} of {f['blank_costs']} | {f['quarantined']} | "
+                     f"{f['to_review']} ({f['review_reasons'] or '-'}) |")
+    wrong = [f["wrong"].assign(file=n) for n, f in k["files"].items() if len(f["wrong"])]
+    if wrong:
+        lines += ["", "Cells not matching the truth:", "", md_table(pd.concat(wrong).head(30))]
+    lines += ["", "Rows to review in the Kobo exports are real data points (late entries and results above three times "
+              "the target are in the true data), not reading errors.", ""]
+    return lines
+
+
 def held_out_rounds_lines() -> list[str]:
     """How to read the two held-out figures (team instruction before Phase 8): never quote the final round alone."""
     final = ""
@@ -1059,6 +1150,8 @@ def main(argv: list[str] | None = None):
         lines += ["#" + l if l.startswith("## ") or l.startswith("### ") else l for l in queue]
     if results[0].get("reconciliation"):
         lines += reconciliation_lines(results[0]["reconciliation"])
+    if not args.all:
+        lines += kobo_lines(score_kobo())
     lines += post_result_changes_lines()
     for r in results[1:]:
         if r.get("reconciliation"):

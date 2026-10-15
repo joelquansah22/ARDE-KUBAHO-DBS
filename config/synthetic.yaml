@@ -180,6 +180,16 @@ calibration:
   activity_cost_scale: {PRJ01: 0.50, PRJ02: 0.33, PRJ03: 0.87, PRJ04: 0.40, PRJ05: 0.43}
   service_window_days: 365
 
+# -----------------------------------------------------------------------------
+# KoboToolbox test exports (src/generate_kobo_exports.py; testing only, D190).
+# What a Kobo form cannot prevent, injected at these rates into the exports made
+# from the true records.
+# -----------------------------------------------------------------------------
+kobo:
+  seed: 3407
+  duplicate_submission_rate: 0.03   # the same form sent twice (new submission ID, same answers)
+  optional_cost_blank_rate: 0.04    # the optional cost question skipped
+
 reconciliation_scenario:
   indicators:
     WASH-01: {truth: activity_participants, activity_ids: [ACT01], statuses: [completed, delayed]}

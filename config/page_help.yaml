@@ -2,7 +2,17 @@
 # "How to read this page": the short guide shown (collapsed) at the top of each
 # dashboard page. Plain British English, for programme staff. Edit freely: the
 # dashboard reads this file every time a page opens. One entry per page.
+# "summaries" is the one line under each page title: the question the page answers.
 # =============================================================================
+
+summaries:
+  home: "Are we on track this quarter, can we trust the numbers, and what funding is coming up?"
+  overview: "How many people and activities, how much spent, and how each project compares with its targets."
+  indicators: "Each MEAL indicator against its target, month by month, and where reports and records disagree."
+  geography: "Where people are reached, activities take place and money is spent, by district."
+  data_quality: "How complete and correct the records are, and which records need correcting or checking."
+  donor_pipeline: "Which funding opportunities are open, what they are worth, and what is due next."
+  donor_entry: "Add and update donors and funding opportunities; every change is recorded."
 
 home: |
   - This page answers three questions for the current fiscal quarter: are we on track, can we trust the numbers, and what funding is coming up.
@@ -45,3 +55,11 @@ donor_pipeline: |
   - An opportunity that fits two themes is split half and half, so the themes add up to the total.
   - The **pipeline gap** compares the annual budget of projects ending within 12 months with the weighted pipeline for their theme. Draft definition, to be agreed with ARDE/KUBAHO.
   - **Overdue next actions** are open opportunities whose next action date has passed.
+
+donor_entry: |
+  - **Choose your name** first ("You are"). There is no login: every change is recorded with your staff code in the change history.
+  - **New opportunity** and **New donor** add entries; fields marked * are required. The deadline must be in the future, the probability between 0% and 100%, and an awarded opportunity needs its amount.
+  - **Individual donors are never named**: leave the name empty; they appear as "Individual donor #NNN". No contact names, emails or phone numbers are stored here.
+  - **Update an opportunity** changes the stage, amounts, probability, deadline, next action or owner of opportunities added on this page. Opportunities in the Excel tracker are updated in the Excel file.
+  - **Next actions**: "Mark done" keeps the action in the change history and clears it; then add the next one.
+  - New entries reach the Donor pipeline and Executive summary pages when the figures are updated: use the button at the bottom of the page.

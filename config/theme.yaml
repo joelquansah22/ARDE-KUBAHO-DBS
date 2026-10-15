@@ -1,0 +1,79 @@
+# =============================================================================
+# Dashboard look: colours, logo and organisation name
+# =============================================================================
+# STATUS: ARDE/KUBAHO brand colours, TO BE CONFIRMED WITH PARTNER (decision log D196).
+# The four logo colours were measured from the logo on ARDE/KUBAHO's website
+# (assets/arde_logo.png). Colours used for text and buttons are darker shades of
+# the same colours, so they pass the WCAG AA contrast check (4.5:1 for text,
+# 3:1 for chart marks). Change colours here only, then run
+#     python src/theme.py
+# which writes .streamlit/config.toml and checks every colour pair for contrast.
+# =============================================================================
+
+organisation_name: ARDE/KUBAHO
+logo: assets/arde_logo.png          # shown at the top of the sidebar only if this file exists
+logo_source: "Site header logo, https://arde-kubahorwanda.org/wp-content/uploads/2024/07/NEWLOGO.png (downloaded 15 October 2026)"
+
+# Measured from the logo (the colour of most pixels in each group).
+logo_colours:
+  green: "#3A9326"
+  yellow: "#F6F75B"
+  blue: "#5588EB"
+  black: "#1D1D1D"
+
+colours:
+  primary: "#327F21"            # logo green, slightly darker so white text on it passes (sidebar, buttons, active menu)
+  primary_dark: "#28641A"       # logo green, darker: headings and the active menu item
+  link: "#2F69D9"               # logo blue, darker so it passes as text
+  text: "#1D1D1D"               # logo black: all body text
+  muted_text: "#4A5649"         # notes and captions
+  page_background: "#F7FBF6"    # a light tint of the logo green
+  card_background: "#F2F8F1"    # a slightly stronger tint, for cards and the page header (light enough for the amber warning)
+  border: "#C9DEC2"
+  sidebar_text: "#FFFFFF"
+  sidebar_input_background: "#28641A"
+  white: "#FFFFFF"
+  map_no_data: "#EEEEEE"        # districts with no data on the map
+  map_low: "#DCE7FB"            # the light end of the map's colour scale (the dark end is chart colour 1)
+
+# NOT themed, on purpose: the yellow synthetic-data banner (#FFF3CD, border #E0B100, text #5C4400) stays exactly as
+# it is, so it is always the most visible element on every page (team instruction).
+
+# Chart series (categories), in order. Blue comes first so a single-series chart is never green: green is also the
+# "on track" status colour, and a green bar must not be read as "on track". Four colours, all at least 3:1 on
+# white (two lighter tints of blue and green failed 3:1 and were removed).
+chart_categorical: ["#3370E7", "#327F21", "#8A7A00", "#1D1D1D"]
+
+# Status colours stay FIXED and separate from the brand: always shown with a symbol and a word as well.
+status:
+  on_track: "#1A7F37"
+  at_risk: "#9A6700"
+  off_track: "#CF222E"
+  no_target: "#57606A"
+
+# Colour pairs checked by python src/theme.py: [foreground, background, minimum ratio, what it is].
+# 4.5 = WCAG AA for normal text; 3.0 = large text and chart marks.
+contrast_checks:
+  - [text, page_background, 4.5, "body text on the page"]
+  - [text, card_background, 4.5, "text on cards and the page header"]
+  - [muted_text, page_background, 4.5, "notes on the page"]
+  - [muted_text, card_background, 4.5, "notes on cards"]
+  - [primary_dark, card_background, 4.5, "page title on the header band"]
+  - [primary_dark, page_background, 4.5, "headings on the page"]
+  - [white, primary, 4.5, "button text on the primary colour"]
+  - [sidebar_text, primary, 4.5, "sidebar text on the sidebar"]
+  - [sidebar_text, sidebar_input_background, 4.5, "text in sidebar inputs"]
+  - [white, primary_dark, 4.5, "active menu item"]
+  - [link, page_background, 4.5, "links"]
+  - [status.on_track, page_background, 4.5, "on track (text)"]
+  - [status.at_risk, page_background, 4.5, "at risk (text)"]
+  - [status.off_track, page_background, 4.5, "off track (text)"]
+  - [status.no_target, page_background, 4.5, "no target (text)"]
+  - [status.at_risk, card_background, 4.5, "over-budget warning on a card"]
+  - [chart.0, white, 3.0, "chart colour 1 on the white chart area"]
+  - [chart.1, white, 3.0, "chart colour 2"]
+  - [chart.2, white, 3.0, "chart colour 3"]
+  - [chart.3, white, 3.0, "chart colour 4"]
+  - [logo.green, white, 4.5, "logo green as text (not used for text)"]
+  - [logo.yellow, white, 3.0, "logo yellow as a chart colour (not used)"]
+  - [logo.blue, white, 4.5, "logo blue as text (not used for text)"]

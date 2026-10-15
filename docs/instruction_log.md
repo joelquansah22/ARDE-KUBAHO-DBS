@@ -316,3 +316,36 @@ F. Final repository review: remove dead code and unused files, check every doc l
 
 Stop when Phase 8 is done and report back.
 ```
+
+## 12. 15 October 2026, 14:08 UTC (saved before acting on it; two pasted parts in one message)
+
+```text
+Scope extension (agreed with supervisors): add data entry so staff can record data, not only view it.
+
+1. Donor tracking forms in the dashboard:
+   - Add a new donor and a new opportunity; edit stage, amounts, probability, deadline, next action and owner; mark next actions as done.
+   - Save to a separate SQLite file (data/app/entries.db) with a change history: who changed what and when, using a simple staff name picker (no login system).
+   - The pipeline reads these entries the same way it reads the donor Excel tracker; both sources must work.
+   - Validation on entry (required fields, probability 0 to 100%, deadlines in the future when created).
+   - Individual donors stay pseudonymised.
+
+2. Field data collection with KoboToolbox:
+   - Design XLSForm files (forms/) for activity monitoring and indicator reporting, based on our templates: dropdowns for districts, activity types and officer codes; date pickers; constraints (female + male = total, no negative values).
+   - Add an import adapter: the pipeline reads Kobo XLSX exports as another source layout, using config mappings.
+   - Generate synthetic Kobo exports to test the import, then add them to the scorecard.
+   - Write docs/kobo_guide.md: how ARDE creates a free account, uploads the forms, installs KoboCollect on phones and exports data.
+
+3. Beneficiary registration stays in Excel/Kobo. Do not store names, phones or IDs in the app database.
+
+4. Update the decision log, user guide and tests. Stop and report back before starting anything else.
+
+5. Visual design: the dashboard looks too plain. Give it ARDE/KUBAHO's look.
+   a. Brand colours: take the palette from assets/arde_logo.png (extract the main colours and report the hex codes to me). If the file is missing, fetch the logo from https://arde-kubahorwanda.org/ instead. Store all colours in config/theme.yaml so they can be swapped without touching code. Add an "ARDE/KUBAHO brand colours, to be confirmed with partner" note to the decision log.
+   b. Apply the theme through .streamlit/config.toml and a small custom CSS file: the brand primary colour for the sidebar, headings, buttons and active menu item; a light tint of it for page backgrounds and cards. Keep text dark on light backgrounds for readability.
+   c. Logo at the top of the sidebar, with the organisation name. Only if the file exists; no logo otherwise.
+   d. KPI cards: coloured top border or icon in the brand colour, larger numbers, a small trend arrow or sparkline where there is a time series.
+   e. Charts: one consistent palette from the brand colours for categories. Status colours stay separate and fixed (green on track, amber at risk, red off track, grey no target), always with the symbol and word as now. Check every colour pair for contrast (WCAG AA) and report any that fail.
+   f. Page headers: a coloured band with the page title and a one-line description of what the page answers.
+   g. Keep the yellow synthetic-data banner exactly as it is. It must stay the most visible element on every page.
+   h. Do not slow the pages down. Re-measure load times and retake the screenshots afterwards.
+```

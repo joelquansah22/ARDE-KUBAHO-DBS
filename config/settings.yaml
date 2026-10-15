@@ -38,6 +38,8 @@ paths:
   final_raw: data/final_holdout/raw                # Phase 7 final held-out round (config/synthetic_final.yaml)
   final_ground_truth: data/final_holdout/ground_truth
   final_staging: data/final_holdout/staging
+  kobo_test: data/kobo_test                        # synthetic KoboToolbox exports (testing only)
+  app_entries: data/app/entries.db                 # donor tracking entered on the dashboard (SQLite)
   templates: templates
   docs: docs
 

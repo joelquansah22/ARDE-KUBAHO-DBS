@@ -26,15 +26,36 @@ SETTINGS = load_settings()
 OPEN_STAGES = SETTINGS["donor_pipeline"]["open_stages"]
 LABELS = SETTINGS["labels"]
 
+# Colours: config/theme.yaml (brand colours to be confirmed with partner). Status colours are fixed and separate.
+THEME = load_yaml("theme.yaml")
+COLOURS = THEME["colours"]
+CHART = THEME["chart_categorical"]           # chart series, in order
+_S = THEME["status"]
+WARNING = _S["at_risk"]                      # over-budget and "check this" marks (the fixed amber)
+COMPARE = CHART[2]                           # targets, records, amounts requested: the comparison series
+
 # Traffic lights never rely on colour alone: every status has a symbol and words.
 STATUS = {
-    "on track": ("✔", "On track", "#1a7f37"),
-    "at risk": ("▲", "At risk", "#9a6700"),
-    "off track": ("✖", "Off track", "#cf222e"),
-    "target incomplete": ("◔", "Target incomplete", "#57606a"),
-    "no target set": ("–", "No target set", "#57606a"),
-    "no data": ("…", "No data", "#57606a"),
+    "on track": ("✔", "On track", _S["on_track"]),
+    "at risk": ("▲", "At risk", _S["at_risk"]),
+    "off track": ("✖", "Off track", _S["off_track"]),
+    "target incomplete": ("◔", "Target incomplete", _S["no_target"]),
+    "no target set": ("–", "No target set", _S["no_target"]),
+    "no data": ("…", "No data", _S["no_target"]),
 }
+
+
+def _register_chart_template() -> None:
+    """Every Plotly chart uses the brand palette (config/theme.yaml: chart_categorical) on a white chart area."""
+    import plotly.graph_objects as go
+    import plotly.io as pio
+    pio.templates["arde"] = go.layout.Template(layout=dict(
+        colorway=CHART, font=dict(color=COLOURS["text"]), paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF",
+        legend=dict(font=dict(color=COLOURS["text"]))))
+    pio.templates.default = "plotly_white+arde"
+
+
+_register_chart_template()
 
 
 # ---------------------------------------------------------------- data access
@@ -163,6 +184,7 @@ def filters(sex_applies: bool = True) -> Filters:
     if "filters" not in st.session_state or st.session_state.get("_standalone"):
         st.session_state["_standalone"] = True
         st.markdown(CSS, unsafe_allow_html=True)
+        sidebar_logo()
         banner()
         require_warehouse()
         st.session_state["filters"] = sidebar_filters(sex_applies)
@@ -208,7 +230,7 @@ def footer() -> None:
     """One line at the bottom of every page (also printed): when the data was last updated, from which files.
     The list of files is in the sidebar ("Source files"), so the line stays short."""
     when, files = data_updated()
-    st.markdown(f"<div class='muted' style='margin-top:0.6rem;border-top:1px solid #d0d7de;padding-top:0.3rem'>"
+    st.markdown(f"<div class='muted' style='margin-top:0.6rem;border-top:1px solid {COLOURS['border']};padding-top:0.3rem'>"
                 f"Data last updated {when} from {len(files)} source files (listed in the sidebar). Figures as of "
                 f"{as_of():%d %B %Y}.</div>", unsafe_allow_html=True)
 
@@ -223,12 +245,12 @@ def source_files_in_sidebar() -> None:
 
 
 def status_label(status: str, note: str | None = None) -> str:
-    symbol, words, _ = STATUS.get(status, ("", str(status), "#57606a"))
+    symbol, words, _ = STATUS.get(status, ("", str(status), _S["no_target"]))
     return f"{symbol} {words}" + (f" ({note})" if note else "")
 
 
 def status_html(status: str, note: str | None = None) -> str:
-    symbol, words, colour = STATUS.get(status, ("", str(status), "#57606a"))
+    symbol, words, colour = STATUS.get(status, ("", str(status), _S["no_target"]))
     extra = f" <span class='muted'>({note})</span>" if note else ""
     return f"<span style='color:{colour};font-weight:600'>{symbol} {words}</span>{extra}"
 
@@ -259,9 +281,58 @@ def number(x, unit: str = "number") -> str:
     return f"{x:,.0f}"
 
 
-def tile(label: str, value: str, note: str = "") -> str:
+def sparkline(values, width: int = 84, height: int = 22) -> str:
+    """A tiny line chart (inline SVG, no extra library) of a monthly series, in the brand colour."""
+    vals = [float(v) for v in values if v is not None and not pd.isna(v)]
+    if len(vals) < 2:
+        return ""
+    lo, hi = min(vals), max(vals)
+    span = (hi - lo) or 1
+    step = width / (len(vals) - 1)
+    points = " ".join(f"{i * step:.1f},{height - 2 - (v - lo) / span * (height - 4):.1f}" for i, v in enumerate(vals))
+    return (f"<svg width='{width}' height='{height}' viewBox='0 0 {width} {height}' role='img' "
+            f"aria-label='trend over the months'><polyline fill='none' stroke='{COLOURS['primary']}' stroke-width='1.6' "
+            f"points='{points}'/></svg>")
+
+
+def trend(values, months: int = 3) -> str:
+    """Words and an arrow: the last N months against the N before, e.g. '▲ up 12% on the previous 3 months'."""
+    vals = [float(v) for v in values if v is not None and not pd.isna(v)]
+    if len(vals) < 2 * months:
+        return ""
+    last, before = sum(vals[-months:]), sum(vals[-2 * months:-months])
+    if not before:
+        return ""
+    change = 100 * (last - before) / before
+    arrow, word = ("▲", "up") if change > 0.5 else ("▼", "down") if change < -0.5 else ("▶", "level")
+    return f"{arrow} {word} {abs(change):.0f}% on the previous {months} months" if word != "level" else \
+        f"{arrow} level with the previous {months} months"
+
+
+def tile(label: str, value: str, note: str = "", series=None) -> str:
+    """A KPI card. With a monthly series it also shows a sparkline and a trend arrow in words."""
     note_html = f"<div class='tile-note'>{note}</div>" if note else ""
-    return f"<div class='tile'><div class='tile-label'>{label}</div><div class='tile-value'>{value}</div>{note_html}</div>"
+    trend_html = ""
+    if series is not None and len(series):
+        trend_html = f"<div class='tile-trend'>{sparkline(series)}<span>{trend(series)}</span></div>"
+    return (f"<div class='tile'><div class='tile-label'>{label}</div><div class='tile-value'>{value}</div>"
+            f"{trend_html}{note_html}</div>")
+
+
+def page_header(title: str, page: str) -> None:
+    """The coloured band at the top of a page: the title and one line on what the page answers
+    (config/page_help.yaml: summaries)."""
+    import html
+    summary = (load_yaml("page_help.yaml").get("summaries") or {}).get(page, "")
+    st.markdown(f"<div class='page-header'><h1>{html.escape(title)}</h1>"
+                + (f"<p>{html.escape(summary)}</p>" if summary else "") + "</div>", unsafe_allow_html=True)
+
+
+def sidebar_logo() -> None:
+    """The logo at the top of the sidebar, with the organisation name (only if the logo file exists)."""
+    path = ROOT / THEME.get("logo", "")
+    if THEME.get("logo") and path.is_file():
+        st.logo(str(path), size="large")
 
 
 def tiles(items: list[tuple]) -> None:
@@ -385,12 +456,11 @@ h3 {font-size: 1.1rem !important;}
 h4 {font-size: 1.0rem !important; margin: 0.2rem 0 0.3rem 0 !important;}
 .synthetic-banner {background: #fff3cd; border: 1px solid #e0b100; color: #5c4400; padding: 0.3rem 0.8rem;
                    border-radius: 6px; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.4rem;}
-.tile {border: 1px solid #d0d7de; border-radius: 8px; padding: 0.45rem 0.7rem; background: #f6f8fa;}
-.tile-label {font-size: 0.75rem; color: #57606a;}
-.tile-value {font-size: 1.35rem; font-weight: 700; line-height: 1.3;}
-.tile-note {font-size: 0.72rem; color: #57606a;}
-.muted {color: #57606a; font-size: 0.8rem;}
-.answer {border: 1px solid #d0d7de; border-radius: 10px; padding: 0.6rem 0.8rem 0.4rem 0.8rem; height: 100%;}
+.tile {border-radius: 8px; padding: 0.45rem 0.7rem;}
+.tile-label {font-size: 0.75rem;}
+.tile-value {font-weight: 700; line-height: 1.25;}
+.tile-note {font-size: 0.72rem;}
+.muted {font-size: 0.8rem;}
 .answer ul {margin: 0.1rem 0 0.2rem 1rem; padding: 0; font-size: 0.82rem;}
 .answer li {margin-bottom: 0.1rem;}
 .small {font-size: 0.82rem;}
@@ -405,9 +475,19 @@ h4 {font-size: 1.0rem !important; margin: 0.2rem 0 0.3rem 0 !important;}
 }
 .tbl-wrap {overflow-x: auto; margin-bottom: 0.3rem;}
 table.tbl {border-collapse: collapse; width: 100%; font-size: 0.8rem; table-layout: auto;}
-table.tbl th {background: #f6f8fa; text-align: left; padding: 0.3rem 0.45rem; border-bottom: 2px solid #d0d7de;
-              vertical-align: bottom;}
-table.tbl td {padding: 0.25rem 0.45rem; border-bottom: 1px solid #e5e8eb; vertical-align: top; white-space: normal;
-              overflow-wrap: break-word;}
+table.tbl th {text-align: left; padding: 0.3rem 0.45rem; vertical-align: bottom;}
+table.tbl td {padding: 0.25rem 0.45rem; vertical-align: top; white-space: normal; overflow-wrap: break-word;}
 </style>
 """
+
+
+def _theme_css() -> str:
+    """dashboard/theme.css with its {placeholders} filled from config/theme.yaml."""
+    css = (Path(__file__).resolve().parent / "theme.css").read_text(encoding="utf-8")
+    values = {**COLOURS, "organisation_name": THEME.get("organisation_name", "")}
+    for key, value in values.items():
+        css = css.replace("{" + key + "}", str(value))
+    return "<style>\n" + css + "\n</style>\n"
+
+
+CSS = CSS + _theme_css()

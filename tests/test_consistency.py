@@ -93,7 +93,7 @@ def html(at) -> str:
 def tile(at, label: str) -> tuple[str, str]:
     """(value, note) of the tile with this label."""
     m = re.search(rf"<div class='tile-label'>{re.escape(label)}</div><div class='tile-value'>(.*?)</div>"
-                  r"(?:<div class='tile-note'>(.*?)</div>)?", html(at))
+                  r"(?:<div class='tile-trend'>.*?</div>)?(?:<div class='tile-note'>(.*?)</div>)?", html(at))
     assert m, f"tile '{label}' not found"
     return m.group(1), m.group(2) or ""
 
@@ -129,6 +129,9 @@ def test_activities_and_spending_by_district_add_up(run, combo):
     total = measures.activities_total(run, f.project_ids, f.start, f.end)
     assert int(by["activities"].sum()) == total["activities"]
     assert by["spend"].sum() == pytest.approx(total["spend"])
+    months = measures.activities_by_month(run, f.project_ids, f.start, f.end)
+    assert int(months["activities"].sum()) == total["activities"]                   # the cards' sparklines
+    assert months["spend"].sum() == pytest.approx(total["spend"])
 
 
 @pytest.mark.parametrize("combo", list(COMBOS))

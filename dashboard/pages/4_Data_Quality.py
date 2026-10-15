@@ -11,7 +11,7 @@ import ui                # first: it makes src/ importable
 import measures          # noqa: E402  (src/measures.py: one definition per figure)
 
 ui.filters(sex_applies=False)
-st.title("Data quality")
+ui.page_header("Data quality", "data_quality")
 ui.how_to_read("data_quality")
 st.markdown("<div class='muted'>This page covers every record in the source files, so the programme, project, district, "
             "date and sex filters do not apply here.</div>", unsafe_allow_html=True)
@@ -57,7 +57,7 @@ with c1:
         dimension=lambda x: x["dimension"].str.capitalize())
     fig = px.bar(d, x="score", y="dimension", orientation="h", text="score", range_x=[0, 105],
                  labels={"score": "Score (%)", "dimension": ""})
-    fig.update_traces(marker_color="#1f6f8b", texttemplate="%{text:.1f}%")
+    fig.update_traces(marker_color=ui.CHART[0], texttemplate="%{text:.1f}%")
     fig.update_layout(height=260, margin=dict(l=0, r=10, t=10, b=0))
     st.plotly_chart(fig, width="stretch")
 with c2:
@@ -110,7 +110,7 @@ with c1:
     reasons["reason"] = reasons["reason"].map(ui.issue_label)
     fig = px.bar(reasons, x="records", y="reason", orientation="h", text="records",
                  labels={"reason": "", "records": "Number of records"})
-    fig.update_traces(marker_color="#cf222e")
+    fig.update_traces(marker_color=ui.STATUS["off track"][2])   # quarantined: the fixed red
     fig.update_layout(height=320, margin=dict(l=0, r=10, t=10, b=0))
     st.plotly_chart(fig, width="stretch")
     st.caption("A record can break more than one rule, so the bars can add up to more than the records quarantined.")
@@ -121,7 +121,7 @@ with c2:
     monthly["month"] = pd.to_datetime(monthly["month"] + "-01")
     fig = px.bar(monthly, x="month", y="records", labels={"month": "", "records": "Records to review"})
     fig.add_hline(y=budget, line_dash="dash", annotation_text=f"one hour a month ({budget} records)")
-    fig.update_traces(marker_color="#9a6700")
+    fig.update_traces(marker_color=ui.WARNING)
     fig.update_layout(height=320, margin=dict(l=0, r=10, t=10, b=0))
     ui.month_axis(fig)
     st.plotly_chart(fig, width="stretch")

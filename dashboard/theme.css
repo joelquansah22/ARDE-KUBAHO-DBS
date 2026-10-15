@@ -1,0 +1,36 @@
+/* ARDE/KUBAHO look. Colours come from config/theme.yaml: ui.py fills in each name in curly brackets. */
+
+/* Page header band: a light tint, so the yellow synthetic-data banner above it stays the most visible element. */
+.page-header {background: {card_background}; border: 1px solid {border}; border-left: 6px solid {primary};
+              border-radius: 8px; padding: 0.45rem 0.9rem 0.4rem 0.9rem; margin: 0.1rem 0 0.4rem 0;}
+.page-header h1 {color: {primary_dark} !important; font-size: 1.45rem !important; margin: 0 !important;
+                 padding: 0 !important; line-height: 1.25;}
+.page-header p {color: {muted_text}; font-size: 0.85rem; margin: 0.1rem 0 0 0;}
+
+/* Headings and links */
+h2, h3, h4 {color: {primary_dark} !important;}
+.muted {color: {muted_text} !important;}
+
+/* KPI cards: brand top border, bigger numbers, optional sparkline */
+.tile {border: 1px solid {border} !important; border-top: 4px solid {primary} !important;
+       background: {card_background} !important; border-radius: 8px;}
+.tile-value {font-size: clamp(1.1rem, 1.6vw, 1.5rem) !important; color: {text}; white-space: nowrap;}
+.tile-label, .tile-note {color: {muted_text} !important;}
+.tile-trend {font-size: 0.72rem; color: {muted_text}; display: flex; align-items: center; gap: 0.35rem;}
+.tile-trend svg {flex: none;}
+
+/* Tables */
+table.tbl th {background: {card_background} !important; border-bottom: 2px solid {border} !important;
+              color: {text};}
+table.tbl td {border-bottom: 1px solid {border} !important;}
+
+/* Sidebar: logo with the organisation name; the active menu item in the darker brand green */
+[data-testid="stSidebarHeader"] {align-items: center; gap: 0.6rem;}
+[data-testid="stSidebarHeader"] img {background: {white}; border-radius: 8px; padding: 2px;}
+[data-testid="stSidebarHeader"]::after {content: "{organisation_name}"; color: {sidebar_text}; font-weight: 700;
+                                        font-size: 1.05rem; letter-spacing: 0.02em;}
+[data-testid="stSidebarNav"] a[aria-current="page"] {background: {primary_dark} !important;}
+[data-testid="stSidebarNav"] a[aria-current="page"] span {color: {white} !important; font-weight: 700;}
+
+/* Answer boxes (Executive summary) */
+.answer {border: 1px solid {border}; border-radius: 10px; padding: 0.6rem 0.8rem 0.4rem 0.8rem; height: 100%;}

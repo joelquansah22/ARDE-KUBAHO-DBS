@@ -95,7 +95,12 @@ download only their records to correct. This page covers all records, so the fil
 Open opportunities by stage (count, amount requested and weighted value), outcomes (awarded, declined), pipeline gaps
 by theme (draft), deadlines in the next 30, 60 and 90 days, overdue next actions, and all opportunities.
 
-Every table has a **Download** button (CSV, opens in Excel).
+### Donor entry
+Add donors and funding opportunities, update them, and mark next actions as done, directly on the dashboard
+(section 5b). Only on this page can data be changed; every other page only shows data.
+
+Every table has a **Download** button (CSV, opens in Excel). On the Programme overview, the small line in a card shows
+the month-by-month series and the arrow compares the last 3 months with the 3 before.
 
 ## 5. Making a donor report
 
@@ -105,6 +110,30 @@ Every table has a **Download** button (CSV, opens in Excel).
 4. Click **Download PDF** (one A4 page) or **Download Excel**.
 5. **Check it before sending**: the yellow synthetic-data line is on every report while the tool uses invented data;
    indicators marked "target incomplete" or "no target set" need a sentence of explanation for the donor.
+
+## 5b. Recording donors and opportunities (Donor entry page)
+
+1. Open **Donor entry** and choose your name in **You are** (there is no password: please choose your own name; every
+   change is recorded with it in the **Change history** tab).
+2. **New opportunity**: fill in the fields marked *. The deadline must be in the future, the probability between 0%
+   and 100%, and an awarded opportunity needs the amount awarded. Not in the donor list? Add the donor first.
+3. **New donor**: choose the type and type the organisation's name. For an **individual** donor leave the name
+   empty: individuals are never named in the tool and appear as "Individual donor #NNN". Do not type contact names,
+   emails or phone numbers anywhere.
+4. **Update an opportunity**: change the stage, amounts, probability, deadline, next action or owner of an
+   opportunity added on this page. Opportunities that came from the Excel tracker are still updated in the Excel file.
+5. **Next actions**: "Mark done" when an action is finished, then add the next one on the update tab.
+6. Click **Update the figures now** at the bottom (about 20 seconds) so the entries appear on the Donor pipeline and
+   Executive summary pages.
+
+The entries are saved on this laptop in `data/app/entries.db`. If a check fails, a red message says what to correct;
+nothing is saved until it is right.
+
+## 5c. Field data on phones (KoboToolbox)
+
+Field officers can fill in the activity and indicator-report forms on an Android phone with KoboCollect instead of
+Excel. The MEAL officer downloads the results from KoboToolbox as an Excel file and saves it in `data/raw/`; the
+pipeline reads it like the Excel templates. Setting up: `docs/kobo_guide.md`.
 
 ## 6. The monthly routine (suggested; to be agreed with ARDE/KUBAHO)
 
@@ -162,3 +191,6 @@ Printing: use the browser's Print (Ctrl+P). Pages print on **A4 landscape** with
 | **Synthetic data** | Invented records used to build and test the tool; never ARDE/KUBAHO data |
 | **Target incomplete** | Some months in the period have no target; the % is shown for the months that do, without a traffic-light colour |
 | **Weighted value** | Amount requested × probability of success: a planning figure, not money expected for certain |
+| **Change history** | On the Donor entry page: who changed which field of a donor or opportunity, from what to what, and when |
+| **KoboToolbox / KoboCollect** | A free tool for filling in forms on phones (KoboCollect is the phone app); see `docs/kobo_guide.md` |
+| **Sparkline** | The small line in a card showing the month-by-month series |

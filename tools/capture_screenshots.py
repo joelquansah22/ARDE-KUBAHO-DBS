@@ -31,7 +31,8 @@ OUT = ROOT / "docs" / "screenshots"
 PORT = 8599
 PAGES = [("executive_summary", "", "Executive summary"), ("programme_overview", "overview", "Programme overview"),
          ("indicators", "indicators", "Indicators"), ("geography", "geography", "Geography"),
-         ("data_quality", "data-quality", "Data quality"), ("donor_pipeline", "donor-pipeline", "Donor pipeline")]
+         ("data_quality", "data-quality", "Data quality"), ("donor_pipeline", "donor-pipeline", "Donor pipeline"),
+         ("donor_entry", "donor-entry", "Donor entry")]
 WIDTH, HEIGHT = 1366, 768
 
 

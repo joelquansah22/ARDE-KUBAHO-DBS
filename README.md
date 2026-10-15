@@ -72,6 +72,7 @@ is **`docs/maintenance_guide.md`**.
 | `docs/user_guide.md` | All staff | Using the dashboard, the donor report, the monthly routine, problems, glossary |
 | `docs/maintenance_guide.md` | The person looking after the tool | New file layouts, indicators, district spellings, settings, rerunning, tests |
 | `docs/power_bi_guide.md` | Anyone preferring Power BI | Loading the exported star schema into Power BI Desktop |
+| `docs/kobo_guide.md` | MEAL officer, field officers | Collecting activity and indicator data on phones with KoboToolbox |
 | `docs/privacy_and_governance.md` | Management, MEAL officer | Personal data, pseudonymisation, the salt, roles, Rwanda's Law No. 058/2021 |
 | `docs/indicator_reference_sheets.md` (and `.xlsx`) | MEAL officer, co-design session | Every draft indicator, with its definition and calculation |
 | `docs/data_dictionary.md` | Analysts | Every table and column |
@@ -96,6 +97,9 @@ is **`docs/maintenance_guide.md`**.
 | `python src/donor_report.py PRJ01 "FY2025/26 Q4"` | Make a donor report from the command line |
 | `python src/generate_synthetic.py` | Create the synthetic demonstration files (`--verify` checks your copy against the documented fingerprint) |
 | `python src/build_templates.py` | Rebuild the Excel entry templates (only if their settings changed) |
+| `python src/build_kobo_forms.py` | Rebuild the KoboToolbox forms in `forms/` from the programme master |
+| `python src/theme.py` | Apply the colours in `config/theme.yaml` and check their contrast |
+| `python src/generate_kobo_exports.py` | Synthetic KoboToolbox exports to test the Kobo import (testing only) |
 | `python src/score_cleaning.py` | Score the cleaning against the synthetic answer keys (testing only) |
 | `python src/evaluate.py` | Before/after data-quality comparison (`docs/evaluation_before_after.md`) |
 | `python evaluation/summarise.py` | Summarise the usability and timing sheets (`evaluation/evaluation_results.md`) |
@@ -108,6 +112,9 @@ is **`docs/maintenance_guide.md`**.
 |---|---|
 | `config/` | Every setting and rule, in plain text files you can edit (no code). See the maintenance guide |
 | `templates/` | Standard Excel entry templates for staff |
+| `forms/` | KoboToolbox forms (XLSForm) for field data collection on phones |
+| `assets/` | The ARDE/KUBAHO logo shown in the dashboard |
+| `data/app/` | Donor tracking entered on the dashboard (`entries.db`) |
 | `data/raw/` | The Excel files the pipeline reads (synthetic for now) |
 | `data/staging/` | Cleaned tables with no names, phones or ID numbers, plus the log of every change and flag |
 | `data/warehouse/` | The data warehouse (`arde.duckdb`, one file) |

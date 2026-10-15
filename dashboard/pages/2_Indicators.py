@@ -10,7 +10,7 @@ import measures          # noqa: E402  (src/measures.py: one definition per figu
 f = ui.filters()
 cat = ui.catalogue()
 run = ui.query
-st.title("Indicators")
+ui.page_header("Indicators", "indicators")
 ui.how_to_read("indicators")
 tl = ui.SETTINGS["traffic_light"]
 st.markdown(f"<div class='muted'>Status (shown with a symbol and in words): ✔ on track {tl['on_track_min']}% or more of "
@@ -104,18 +104,18 @@ if len(monthly):
         WHERE s.value_id IN {ui.in_list(ids)} GROUP BY 1""", *ids)
     monthly = monthly.merge(under_review, on="value_id", how="left")
     fig = go.Figure()
-    for source, colour in (("reported", "#1f6f8b"), ("derived", "#e36209")):
+    for source, colour in (("reported", ui.CHART[0]), ("derived", ui.COMPARE)):
         s = monthly[monthly["source"] == source]
         if len(s):
             fig.add_scatter(x=s["period_start"], y=s["actual"], name="Reported" if source == "reported" else "From records",
                             mode="lines+markers", line_color=colour)
     t = monthly[(monthly["source"] == "reported") & monthly["target"].notna()]
     if len(t):
-        fig.add_scatter(x=t["period_start"], y=t["target"], name="Target", mode="lines", line=dict(dash="dash", color="#57606a"))
+        fig.add_scatter(x=t["period_start"], y=t["target"], name="Target", mode="lines", line=dict(dash="dash", color=ui.CHART[3]))
     flagged = monthly[monthly["records"].notna()]
     if len(flagged):
         fig.add_scatter(x=flagged["period_start"], y=flagged["actual"], name="Includes records under review",
-                        mode="markers", marker=dict(symbol="diamond-open", size=14, color="#9a6700", line=dict(width=2)),
+                        mode="markers", marker=dict(symbol="diamond-open", size=14, color=ui.WARNING, line=dict(width=2)),
                         customdata=flagged[["records"]].astype(int),
                         hovertemplate="%{x|%b %Y}: %{customdata[0]} record(s) in the review queue<extra></extra>")
     fig.update_layout(height=290, margin=dict(l=10, r=10, t=10, b=10), legend_orientation="h",
@@ -158,8 +158,8 @@ if len(rec):
                             key="rec_code")
     rc = rec[rec["indicator_code"] == rec_code].groupby("period_start")[["reported", "derived"]].sum(min_count=1).reset_index()
     fig = go.Figure()
-    fig.add_bar(x=rc["period_start"], y=rc["reported"], name="Reported", marker_color="#1f6f8b")
-    fig.add_bar(x=rc["period_start"], y=rc["derived"], name="From records", marker_color="#e36209")
+    fig.add_bar(x=rc["period_start"], y=rc["reported"], name="Reported", marker_color=ui.CHART[0])
+    fig.add_bar(x=rc["period_start"], y=rc["derived"], name="From records", marker_color=ui.COMPARE)
     fig.update_layout(barmode="group", height=270, margin=dict(l=10, r=10, t=10, b=10),
                       yaxis_title=ui.axis_title(rec_code))
     ui.month_axis(fig)

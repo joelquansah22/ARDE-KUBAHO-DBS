@@ -331,6 +331,8 @@ class Reference:
                                               dt.date.fromisoformat(str(p.end_date)[:10]))
                                for p in self.projects.itertuples()}
         self.activity_by_key = {(norm_key(a.activity_name)): a.activity_id for a in self.activities.itertuples()}
+        # Codes too (e.g. ACT01): KoboToolbox exports with XML values hold the code, not the name.
+        self.activity_by_key.update({norm_key(a.activity_id): a.activity_id for a in self.activities.itertuples()})
         self.activity_project = dict(zip(self.activities.activity_id, self.activities.project_id))
         # Villages by district, with their spellings already normalised, so each row is a quick
         # dictionary lookup rather than a search through the whole table.

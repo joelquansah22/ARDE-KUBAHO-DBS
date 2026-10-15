@@ -11,7 +11,7 @@ import measures          # noqa: E402  (src/measures.py: one definition per figu
 f = ui.filters()
 projects = f.project_ids
 run = ui.query
-st.title("Programme overview")
+ui.page_header("Programme overview", "overview")
 ui.how_to_read("overview")
 st.markdown(f"<div class='muted'>{f.start:%d %b %Y} to {f.end:%d %b %Y} · {f.scope_text}</div>", unsafe_allow_html=True)
 
@@ -21,18 +21,25 @@ acts = measures.activities_total(run, projects, f.start, f.end, f.district)
 budget = measures.budget_total(run, projects)
 budgets = measures.budget_status(run, projects, ui.as_of(), ui.SETTINGS)
 over = budgets[budgets["status"] == "over budget"]
+# Monthly series for the cards' sparklines and the trend chart (same definitions as the totals).
+trend = measures.people_by_month(run, projects, f.start, f.end, f.district, f.sex)
+act_trend = measures.activities_by_month(run, projects, f.start, f.end, f.district)
 women_pct = 100 * people["women"] / people["known_sex"] if people["known_sex"] else None
 coverage = 100 * people["known_sex"] / people["people"] if people["people"] else None
 ui.tiles([
-    ("People reached (different people)", f"{people['people']:,}", ui.pending_note(people, f)),
-    ("Activities completed", f"{acts['activities']:,}", "completed or completed late, in the date range"),
+    ("People reached (different people)", f"{people['people']:,}", ui.pending_note(people, f), trend["people"]),
+    ("Activities completed", f"{acts['activities']:,}", "completed or completed late, in the date range",
+     act_trend["activities"]),
     ("% women (CC-01 definition)", ui.number(women_pct, "percent") if women_pct is not None else "–",
      f"coverage {coverage:.0f}%: people with sex recorded" if coverage is not None and coverage < 100 else
      ("sex filter applied" if f.sex else "")),
     ("Budget spent (activity costs)", ui.money(acts["spend"], short=True),
      (f"{100 * acts['spend'] / budget:.0f}% of the {ui.money(budget, short=True)} project budgets" if budget else "")
-     + "".join(f"<br><b style='color:#9a6700'>▲ {r.project_id} {r.message}</b>" for r in over.itertuples())),
+     + "".join(f"<br><b style='color:{ui.WARNING}'>▲ {r.project_id} {r.message}</b>" for r in over.itertuples()),
+     act_trend["spend"]),
 ])
+st.caption("The small line in a card is the month-by-month series in the date range; the arrow compares the last "
+           "3 months with the 3 before. People per month are different people served that month.")
 nothing = people["people"] == 0 and acts["activities"] == 0
 if nothing:
     ui.no_data(f"between {f.start:%d %b %Y} and {f.end:%d %b %Y} for {f.scope_text}")
@@ -53,7 +60,7 @@ ui.html_table(pd.DataFrame({
     "Budget": [ui.money(x, short=True) for x in budgets["budget"]],
     "Spent to date": [ui.money(x, short=True) for x in budgets["spent"]],
     "% spent": [f"{x:.0f}%" for x in budgets["pct_spent"]],
-    "Status": [f"<span style='color:#9a6700;font-weight:600'>▲ Warning: {m}</span>" if s == "over budget"
+    "Status": [f"<span style='color:{ui.WARNING};font-weight:600'>▲ Warning: {m}</span>" if s == "over budget"
                else f"✔ Within budget ({m})" for s, m in zip(budgets["status"], budgets["message"])]}),
     "budget_by_project", html_columns=("Status",), widths={"Project": "34%", "Status": "32%"})
 
@@ -78,17 +85,18 @@ if len(tv):
                    for s, p in zip(tv["status"], tv["pct_achieved"].fillna(tv["partial_pct_achieved"]))]
     partial = tv["target"].isna() & tv["partial_target"].notna()
     fig = go.Figure()
-    fig.add_bar(name="Actual", x=tv["project_id"], y=tv["actual"], marker_color="#1f6f8b",
+    fig.add_bar(name="Actual", x=tv["project_id"], y=tv["actual"], marker_color=ui.CHART[0],
                 text=tv["label"], textposition="outside", cliponaxis=False,
                 hovertemplate="%{x}: actual %{y:,.0f}<extra></extra>")
     full = tv[~partial]
-    fig.add_bar(name="Target", x=full["project_id"], y=full["target"], marker_color="#c6d4dc",
+    fig.add_bar(name="Target", x=full["project_id"], y=full["target"], marker_color=ui.COMPARE,
                 hovertemplate="%{x}: target %{y:,.0f}<extra></extra>")
     part = tv[partial]
     if len(part):
         notes = [str(n).replace("partial: ", "") for n in part["target_note"]]
         fig.add_bar(name="Partial target (months that have one)", x=part["project_id"], y=part["partial_target"],
-                    marker=dict(color="#e7edf1", line=dict(color="#57606a", width=1), pattern_shape="/"),
+                    marker=dict(color="#FFFFFF", line=dict(color=ui.COMPARE, width=1.5), pattern_shape="/",
+                                pattern_fgcolor=ui.COMPARE),
                     text=[f"target for {n}" for n in notes], textposition="inside", insidetextanchor="end",
                     customdata=part["partial_actual"],
                     hovertemplate="%{x}: target %{y:,.0f} (%{text}); actual in those months %{customdata:,.0f}"
@@ -121,14 +129,7 @@ ui.html_table(pd.DataFrame({
 
 # ------------------------------------------------------------------ trend
 st.markdown("### Trend over time")
-trend = measures.people_by_month(run, projects, f.start, f.end, f.district, f.sex)
-act_trend = ui.query(f"""
-    SELECT date_trunc('month', f.date) AS month, COUNT(*) AS activities
-    FROM fact_activity f JOIN dim_activity a USING (activity_id) JOIN dim_location l USING (location_id)
-    WHERE a.project_id IN {ui.in_list(projects)} AND f.status IN ('completed','delayed') AND f.date BETWEEN ? AND ?
-    {"AND l.district = ?" if f.district else ""} GROUP BY 1 ORDER BY 1""",
-                     *projects, f.start, f.end, *([f.district] if f.district else []))
-both = act_trend.merge(trend, on="month", how="outer").sort_values("month")
+both = act_trend[["month", "activities"]].merge(trend, on="month", how="outer").sort_values("month")
 if not len(both):
     ui.no_data(f"between {f.start:%d %b %Y} and {f.end:%d %b %Y}, so there is no trend to show")
 long = both.melt(id_vars="month", value_vars=["activities", "people"], var_name="measure", value_name="value")

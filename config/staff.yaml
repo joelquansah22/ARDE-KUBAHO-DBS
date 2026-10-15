@@ -1,0 +1,16 @@
+# =============================================================================
+# Staff who can enter data on the dashboard (Donor entry page)
+# =============================================================================
+# There is no login system: the person entering data picks themselves from this
+# list, and every change is recorded with their code in the change history.
+# Use staff CODES and roles, not personal names, unless ARDE/KUBAHO decides
+# otherwise. The codes below are the synthetic owner codes: replace them with
+# ARDE/KUBAHO's real staff codes (to be confirmed with partner).
+# =============================================================================
+
+staff:
+  - {code: ED01, role: Executive director}
+  - {code: PM01, role: Programme manager (WASH)}
+  - {code: PM02, role: Programme manager (agriculture)}
+  - {code: MEAL01, role: MEAL officer}
+  - {code: FIN01, role: Finance officer}

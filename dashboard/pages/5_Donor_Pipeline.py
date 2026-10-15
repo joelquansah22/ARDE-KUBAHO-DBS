@@ -11,7 +11,7 @@ f = ui.filters(sex_applies=False)
 run = ui.query
 today = ui.as_of()
 cfg = ui.SETTINGS["donor_pipeline"]
-st.title("Donor pipeline")
+ui.page_header("Donor pipeline", "donor_pipeline")
 ui.how_to_read("donor_pipeline")
 st.markdown(f"<div class='muted'>As of {today:%d %B %Y}. Weighted value = amount requested × probability of "
             "success. Individual donors are shown only as 'Individual donor #NNN'. Programme, project, district and "
@@ -37,11 +37,11 @@ with c1:
                 .reindex(cfg["open_stages"]).fillna(0).reset_index())
     fig = go.Figure()
     fig.add_bar(y=by_stage["stage"], x=by_stage["requested"] / divisor, orientation="h", name="Requested",
-                marker_color="#c6d4dc",
+                marker_color=ui.COMPARE,
                 text=[f"{int(c)} opportunit{'y' if c == 1 else 'ies'} · {ui.money(r, short=True)}"
                       for c, r in zip(by_stage["count"], by_stage["requested"])], textposition="auto")
     fig.add_bar(y=by_stage["stage"], x=by_stage["weighted"] / divisor, orientation="h", name="Weighted",
-                marker_color="#1f6f8b", text=[ui.money(w, short=True) for w in by_stage["weighted"]], textposition="auto")
+                marker_color=ui.CHART[0], text=[ui.money(w, short=True) for w in by_stage["weighted"]], textposition="auto")
     fig.update_layout(barmode="group", height=320, margin=dict(l=0, r=10, t=10, b=0), legend_orientation="h",
                       xaxis_title=f"Value ({f.currency})", yaxis=dict(autorange="reversed"))
     ui.legend_on_top(fig)
@@ -55,8 +55,8 @@ with c2:
     ending_label = f"Annual budget of projects ending by {cutoff:%b %Y}"
     fig = go.Figure()
     fig.add_bar(x=by_theme["theme"], y=by_theme["weighted"] / divisor, name="Weighted open pipeline",
-                marker_color="#1f6f8b", text=[ui.money(v, short=True) for v in by_theme["weighted"]])
-    fig.add_bar(x=gaps["theme"], y=gaps["ending_budget"] / divisor, name=ending_label, marker_color="#c6d4dc",
+                marker_color=ui.CHART[0], text=[ui.money(v, short=True) for v in by_theme["weighted"]])
+    fig.add_bar(x=gaps["theme"], y=gaps["ending_budget"] / divisor, name=ending_label, marker_color=ui.COMPARE,
                 text=[ui.money(v, short=True) for v in gaps["ending_budget"]])
     fig.update_layout(barmode="group", height=320, margin=dict(l=0, r=10, t=10, b=0), legend_orientation="h",
                       yaxis_title=f"Value ({f.currency})")

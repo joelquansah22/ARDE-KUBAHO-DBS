@@ -99,6 +99,18 @@ def activities_by_district(run, project_ids: list, start, end, district: str | N
         GROUP BY 1 ORDER BY 1""", *project_ids, start, end, *params)
 
 
+def activities_by_month(run, project_ids: list, start, end, district: str | None = None) -> pd.DataFrame:
+    """Activities completed (on time or late) and their spending, per month (by the district where they took place).
+    The months add up to activities_total. Columns: month, activities, spend."""
+    clause, params = ("AND l.district = ?", [district]) if district else ("", [])
+    return run(f"""
+        SELECT date_trunc('month', f.date) AS month, COUNT(*) AS activities, COALESCE(SUM(f.cost_rwf), 0) AS spend
+        FROM fact_activity f JOIN dim_activity a USING (activity_id) LEFT JOIN dim_location l USING (location_id)
+        WHERE a.project_id IN {in_list(project_ids)} AND f.status IN ('completed', 'delayed')
+          AND f.date BETWEEN ? AND ? {clause}
+        GROUP BY 1 ORDER BY 1""", *project_ids, start, end, *params)
+
+
 def activities_total(run, project_ids: list, start, end, district: str | None = None) -> dict:
     d = activities_by_district(run, project_ids, start, end, district)
     return dict(activities=int(d["activities"].sum()), spend=float(d["spend"].sum()),

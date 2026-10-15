@@ -12,7 +12,7 @@ import measures          # noqa: E402  (src/measures.py: one definition per figu
 f = ui.filters()
 cat = ui.catalogue()
 projects = f.project_ids
-st.title("Geography")
+ui.page_header("Geography", "geography")
 ui.how_to_read("geography")
 st.markdown(f"<div class='muted'>{f.start:%d %b %Y} to {f.end:%d %b %Y} · {f.scope_text}</div>", unsafe_allow_html=True)
 
@@ -97,12 +97,12 @@ with c1:
     if geo:
         import plotly.graph_objects as go
         base = go.Choropleth(geojson=geo, locations=shown["district"], z=[0] * len(shown),
-                             featureidkey="properties.shapeName", colorscale=[[0, "#eeeeee"], [1, "#eeeeee"]],
+                             featureidkey="properties.shapeName", colorscale=[[0, ui.COLOURS["map_no_data"]], [1, ui.COLOURS["map_no_data"]]],
                              showscale=False, marker_line_color="#999", marker_line_width=0.5,
                              hovertemplate="%{location}: no data<extra></extra>")
         with_data = shown[shown["value"].notna()]
         layer = go.Choropleth(geojson=geo, locations=with_data["district"], z=with_data["value"],
-                              featureidkey="properties.shapeName", colorscale="Blues", marker_line_color="#666",
+                              featureidkey="properties.shapeName", colorscale=[[0, ui.COLOURS["map_low"]], [1, ui.CHART[0]]], marker_line_color="#666",
                               marker_line_width=0.6, colorbar=dict(title=dict(text=label, side="right"), thickness=12),
                               hovertemplate="%{location}: %{z:,.0f}<extra></extra>")
         fig = go.Figure([base, layer])
@@ -115,7 +115,7 @@ with c1:
         st.info("District boundaries are not available, so only the ranked chart is shown.")
 with c2:
     ranked = data.sort_values("value", ascending=True)
-    ranked["colour"] = ["#8c959f" if d == measures.UNKNOWN_DISTRICT else "#1f6f8b" for d in ranked["district"]]
+    ranked["colour"] = [ui.STATUS["no data"][2] if d == measures.UNKNOWN_DISTRICT else ui.CHART[0] for d in ranked["district"]]
     fig = px.bar(ranked, x="value", y="district", orientation="h", text="value", labels={"value": axis, "district": ""})
     fig.update_traces(marker_color=ranked["colour"], texttemplate="%{text:,.0f}")
     fig.update_layout(height=430, margin=dict(l=0, r=10, t=10, b=0))

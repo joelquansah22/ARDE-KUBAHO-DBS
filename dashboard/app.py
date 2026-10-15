@@ -21,6 +21,7 @@ import ui  # noqa: E402
 st.set_page_config(page_title="ARDE/KUBAHO MEAL dashboard", page_icon="📊", layout="wide",
                    initial_sidebar_state="expanded")
 st.markdown(ui.CSS, unsafe_allow_html=True)
+ui.sidebar_logo()                                     # logo and name, if assets/arde_logo.png exists
 
 HERE = Path(__file__).resolve().parent
 PAGES = [
@@ -30,11 +31,12 @@ PAGES = [
     st.Page(str(HERE / "pages" / "3_Geography.py"), title="Geography", icon="🗺️", url_path="geography"),
     st.Page(str(HERE / "pages" / "4_Data_Quality.py"), title="Data quality", icon="✅", url_path="data-quality"),
     st.Page(str(HERE / "pages" / "5_Donor_Pipeline.py"), title="Donor pipeline", icon="🤝", url_path="donor-pipeline"),
+    st.Page(str(HERE / "pages" / "6_Donor_Entry.py"), title="Donor entry", icon="✏️", url_path="donor-entry"),
 ]
 page = st.navigation(PAGES)
 ui.banner()                                           # on every page
 ui.require_warehouse()                                # a friendly message if the pipeline has not been run
 # The sex filter only applies where people are counted; elsewhere it is shown greyed out.
-st.session_state["filters"] = ui.sidebar_filters(sex_applies=page.title not in ("Data quality", "Donor pipeline"))
+st.session_state["filters"] = ui.sidebar_filters(sex_applies=page.title not in ("Data quality", "Donor pipeline", "Donor entry"))
 ui.source_files_in_sidebar()
 page.run()

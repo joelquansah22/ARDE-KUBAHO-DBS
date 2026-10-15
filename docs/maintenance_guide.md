@@ -178,6 +178,39 @@ The Excel entry templates in `templates/` are built from `config/templates.yaml`
 instructions). After changing that file run `python src/build_templates.py`. Dropdown lists for projects, activities
 and officers come from the settings and the programme master.
 
+## 8b. Staff on the Donor entry page
+
+The names people pick on the Donor entry page come from `config/staff.yaml` (a staff code and a role each). Add or
+remove a line, keeping the spaces, and reload the page. Codes are recommended rather than full names. The entries
+are in `data/app/entries.db` (SQLite): back it up with the Excel files; to inspect it, the free "DB Browser for
+SQLite" opens it (read only, please).
+
+## 8c. KoboToolbox forms
+
+The forms in `forms/` are built from the programme master and the indicator catalogue:
+
+```
+python src/build_kobo_forms.py
+```
+
+Run it after a new project, activity, officer or village is added to the programme master (and after the pipeline
+has read it), then replace the form in KoboToolbox (`docs/kobo_guide.md`, section 3). If a Kobo export is SKIPPED, a
+question was renamed or added: add its name to `config/source_mappings.yaml` as for any new column (section 4).
+Kobo's own columns (start, end, _uuid...) are listed under `ignore_columns` there.
+
+## 8d. Colours and logo
+
+All colours are in `config/theme.yaml` (brand colours to be confirmed with ARDE/KUBAHO). After changing them:
+
+```
+python src/theme.py
+```
+
+It writes the Streamlit theme into `.streamlit/config.toml` and checks every colour pair for contrast (WCAG AA):
+anything marked FAIL must be darkened before use. Restart the dashboard to see the change. The logo is
+`assets/arde_logo.png` (no logo is shown if the file is missing). The yellow synthetic-data banner is not part of the
+theme and must not be changed.
+
 ## 9. The salt (keep it safe)
 
 `C:\Users\<name>\.arde_meal\pseudonymisation_salt.txt` turns names, phones and IDs into coded keys. **If it is lost,

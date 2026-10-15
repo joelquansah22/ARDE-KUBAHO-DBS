@@ -79,4 +79,7 @@ The reference in brackets is the decision-log entry with the background.
 | F2 | Preferred dashboard tool after handover: Streamlit (as built), Power BI (exports ready), or both? | 2 | Brief §15 | |
 | F3 | When can the handover walkthrough take place (the sustainability test: the maintainer refreshes the data and adds a file layout using only the guides)? | 2 | Proposal | |
 | F4 | Is the suggested monthly routine (`docs/user_guide.md`, section 6) workable? How many minutes per review-queue row (now assumed 2)? | 3 | D60 | |
+| F6 | May the tool use the ARDE/KUBAHO logo, and are the brand colours right (`config/theme.yaml`)? | 3 | D196 | |
+| F7 | Staff codes (and roles) for the Donor entry page (`config/staff.yaml`) | 2 | D188 | |
+| F8 | KoboToolbox: global or EU server, which account, and may data be stored there (see A5)? | 2 | D191 | |
 | F5 | Who would take part in the usability test (3 to 5 people across director, programme manager and MEAL officer roles)? | 2 | D175 | |

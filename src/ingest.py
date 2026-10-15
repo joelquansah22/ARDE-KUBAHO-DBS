@@ -161,6 +161,8 @@ class Reader:
         self.refs: dict[str, pd.DataFrame] = {}
         self.inventory: list[dict] = []
         self.log = IssueLog()
+        # Columns that are known and deliberately not read (e.g. KoboToolbox's own columns): not reported as unknown.
+        self.ignored = {norm_key(c) for c in self.mappings.get("ignore_columns", [])}
         self.totals = {" ".join(re.sub(r"[^a-z ]", " ", norm_key(t)).split())
                        for t in settings["cleaning"]["totals_labels"]}
 
@@ -235,6 +237,7 @@ class Reader:
                       headers, max(score, 0), [])
             return
         assigned, unmapped = assign_fields(list(rows[h]) if rows else [], index)
+        unmapped = [u for u in unmapped if norm_key(u) not in self.ignored]
         missing = self.missing_required(entity, set(assigned.values()))
         if missing:
             # No silent partial reads: a sheet without all its required fields is skipped.
@@ -523,9 +526,34 @@ def load_registration_identities(raw_dir: Path | None = None, settings: dict | N
 # ======================================================================================
 # Main
 # ======================================================================================
+APP_SOURCE = "entries.db"
+
+
+def read_app_entries(path: Path | None = None) -> tuple[list[dict], list[dict]]:
+    """Donors and opportunities entered on the dashboard's Donor entry page (data/app/entries.db), as records in the
+    same form as rows read from the Excel donor tracker, with lineage (source_file entries.db, the table, the row)."""
+    import app_store
+    path = Path(path or app_store.db_path())
+    if not path.exists():
+        return [], []
+    donors = [dict(source_file=APP_SOURCE, source_sheet="donors", source_row=r["row_id"], donor_id=r["donor_id"],
+                   donor_name=r["donor_name"], donor_type=r["donor_type"], country=r["country"],
+                   thematic_interests=r["thematic_interests"]) for r in app_store.table("donors", path)]
+    opps = [dict(source_file=APP_SOURCE, source_sheet="opportunities", source_row=r["row_id"],
+                 opportunity_id=r["opportunity_id"], title=r["title"], thematic_fit=r["thematic_fit"], stage=r["stage"],
+                 deadline=r["deadline"], requested=r["requested_amount_rwf"], awarded=r["awarded_amount_rwf"],
+                 probability=r["probability"], owner=r["owner"], next_action=r["next_action"],
+                 next_action_date=r["next_action_date"], app_donor_id=r["donor_id"], app_donor_key=r["donor_key"])
+            for r in app_store.table("opportunities", path)]
+    return donors, opps
+
+
 def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict | None = None,
-        mapping_overlays: tuple[str, ...] = ()) -> dict:
+        mapping_overlays: tuple[str, ...] = (), app_entries: Path | None = None) -> dict:
     settings = settings or load_settings()
+    # Dashboard entries belong to the production data: read them in the production run (no raw_dir given), or
+    # when a path is passed explicitly (tests); never in a scoring run on a test set.
+    use_app_entries = app_entries is not None or raw_dir is None
     raw_dir = Path(raw_dir or resolve_path("raw"))
     staging = Path(staging or resolve_path("staging"))
     staging.mkdir(parents=True, exist_ok=True)
@@ -536,6 +564,13 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
     reader = Reader(raw_dir, settings, load_mappings(tuple(mapping_overlays)))
     reader.read_all()
     log = reader.log
+    # Donor tracking entered on the dashboard: read next to the Excel donor tracker (both sources work together).
+    app_donors, app_opps = read_app_entries(app_entries) if use_app_entries else ([], [])
+    if app_donors or app_opps:
+        reader.records.setdefault("donor", []).extend(app_donors)
+        reader.records.setdefault("opportunity", []).extend(app_opps)
+        for sheet, entity, n in (("donors", "donor", len(app_donors)), ("opportunities", "opportunity", len(app_opps))):
+            reader.inventory.append(dict(source_file=APP_SOURCE, source_sheet=sheet, entity=entity, rows=n))
 
     # ---- beneficiaries: match duplicates, then pseudonymise
     regs = reader.records.get("registration", [])
@@ -592,7 +627,8 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
     individuals = sorted((d for d in donors
                           if recode(d.get("donor_type"), settings["donor_pipeline"]["donor_type_mapping"],
                                     "donor_type").value == "individual"),
-                         key=lambda d: str(d.get("donor_id")))
+                         key=lambda d: (d.get("source_file") == APP_SOURCE, str(d.get("donor_id"))))
+    # (Donors entered on the dashboard are numbered after the Excel tracker's, so existing labels never change.)
     label = settings["privacy"]["individual_donor_label"]
     name_to_key = {}
     for d in donors:
@@ -605,7 +641,11 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
         d["donor_name"] = label.format(number=number)
         log.add("donor", d, "donor_name", "individual_donor_pseudonymised", FIXED, clean=d["donor_name"])
     for o in reader.records.get("opportunity", []):
-        o["donor_key"] = name_to_key.get(norm_key(o.get("donor") or ""))
+        if o.get("source_file") == APP_SOURCE:       # linked by the donor's ID (added on the dashboard) or key
+            app_id, app_key = o.pop("app_donor_id", None), o.pop("app_donor_key", None)
+            o["donor_key"] = pseudonym(salt, "DON", str(app_id)) if app_id else app_key
+        else:
+            o["donor_key"] = name_to_key.get(norm_key(o.get("donor") or ""))
 
     # ---- write staging: text columns only, no personal fields
     written = {}

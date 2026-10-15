@@ -1,0 +1,293 @@
+"""Donor tracking entered in the dashboard: a small SQLite file (data/app/entries.db) with a change history.
+
+WHAT THIS FILE DOES
+-------------------
+Staff can add donors and funding opportunities, update them and mark next actions as done on the dashboard's
+"Donor entry" page. This module stores those entries and checks them:
+
+  donors           one row per donor added in the dashboard (IDs APP-D001...). An INDIVIDUAL donor's name is never
+                   stored: the database refuses it, and the pipeline shows such a donor as "Individual donor #NNN".
+  opportunities    one row per opportunity added in the dashboard (IDs APP-O001...). The donor is either a donor
+                   added here (donor_id) or a donor already in the Excel tracker (its pseudonymous donor_key).
+  change_history   who changed what and when: one row per field changed, with the old and the new value.
+
+There are no names, phone numbers, emails or ID numbers of people in this database (team rule): staff are recorded
+by their staff code from config/staff.yaml, and donor contact details are not asked for.
+
+The pipeline reads these entries next to the Excel donor tracker (src/ingest.py, read_app_entries), so both sources
+work together; entries keep lineage (source_file "entries.db", the table, and the row number).
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import sqlite3
+from contextlib import contextmanager
+from pathlib import Path
+
+from common import load_settings, load_yaml, resolve_path
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS donors (
+    row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    donor_id TEXT NOT NULL UNIQUE,
+    donor_name TEXT,
+    donor_type TEXT NOT NULL,
+    country TEXT,
+    thematic_interests TEXT,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    CHECK (donor_type <> 'individual' OR donor_name IS NULL),      -- individuals are never named here
+    CHECK (donor_type = 'individual' OR donor_name IS NOT NULL)
+);
+CREATE TABLE IF NOT EXISTS opportunities (
+    row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    opportunity_id TEXT NOT NULL UNIQUE,
+    donor_id TEXT REFERENCES donors(donor_id),
+    donor_key TEXT,
+    title TEXT NOT NULL,
+    thematic_fit TEXT NOT NULL,
+    stage TEXT NOT NULL,
+    deadline TEXT,
+    requested_amount_rwf REAL NOT NULL CHECK (requested_amount_rwf >= 0),
+    awarded_amount_rwf REAL CHECK (awarded_amount_rwf IS NULL OR awarded_amount_rwf >= 0),
+    probability REAL NOT NULL CHECK (probability >= 0 AND probability <= 1),
+    owner TEXT NOT NULL,
+    next_action TEXT,
+    next_action_date TEXT,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_by TEXT,
+    updated_at TEXT,
+    CHECK (donor_id IS NOT NULL OR donor_key IS NOT NULL)
+);
+CREATE TABLE IF NOT EXISTS change_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    changed_at TEXT NOT NULL,
+    changed_by TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    record_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    field TEXT,
+    old_value TEXT,
+    new_value TEXT
+);
+"""
+
+DONOR_FIELDS = ["donor_name", "donor_type", "country", "thematic_interests"]
+OPPORTUNITY_FIELDS = ["donor_id", "donor_key", "title", "thematic_fit", "stage", "deadline", "requested_amount_rwf",
+                      "awarded_amount_rwf", "probability", "owner", "next_action", "next_action_date"]
+EDITABLE = ["stage", "requested_amount_rwf", "awarded_amount_rwf", "probability", "deadline", "next_action",
+            "next_action_date", "owner"]
+
+
+class EntryError(ValueError):
+    """An entry that breaks a rule; the message lists every problem in plain words."""
+
+
+def db_path() -> Path:
+    return resolve_path("app_entries")
+
+
+def staff() -> list[dict]:
+    """Staff who may enter data (config/staff.yaml): code and role, no personal names needed."""
+    return load_yaml("staff.yaml")["staff"]
+
+
+def today() -> dt.date:
+    """'Today' for the checks: the configured as-of date (so synthetic demonstrations behave), else the real date."""
+    return load_settings().get("as_of_date") or dt.date.today()
+
+
+def now() -> str:
+    return dt.datetime.now().isoformat(timespec="seconds")
+
+
+@contextmanager
+def connect(path: Path | None = None):
+    path = Path(path or db_path())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(path)
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA foreign_keys = ON")
+    con.executescript(SCHEMA)
+    try:
+        yield con
+        con.commit()
+    finally:
+        con.close()
+
+
+def _blank(v) -> bool:
+    return v is None or (isinstance(v, str) and not v.strip())
+
+
+def _check_staff(code: str) -> None:
+    if code not in {s["code"] for s in staff()}:
+        raise EntryError("Choose your name (staff code) from the list before saving.")
+
+
+# ---------------------------------------------------------------- validation
+def validate_donor(d: dict) -> list[str]:
+    s = load_settings()["donor_pipeline"]
+    problems = []
+    types = list(s["donor_type_mapping"])
+    if d.get("donor_type") not in types:
+        problems.append(f"Donor type is required ({', '.join(types)}).")
+    if d.get("donor_type") == "individual":
+        if not _blank(d.get("donor_name")):
+            problems.append("Do not enter an individual donor's name: individual donors are recorded without a name "
+                            "and shown as 'Individual donor #NNN'. Keep their details in your own records.")
+    elif _blank(d.get("donor_name")):
+        problems.append("Donor name is required (the organisation's name).")
+    return problems
+
+
+def validate_opportunity(o: dict, creating: bool) -> list[str]:
+    s = load_settings()["donor_pipeline"]
+    problems = []
+    for field, label in (("title", "Title"), ("thematic_fit", "Thematic fit"), ("stage", "Stage"), ("owner", "Owner")):
+        if _blank(o.get(field)):
+            problems.append(f"{label} is required.")
+    if _blank(o.get("donor_id")) and _blank(o.get("donor_key")):
+        problems.append("Donor is required (pick one, or add the donor first).")
+    if not _blank(o.get("stage")) and o["stage"] not in s["stages"]:
+        problems.append(f"Stage must be one of: {', '.join(s['stages'])}.")
+    if o.get("requested_amount_rwf") is None:
+        problems.append("Amount requested (RWF) is required.")
+    elif o["requested_amount_rwf"] < 0:
+        problems.append("Amount requested cannot be negative.")
+    if o.get("awarded_amount_rwf") is not None and o["awarded_amount_rwf"] < 0:
+        problems.append("Amount awarded cannot be negative.")
+    if o.get("stage") == "Awarded" and o.get("awarded_amount_rwf") in (None, 0):
+        problems.append("An awarded opportunity needs the amount awarded.")
+    p = o.get("probability")
+    if p is None:
+        problems.append("Probability is required (0% to 100%).")
+    elif not 0 <= p <= 1:
+        problems.append("Probability must be between 0% and 100%.")
+    deadline = o.get("deadline")
+    if creating:
+        if deadline is None:
+            problems.append("Deadline is required.")
+        elif deadline <= today():
+            problems.append(f"The deadline must be in the future (after {today():%d %b %Y}).")
+    if not _blank(o.get("next_action")) and o.get("next_action_date") is None:
+        problems.append("Give the date by which the next action is due.")
+    if o.get("next_action_date") is not None and _blank(o.get("next_action")):
+        problems.append("Describe the next action, or remove its date.")
+    return problems
+
+
+def _store(v):
+    return v.isoformat() if isinstance(v, (dt.date, dt.datetime)) else v
+
+
+def _next_id(con, table: str, column: str, prefix: str) -> str:
+    n = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] + 1
+    while con.execute(f"SELECT 1 FROM {table} WHERE {column} = ?", (f"{prefix}{n:03d}",)).fetchone():
+        n += 1
+    return f"{prefix}{n:03d}"
+
+
+def _history(con, by: str, table: str, record_id: str, action: str, field=None, old=None, new=None) -> None:
+    con.execute("INSERT INTO change_history (changed_at, changed_by, table_name, record_id, action, field, old_value, "
+                "new_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (now(), by, table, record_id, action, field, None if old is None else str(_store(old)),
+                 None if new is None else str(_store(new))))
+
+
+# ---------------------------------------------------------------- saving
+def add_donor(d: dict, by: str, path: Path | None = None) -> str:
+    _check_staff(by)
+    d = {k: (None if _blank(d.get(k)) else d.get(k)) for k in DONOR_FIELDS}
+    if d.get("donor_type") == "individual":
+        d["donor_name"] = None
+    problems = validate_donor(d)
+    if problems:
+        raise EntryError(" ".join(problems))
+    with connect(path) as con:
+        donor_id = _next_id(con, "donors", "donor_id", "APP-D")
+        con.execute(f"INSERT INTO donors (donor_id, {', '.join(DONOR_FIELDS)}, created_by, created_at) "
+                    f"VALUES (?, {', '.join('?' for _ in DONOR_FIELDS)}, ?, ?)",
+                    (donor_id, *[d[k] for k in DONOR_FIELDS], by, now()))
+        _history(con, by, "donors", donor_id, "added")
+    return donor_id
+
+
+def _normalise_opportunity(o: dict) -> dict:
+    o = {k: (None if _blank(o.get(k)) else o.get(k)) for k in OPPORTUNITY_FIELDS}
+    for k in ("deadline", "next_action_date"):
+        if isinstance(o.get(k), str):
+            o[k] = dt.date.fromisoformat(o[k])
+    for k in ("requested_amount_rwf", "awarded_amount_rwf", "probability"):
+        if o.get(k) is not None:
+            o[k] = float(o[k])
+    return o
+
+
+def add_opportunity(o: dict, by: str, path: Path | None = None) -> str:
+    _check_staff(by)
+    o = _normalise_opportunity(o)
+    problems = validate_opportunity(o, creating=True)
+    if problems:
+        raise EntryError(" ".join(problems))
+    with connect(path) as con:
+        if o["donor_id"] and not con.execute("SELECT 1 FROM donors WHERE donor_id = ?", (o["donor_id"],)).fetchone():
+            raise EntryError("That donor was not found among the donors added here.")
+        opp_id = _next_id(con, "opportunities", "opportunity_id", "APP-O")
+        con.execute(f"INSERT INTO opportunities (opportunity_id, {', '.join(OPPORTUNITY_FIELDS)}, created_by, created_at)"
+                    f" VALUES (?, {', '.join('?' for _ in OPPORTUNITY_FIELDS)}, ?, ?)",
+                    (opp_id, *[_store(o[k]) for k in OPPORTUNITY_FIELDS], by, now()))
+        _history(con, by, "opportunities", opp_id, "added")
+    return opp_id
+
+
+def update_opportunity(opportunity_id: str, changes: dict, by: str, path: Path | None = None) -> list[str]:
+    """Change some of the EDITABLE fields; returns the fields that really changed (each one is in the history)."""
+    _check_staff(by)
+    unknown = set(changes) - set(EDITABLE)
+    if unknown:
+        raise EntryError(f"These fields cannot be changed here: {', '.join(sorted(unknown))}.")
+    with connect(path) as con:
+        row = con.execute("SELECT * FROM opportunities WHERE opportunity_id = ?", (opportunity_id,)).fetchone()
+        if row is None:
+            raise EntryError(f"Opportunity {opportunity_id} was not found.")
+        current = _normalise_opportunity(dict(row))
+        new = _normalise_opportunity({**current, **changes})
+        problems = validate_opportunity(new, creating=False)
+        if problems:
+            raise EntryError(" ".join(problems))
+        changed = [k for k in EDITABLE if new[k] != current[k]]
+        for k in changed:
+            con.execute(f"UPDATE opportunities SET {k} = ? WHERE opportunity_id = ?", (_store(new[k]), opportunity_id))
+            _history(con, by, "opportunities", opportunity_id, "changed", k, current[k], new[k])
+        if changed:
+            con.execute("UPDATE opportunities SET updated_by = ?, updated_at = ? WHERE opportunity_id = ?",
+                        (by, now(), opportunity_id))
+    return changed
+
+
+def mark_next_action_done(opportunity_id: str, by: str, path: Path | None = None) -> None:
+    """The next action is done: it is kept in the change history and cleared, ready for the next one."""
+    _check_staff(by)
+    with connect(path) as con:
+        row = con.execute("SELECT next_action, next_action_date FROM opportunities WHERE opportunity_id = ?",
+                          (opportunity_id,)).fetchone()
+        if row is None or _blank(row["next_action"]):
+            raise EntryError("This opportunity has no next action to mark as done.")
+        _history(con, by, "opportunities", opportunity_id, "next action done", "next_action",
+                 f"{row['next_action']} (due {row['next_action_date']})", None)
+        con.execute("UPDATE opportunities SET next_action = NULL, next_action_date = NULL, updated_by = ?, "
+                    "updated_at = ? WHERE opportunity_id = ?", (by, now(), opportunity_id))
+
+
+# ---------------------------------------------------------------- reading
+def table(name: str, path: Path | None = None) -> list[dict]:
+    if name not in ("donors", "opportunities", "change_history"):
+        raise ValueError(name)
+    path = Path(path or db_path())
+    if not path.exists():
+        return []
+    with connect(path) as con:
+        return [dict(r) for r in con.execute(f"SELECT * FROM {name} ORDER BY 1")]

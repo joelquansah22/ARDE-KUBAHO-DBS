@@ -50,6 +50,11 @@ ARDE/KUBAHO, suggested by the team and to be confirmed with the partner** (`docs
 | L22 | **Legal obligations** under Law No. 058/2021 are not yet confirmed with ARDE/KUBAHO or the university | D180 |
 | L23 | **A maintainer is needed** to add file layouts and spellings (no programming, but care with YAML files) | Maintenance guide |
 | L24 | **Derived indicators** with a new kind of calculation need someone who can write Python | Maintenance guide §6 |
+| L25 | **Donor entry has no login:** anyone using the laptop can choose any name; the history records the chosen name | D188 |
+| L26 | **Opportunities from the Excel tracker cannot be updated on the dashboard** (only those added there) | D187 |
+| L27 | **KoboToolbox forms are not yet deployed or used on a phone;** checked with pyxform only (ODK Validate not run) | D191 |
+| L28 | **A Kobo export and an Excel file covering the same activities** would be counted twice | D192 |
+| L29 | **Brand colours and logo** not yet confirmed with ARDE/KUBAHO; an opened dropdown in the green sidebar was not checked automatically | D196, D198 |
 
 ## 2. Roadmap
 
@@ -64,6 +69,7 @@ the capstone; after that, the ARDE/KUBAHO owner (suggested role, to be confirmed
 | R2 | Data-sharing agreement, or decision that ARDE/KUBAHO runs the tool itself | L1, L22 | S to M | Executive director, ASU |
 | R3 | Usability test (3 to 5 people), timed reporting task, fresh-install test | L3 | M | Team, with programme manager and MEAL officer |
 | R4 | Re-measure load times on a quiet laptop; if the overview is still over 3 s, load the chart library on the first page | L4 | S | Team |
+| R5b | Deploy the Kobo forms on a test account and fill them in on one phone; export and run the pipeline | L27 | S | MEAL officer, with the team |
 | R5 | Handover walkthrough: the maintainer refreshes the data and adds a file layout using only the guides | L23 | S | MEAL officer (maintainer) |
 
 ### Next 3 months (first real data)
