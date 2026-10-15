@@ -12,12 +12,15 @@ f = ui.filters()
 projects = f.project_ids
 run = ui.query
 st.title("Programme overview")
+ui.how_to_read("overview")
 st.markdown(f"<div class='muted'>{f.start:%d %b %Y} to {f.end:%d %b %Y} · {f.scope_text}</div>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------ headline figures (one definition each: measures.py)
 people = measures.people_reached(run, projects, f.start, f.end, f.district, f.sex)
 acts = measures.activities_total(run, projects, f.start, f.end, f.district)
 budget = measures.budget_total(run, projects)
+budgets = measures.budget_status(run, projects, ui.as_of(), ui.SETTINGS)
+over = budgets[budgets["status"] == "over budget"]
 women_pct = 100 * people["women"] / people["known_sex"] if people["known_sex"] else None
 coverage = 100 * people["known_sex"] / people["people"] if people["people"] else None
 ui.tiles([
@@ -27,14 +30,32 @@ ui.tiles([
      f"coverage {coverage:.0f}%: people with sex recorded" if coverage is not None and coverage < 100 else
      ("sex filter applied" if f.sex else "")),
     ("Budget spent (activity costs)", ui.money(acts["spend"], short=True),
-     f"{100 * acts['spend'] / budget:.0f}% of the {ui.money(budget, short=True)} project budgets" if budget else ""),
+     (f"{100 * acts['spend'] / budget:.0f}% of the {ui.money(budget, short=True)} project budgets" if budget else "")
+     + "".join(f"<br><b style='color:#9a6700'>▲ {r.project_id} {r.message}</b>" for r in over.itertuples())),
 ])
+nothing = people["people"] == 0 and acts["activities"] == 0
+if nothing:
+    ui.no_data(f"between {f.start:%d %b %Y} and {f.end:%d %b %Y} for {f.scope_text}")
 if f.district:
     st.caption("People are counted in the district where they registered; activities and spending in the district "
                "where the activity took place. Budgets are for whole projects.")
 elif people["unknown_district"]:
     st.caption(f"{people['unknown_district']} of the people reached have no known district (their registration is "
                "quarantined): see Geography and Data quality.")
+
+# ------------------------------------------------------------------ budget by project
+st.markdown("### Budget by project")
+st.markdown("<div class='muted'>All activity spending up to the as-of date against each project's whole budget "
+            "(the date filter does not apply). Activity costs only; staff and overheads are not in the files.</div>",
+            unsafe_allow_html=True)
+ui.html_table(pd.DataFrame({
+    "Project": budgets["project_id"] + " " + budgets["name"],
+    "Budget": [ui.money(x, short=True) for x in budgets["budget"]],
+    "Spent to date": [ui.money(x, short=True) for x in budgets["spent"]],
+    "% spent": [f"{x:.0f}%" for x in budgets["pct_spent"]],
+    "Status": [f"<span style='color:#9a6700;font-weight:600'>▲ Warning: {m}</span>" if s == "over budget"
+               else f"✔ Within budget ({m})" for s, m in zip(budgets["status"], budgets["message"])]}),
+    "budget_by_project", html_columns=("Status",), widths={"Project": "34%", "Status": "32%"})
 
 # ------------------------------------------------------------------ target versus actual by project
 st.markdown("### Target versus actual by project")
@@ -108,6 +129,8 @@ act_trend = ui.query(f"""
     {"AND l.district = ?" if f.district else ""} GROUP BY 1 ORDER BY 1""",
                      *projects, f.start, f.end, *([f.district] if f.district else []))
 both = act_trend.merge(trend, on="month", how="outer").sort_values("month")
+if not len(both):
+    ui.no_data(f"between {f.start:%d %b %Y} and {f.end:%d %b %Y}, so there is no trend to show")
 long = both.melt(id_vars="month", value_vars=["activities", "people"], var_name="measure", value_name="value")
 long["measure"] = long["measure"].map({"activities": "Activities completed",
                                        "people": "Different people served in the month (not cumulative)"})
@@ -150,3 +173,5 @@ if "last_report" in st.session_state:
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_report_xlsx")
     d2.download_button("⬇ Download PDF", result["pdf"].read_bytes(), file_name=result["pdf"].name,
                        mime="application/pdf", key="dl_report_pdf")
+
+ui.footer()          # data last updated, with the source files (on every page, and printed)

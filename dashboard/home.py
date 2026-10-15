@@ -12,6 +12,7 @@ run = ui.query
 cat = ui.catalogue()
 quarter, q_start, q_end = ui.current_quarter()
 st.title("Executive summary")
+ui.how_to_read("home")
 st.markdown(f"<div class='muted'>{quarter} ({q_start:%d %b} to {q_end:%d %b %Y}) · {f.scope_text} · "
             f"data as of {ui.as_of():%d %B %Y}</div>",
             unsafe_allow_html=True)
@@ -40,6 +41,10 @@ with c1:
         st.markdown(f"<div class='small'><b>Off track or at risk</b><ul>{items}</ul></div>", unsafe_allow_html=True)
     else:
         st.markdown("<div class='small'>No indicator is off track or at risk this quarter.</div>", unsafe_allow_html=True)
+    budgets = measures.budget_status(run, f.project_ids, ui.as_of(), ui.SETTINGS)
+    for r in budgets[budgets["status"] == "over budget"].itertuples():
+        st.markdown(f"<div class='small' style='color:#9a6700'><b>▲ {r.project_id} {r.name}: {r.message}</b> "
+                    "(activity costs to date)</div>", unsafe_allow_html=True)
     st.page_link("pages/2_Indicators.py", label="See all indicators →", icon="🎯")
 
 # ------------------------------------------------------------------ 2. Can we trust the numbers?
@@ -85,3 +90,5 @@ with c3:
                 f"<b>Pipeline gaps</b> <span class='muted'>(draft definition)</span><ul>{''.join(lines) or '<li>No project ends within 12 months</li>'}</ul>"
                 f"<b>{overdue}</b> follow-up actions are overdue.</div>", unsafe_allow_html=True)
     st.page_link("pages/5_Donor_Pipeline.py", label="See the donor pipeline →", icon="🤝")
+
+ui.footer()          # data last updated, with the source files (on every page, and printed)

@@ -684,8 +684,11 @@ TEST_SETS = {
     "holdout2_fo06": ("Held-out 2 after the fixes + FO06 mapping in config (seen data)", "holdout2_raw",
                       "holdout2_ground_truth", "holdout2_fo06_staging", ("mapping_overlays/holdout2_fo06.yaml",),
                       "synthetic_holdout2.yaml"),
+    "final": ("FINAL held-out round (seed 6151, Phase 7)", "final_raw", "final_ground_truth", "final_staging", (),
+              "synthetic_final.yaml"),
 }
 DEFAULT_RUNS = ["main", "holdout2_fix1", "holdout2_fo06"]
+FINAL_SCORECARD = "phase7_final_holdout_scorecard.md"
 FROZEN_V2 = "phase2_scorecard_v2_holdout2.md"
 FROZEN_V2_COLUMNS = {   # column in the frozen v2 table -> column in the v3 side-by-side table
     "Held-out 1 + FO05 mapping in config": "Held-out 1 + FO05 mapping (v2, seen data)",
@@ -704,6 +707,32 @@ def frozen_side_table(name: str) -> pd.DataFrame:
         rows.append([c.strip() for c in line.strip().strip("|").split("|")])
     header, body = rows[0], [r for r in rows[2:]]
     return pd.DataFrame(body, columns=header).set_index("measure")
+
+
+# Every answer-key correction or scoring change made AFTER seeing results (team rule: logged, one line each).
+POST_RESULT_CHANGES = [
+    ("D54", "Answer key", "14 'completed but late' problems in the paper file relabelled undetectable (the paper form "
+     "has no planned date); with 5 misspelt names, 19 problems left out of the genuine-error denominator."),
+    ("D78 / D90", "Scorer", "An age worked out from a date of birth is compared with the age from the TRUE date of "
+     "birth and the true date of that registration (the key copied the first registration's age with +/-1)."),
+    ("D83 / D91", "Scorer", "A blank age is a knock-on, not a miss, when the registration date on the same row carries "
+     "an injected problem (all 7 cases checked by hand)."),
+    ("D136", "Scorer", "A USD amount is judged against the amount the officer wrote, converted at the configured rate "
+     "(the generator had rounded the USD figure before writing it)."),
+    ("D153", "Scoring rule", "Reconciliation catch rate also reported for planted discrepancies at least the minimum "
+     "difference (5) apart, after the minimum cut the raw catch rate to 30.3%; the raw figure is still reported."),
+    ("D162", "Comparison level", "Reconciliation compared at a level set per indicator (WASH-01 by month, AGR-01 by "
+     "quarter, totals only), after AGR-01's monthly district figures proved mostly under the minimum."),
+]
+
+
+def post_result_changes_lines() -> list[str]:
+    lines = ["## Changes made after seeing results", "",
+             "Every answer-key correction or scoring change made after results were seen, one line each. Details and "
+             "evidence are in `docs/decision_log.md`. The frozen scorecards v1 and v2 were not rescored.", "",
+             "| Decision | What changed | Change |", "|---|---|---|"]
+    lines += [f"| {d} | {kind} | {text} |" for d, kind, text in POST_RESULT_CHANGES]
+    return lines + [""]
 
 
 def reconciliation_levels() -> dict:
@@ -835,9 +864,12 @@ def reconciliation_lines(r: dict, title: str = "main set") -> list[str]:
             f"**{s['caught']} ({s['catch_rate']}%)**.",
             f"- Of these, **{s['planted_at_least_min']}** have a planted difference of at least {s['min_difference']}; "
             f"flagged: **{s['caught_at_least_min']} ({s['catch_rate_at_least_min']}%)**.",
-            f"- Flags raised: {s['flags']}; on a planted discrepancy: {s['flags_on_planted']} (precision {s['precision']}%).",
-            f"- Other flags explained by an injected data problem: {s['explained_flags']}. "
-            f"**Unexplained false alarms: {s['false_alarms']}.**",
+            "", f"**Every flag raised ({s['flags']}), by what it caught:**", "",
+            "| What the flag caught | Flags |", "|---|---|",
+            f"| Planted discrepancies (over- or under-reporting) caught | {s['flags_on_planted']} |",
+            f"| Genuine data errors caught (an injected problem in the report or the records, e.g. an extra zero, "
+            f"quarantined or duplicate records) | {s['explained_flags']} |",
+            f"| Unexplained false alarms | {s['false_alarms']} |", "",
             f"- Comparisons with only a planted rounding difference that stayed within the tolerance: "
             f"{s['rounding_within']} of {s['rounding_planted']}.", "",
             md_table(r["table"]), "",
@@ -884,17 +916,83 @@ def score_set(key: str) -> dict:
     return dict(key=key, name=name, run=run, result=result, staging=staging, reconciliation=reconciliation)
 
 
+def final_round() -> Path:
+    """Phase 7 final held-out round: score the FINAL set with the current pipeline, unchanged, and write a scorecard
+    with the earlier rounds side by side. Run once; the result is frozen (never rewritten by the normal scoring)."""
+    out = resolve_path("docs") / FINAL_SCORECARD
+    if out.exists():
+        raise SystemExit(f"{out.name} already exists and is frozen. Delete it only with the team's agreement.")
+    main_set, final = score_set("main"), score_set("final")
+    side = pd.DataFrame([summary_row(x["name"], x["result"], x["run"], x["staging"]) for x in (main_set, final)]
+                        ).set_index("set").T
+    side.index.name = "measure"
+    frozen = frozen_side_table(FROZEN_V2)
+    side.insert(1, "Held-out 1, as first scored with the v2 code (seed 7919)",
+                frozen["Held-out 1, as is (seed 7919)"].reindex(side.index))
+    side.insert(2, "Held-out 2 HEADLINE (v2, seed 4243)",
+                frozen["Held-out 2 (seed 4243, fresh mess) - HEADLINE"].reindex(side.index))
+    rec = {k: x["reconciliation"]["summary"] for k, x in (("main", main_set), ("final", final)) if x["reconciliation"]}
+    rec_rows = [("Comparisons scored", "units"), ("With a planted discrepancy", "planted_units"),
+                ("Planted discrepancies caught", "caught"), ("Catch rate %", "catch_rate"),
+                ("Planted discrepancies at least the minimum apart", "planted_at_least_min"),
+                ("... of which caught", "caught_at_least_min"), ("Catch rate (at least the minimum) %",
+                                                                 "catch_rate_at_least_min"),
+                ("Flags raised", "flags"), ("Flags: planted discrepancies caught", "flags_on_planted"),
+                ("Flags: genuine data errors caught", "explained_flags"), ("Flags: unexplained false alarms", "false_alarms"),
+                ("Planted report rows too small to detect on their own", "too_small_rows")]
+    rec_table = pd.DataFrame([{"measure": label, **{("Main set" if k == "main" else "Final held-out"): v[key]
+                                                    for k, v in rec.items()}} for label, key in rec_rows])
+    lines = [
+        "# Phase 7 final held-out scorecard (synthetic data) - FROZEN", "",
+        f"*Generated once by `python src/score_cleaning.py --final` on {dt.date.today():%d %B %Y}, with the pipeline "
+        "and configuration exactly as committed before the data was generated (decision log D169). No fixes were "
+        "made after seeing these results; weaknesses are listed as limitations. Do not edit or regenerate.*", "",
+        "The final set was generated from `config/synthetic_final.yaml`: the production officers and layouts, a fresh "
+        "seed (6151), held-out 2's harder mess (new date styles, district variants, initials, hyphens and extra names "
+        "in duplicates, namesakes) and the reconciliation scenario switched on. No hand-made files were provided in "
+        "`data/holdout/manual/raw/`.", "",
+        "## Cleaning and duplicates, next to the earlier rounds", "",
+        "Held-out 1 and held-out 2 are copied from the frozen v2 scorecard (first scores on unseen data). The main set "
+        "has been seen many times; it is shown for reference only.", "",
+        md_table(side.reset_index()), "",
+        "## Reconciliation", "",
+        "Held-out 1 and 2 had no reconciliation scenario, so only the main set can be compared.", "",
+        md_table(rec_table), "",
+    ]
+    r = final["result"]
+    run = final["run"]
+    if len(run["skipped"]):
+        cols = [c for c in ("source_file", "source_sheet", "reason", "missing_required") if c in run["skipped"].columns]
+        lines += ["## Sheets skipped", "", md_table(run["skipped"][cols]), ""]
+    lines += section_lines(r, "Final held-out: results by error type", level="##")
+    queue = review_queue_lines(final["staging"], "Final held-out: review queue and quarantine")
+    lines += queue
+    if final["reconciliation"]:
+        lines += reconciliation_lines(final["reconciliation"], "final held-out round")
+    lines += post_result_changes_lines()
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(md_table(side.reset_index()))
+    print(md_table(rec_table))
+    print(f"Final scorecard written to docs/{out.name}")
+    return out
+
+
 def main(argv: list[str] | None = None):
     import argparse
     parser = argparse.ArgumentParser(description="Score the cleaning against the synthetic answer keys.")
     parser.add_argument("--all", action="store_true",
-                        help="re-score every test set, including the held-out sets (for the final round)")
+                        help="re-score every test set, including the held-out sets")
+    parser.add_argument("--final", action="store_true",
+                        help="Phase 7: score the final held-out round once and freeze its scorecard")
     args = parser.parse_args(argv)
+    if args.final:
+        final_round()
+        return
     settings = load_settings()
     if not settings["synthetic_mode"]:
         print("Scoring needs the synthetic answer key; synthetic_mode is off, so nothing to do.")
         return
-    keys = list(TEST_SETS) if args.all else DEFAULT_RUNS
+    keys = [k for k in TEST_SETS if k != "final"] if args.all else DEFAULT_RUNS
     results = [score_set(k) for k in keys]
 
     side = pd.DataFrame([summary_row(x["name"], x["result"], x["run"], x["staging"]) for x in results]).set_index("set").T
@@ -959,6 +1057,7 @@ def main(argv: list[str] | None = None):
         lines += ["#" + l if l.startswith("## ") or l.startswith("### ") else l for l in queue]
     if results[0].get("reconciliation"):
         lines += reconciliation_lines(results[0]["reconciliation"])
+    lines += post_result_changes_lines()
     for r in results[1:]:
         if r.get("reconciliation"):
             lines += reconciliation_lines(r["reconciliation"], r["name"])

@@ -339,3 +339,23 @@ def report_rows_behind(run, gaps: pd.DataFrame) -> list[str]:
                  for (f, sh), r in rows.groupby(["source_file", "source_sheet"])]
         out.append("; ".join(parts) or "no report row")
     return out
+
+
+# ---------------------------------------------------------------- budgets
+def budget_status(run, project_ids: list, as_of: dt.date, settings: dict) -> pd.DataFrame:
+    """Activity spending to the as-of date against each project's whole budget (dates filter does NOT apply: a budget
+    is for the whole project). Over settings budget_monitoring.over_budget_pct = warning.
+    Columns: project_id, name, budget, spent, pct_spent, over_by, status, message."""
+    limit = settings["budget_monitoring"]["over_budget_pct"]
+    b = run(f"""SELECT p.project_id, p.name, p.budget_rwf AS budget,
+                       COALESCE(SUM(CASE WHEN f.status IN ('completed', 'delayed') AND f.date <= ? THEN f.cost_rwf END), 0)
+                         AS spent
+                FROM dim_project p LEFT JOIN dim_activity a USING (project_id)
+                LEFT JOIN fact_activity f USING (activity_id)
+                WHERE p.project_id IN {in_list(project_ids)} GROUP BY 1, 2, 3 ORDER BY 1""", as_of, *project_ids)
+    b["pct_spent"] = 100 * b["spent"] / b["budget"]
+    b["over_by"] = (b["spent"] - b["budget"] * limit / 100).clip(lower=0)
+    b["status"] = np.where(b["pct_spent"] > limit, "over budget", "within budget")
+    b["message"] = [f"over budget by RWF {o:,.0f} ({p - 100:.0f}%)" if s == "over budget" else f"{p:.0f}% spent"
+                    for o, p, s in zip(b["over_by"], b["pct_spent"], b["status"])]
+    return b

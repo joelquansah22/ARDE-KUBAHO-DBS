@@ -11,6 +11,7 @@ f = ui.filters()
 cat = ui.catalogue()
 run = ui.query
 st.title("Indicators")
+ui.how_to_read("indicators")
 tl = ui.SETTINGS["traffic_light"]
 st.markdown(f"<div class='muted'>Status (shown with a symbol and in words): ✔ on track {tl['on_track_min']}% or more of "
             f"target · ▲ at risk {tl['at_risk_min']} to {tl['on_track_min'] - 1}% · ✖ off track below {tl['at_risk_min']}% · "
@@ -190,3 +191,5 @@ if len(rec):
             }), "reconciliation_by_sex_information", height=300)
 else:
     st.info("Nothing to compare for this selection.")
+
+ui.footer()          # data last updated, with the source files (on every page, and printed)

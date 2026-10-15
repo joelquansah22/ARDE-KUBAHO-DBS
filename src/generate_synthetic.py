@@ -1939,8 +1939,12 @@ def main():
                         help="held-out test set 1 (config/synthetic_holdout.yaml, written to data/holdout/)")
     parser.add_argument("--holdout2", action="store_true",
                         help="held-out test set 2 (config/synthetic_holdout2.yaml, written to data/holdout2/)")
+    parser.add_argument("--final", action="store_true",
+                        help="Phase 7 final held-out round (config/synthetic_final.yaml, written to data/final_holdout/)")
     args = parser.parse_args()
-    if args.holdout2:
+    if args.final:
+        config_name, prefix = "synthetic_final.yaml", "final_"
+    elif args.holdout2:
         config_name, prefix = "synthetic_holdout2.yaml", "holdout2_"
     elif args.holdout:
         config_name, prefix = "synthetic_holdout.yaml", "holdout_"

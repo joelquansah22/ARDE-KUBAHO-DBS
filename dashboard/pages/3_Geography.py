@@ -13,6 +13,7 @@ f = ui.filters()
 cat = ui.catalogue()
 projects = f.project_ids
 st.title("Geography")
+ui.how_to_read("geography")
 st.markdown(f"<div class='muted'>{f.start:%d %b %Y} to {f.end:%d %b %Y} · {f.scope_text}</div>", unsafe_allow_html=True)
 
 GEOJSON = ui.ROOT / "config" / "reference" / "geo" / "geoBoundaries-RWA-ADM2_simplified.geojson"
@@ -85,6 +86,8 @@ else:
     label, axis = cat[code]["name"], ui.axis_title(code)
     note = f"Monthly reported values {'(latest month)' if agg == 'latest' else 'added up'} over the date range."
 
+if not len(data) or data["value"].fillna(0).sum() == 0:
+    ui.no_data(f"for '{measure}' between {f.start:%d %b %Y} and {f.end:%d %b %Y}")
 all_districts = pd.DataFrame({"district": [d for ds in ui.load_yaml("reference/rwanda_admin.yaml")["provinces"].values()
                                            for d in ds]})
 shown = all_districts.merge(data[["district", "value"]], on="district", how="left")   # map: known districts only
@@ -126,3 +129,5 @@ if f.district:
 shown_table = shown_table[["district", "value"] + (["pending"] if "pending" in shown_table else [])]
 ui.table(shown_table.rename(columns={"district": "District", "value": label,
                                      "pending": "Of whom pending duplicate review"}), "geography_by_district")
+
+ui.footer()          # data last updated, with the source files (on every page, and printed)

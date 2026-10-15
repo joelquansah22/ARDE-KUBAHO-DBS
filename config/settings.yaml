@@ -37,6 +37,9 @@ paths:
   holdout2_staging: data/holdout2/staging
   holdout2_fix1_staging: data/holdout2/staging_after_round4_fixes        # recovery runs on SEEN data
   holdout2_fo06_staging: data/holdout2/staging_after_fixes_with_fo06_mapping
+  final_raw: data/final_holdout/raw                # Phase 7 final held-out round (config/synthetic_final.yaml)
+  final_ground_truth: data/final_holdout/ground_truth
+  final_staging: data/final_holdout/staging
   templates: templates
   docs: docs
 
@@ -72,6 +75,11 @@ reporting_window:
 # Date used as "today" for deadlines and overdue actions while on synthetic data.
 # Set to null to use the real current date.
 as_of_date: 2026-06-30
+
+budget_monitoring:
+  # A project whose activity spending to the as-of date is above this % of its budget
+  # gets a warning: "over budget by RWF X (Y%)". Activity costs only (no staff or overheads).
+  over_budget_pct: 100
 
 currency:
   base: RWF

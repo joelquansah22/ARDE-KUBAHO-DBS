@@ -418,6 +418,19 @@ Neither changed the cleaner. Both changed only how the scorer judges a cell, and
 | MEAL officer | Figures by sex kept in an expander, clearly marked "for information; not flagged". |
 | All | Derived actuals labelled "(worked out)" instead of "(from records)"; British spelling checked (no American spellings in user-facing text). |
 
+## Before Phase 7: items checked from the instruction log (2026-10-15)
+
+The team asked for items said to be in the Phase 5 decisions message. The full text of every instruction message in
+the session transcript is now in `docs/instruction_log.md`; none of these items is in any of them (the same was
+true of the annualised pipeline gap, D164). They were therefore not done, and are done now.
+
+| # | Decision | Reason |
+|---|---|---|
+| D168 | **PRJ03 deliberately over budget by about 10%:** `calibration.activity_cost_scale` PRJ03 0.57 -> 0.87, so its activity spending to the as-of date is RWF 164.7m against a RWF 150.0m budget (109.8%). `settings.yaml: budget_monitoring.over_budget_pct: 100`. The Programme overview has a "Budget by project" table and the budget tile, and the Executive summary a line, all saying "▲ ... over budget by RWF 14,731,000 (10%)" (symbol and words, warning colour); tested. New main-set fingerprint `be6008ecb6ff62c997f6b7a613b8799d72c9c2010b05c601a22b949ac206a057`; scorecards rerun: genuine errors 99.8%, 0 false corrections of 58,329 cells, review queue 7.6 a month, 235 quarantined (unchanged except 1 cell compared). | Team instruction (item 2a). |
+| D169 | **Final held-out round design, fixed BEFORE generating** (`config/synthetic_final.yaml`): extends the main config (production officers and layouts, calibration, reconciliation scenario ON), fresh seed 6151, held-out 2's harder mess. Run with the current pipeline and production config, no overlays; no fixes after seeing the results. `data/holdout/manual/raw/` holds no hand-made files (only a placeholder), so none are included. | Team instruction (Phase 7 A). |
+| D170 | **Scorecard additions:** reconciliation flags split into planted discrepancies caught / genuine data errors caught / unexplained false alarms; a section "Changes made after seeing results" lists D54, D78/D90, D83/D91, D136, D153 and D162, one line each. | Team instruction (items 2b, 2c). |
+| D171 | **Dashboard items (2d):** "Data last updated ... from N source files" with the list of files at the foot of every page (and in the sidebar); a plain message when a selection has no data; a friendly page instead of an error when the pipeline has not been run; a collapsed "How to read this page" on every page (text in `config/page_help.yaml`, editable by staff); A4 landscape printing (`@page`), with the sidebar, buttons and closed sections left out. The glossary is in `docs/user_guide.md`. All tested (`tests/test_phase6_items.py`). | Team instruction (item 2d). |
+
 ## Open items to confirm with ARDE/KUBAHO and supervisors (brief Section 15)
 
 These do not block the prototype.

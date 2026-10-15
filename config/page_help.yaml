@@ -1,0 +1,47 @@
+# =============================================================================
+# "How to read this page": the short guide shown (collapsed) at the top of each
+# dashboard page. Plain British English, for programme staff. Edit freely: the
+# dashboard reads this file every time a page opens. One entry per page.
+# =============================================================================
+
+home: |
+  - This page answers three questions for the current fiscal quarter: are we on track, can we trust the numbers, and what funding is coming up.
+  - **On track** counts each indicator once (or once per project when you choose a programme). ✔ on track = 90% or more of target, ▲ at risk = 70 to 89%, ✖ off track = below 70%. Indicators without a complete target are counted separately, never as on track.
+  - **Can we trust these numbers?** The data-quality score is the average of six checks (completeness, validity, consistency, uniqueness, timeliness, accuracy). "Gaps" are months or quarters where the monthly report and the activity or register records disagree by more than 10% and at least 5.
+  - **Funding**: deadlines are for opportunities that are still open. The weighted pipeline is each amount requested times its chance of success. The pipeline gap is a draft definition, to be agreed.
+  - Each block links to the page with the details. The sidebar filters apply here too.
+
+overview: |
+  - The four tiles count **different people** (not attendance), activities completed, the share of women, and activity spending in the date range you choose.
+  - "Pending duplicate review" means people who may be registered twice; until someone checks them, people counts may be slightly high.
+  - **Budget by project** compares all activity spending to date with each project's whole budget (the date filter does not apply). ▲ means over budget.
+  - **Target versus actual**: the words above each bar give the status. A hatched bar is the target for only the months that have one.
+  - **Cost per person reached** is a draft measure: activity cost divided by the people reached as reported, for projects that report reach.
+  - The **donor report** button makes a one-page quarterly summary (Excel and PDF) for one project.
+
+indicators: |
+  - One row per indicator. **Actual** comes from the monthly reports where the indicator is reported; "(worked out)" means it is calculated from the activity, register and report files.
+  - **% achieved** compares the actual with the target. "Partial, 2 of 3 months" means only some months had a target, so the % covers those months only.
+  - **Compared with records** shows what the activity or register records say for the same thing. A big difference is listed under "Gaps to follow up".
+  - **Coverage** appears when a figure could only be worked out from part of the data.
+  - In the drill-down, an open diamond marks a month that includes records still in the review queue.
+  - In the reconciliation, open "Report to check" to find the report row in the Excel file.
+
+geography: |
+  - Choose what to show. People are counted in the district where they **registered**; activities and spending in the district where the activity **took place**.
+  - Grey districts on the map have no data in your selection. "Unknown district" (bar chart and table only) is people whose registration records are all quarantined.
+  - The district total in the table is the same as the Programme overview total when no district is chosen.
+
+data_quality: |
+  - This page covers **every record in the source files**, so the filters do not apply.
+  - **Quarantined** records broke a critical rule (for example a required field left blank or an impossible value). They are kept aside and not counted until corrected in the Excel file.
+  - **Review queue** records are counted, but a person should check them (for example women + men do not equal the total).
+  - **Work lists**: choose a field officer to see and download only their records, to send them for correction.
+  - After correcting the Excel files, run the pipeline again (see the user guide).
+
+donor_pipeline: |
+  - **Open opportunities** are those not yet decided (Identified to Proposal submitted). Awarded and Declined are outcomes and are shown separately.
+  - **Weighted value** = amount requested × probability of success. It is a planning figure, not money expected for certain.
+  - An opportunity that fits two themes is split half and half, so the themes add up to the total.
+  - The **pipeline gap** compares the annual budget of projects ending within 12 months with the weighted pipeline for their theme. Draft definition, to be agreed with ARDE/KUBAHO.
+  - **Overdue next actions** are open opportunities whose next action date has passed.

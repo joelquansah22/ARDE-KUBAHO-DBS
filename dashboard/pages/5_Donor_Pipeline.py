@@ -12,6 +12,7 @@ run = ui.query
 today = ui.as_of()
 cfg = ui.SETTINGS["donor_pipeline"]
 st.title("Donor pipeline")
+ui.how_to_read("donor_pipeline")
 st.markdown(f"<div class='muted'>As of {today:%d %B %Y}. Weighted value = amount requested × probability of "
             "success. Individual donors are shown only as 'Individual donor #NNN'. Programme, project, district and "
             "sex filters do not apply on this page.</div>", unsafe_allow_html=True)
@@ -106,3 +107,5 @@ with st.expander("All opportunities"):
         "Weighted": [ui.money(x) for x in opps["weighted"]], "Owner": opps["owner"],
         "Next action": opps["next_action"], "Next action due": opps["next_action_date"].dt.strftime("%d %b %Y"),
         "Source file": opps["source_file"], "Source row": opps["source_row"]}), "all_opportunities")
+
+ui.footer()          # data last updated, with the source files (on every page, and printed)

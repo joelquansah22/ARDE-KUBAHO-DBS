@@ -57,11 +57,32 @@ def _query(sql: str, params: tuple, version: float) -> pd.DataFrame:
     return _connection(version).cursor().execute(sql, list(params)).df()
 
 
+NOT_BUILT = """
+### The figures have not been prepared yet
+
+The dashboard reads the figures that the **pipeline** prepares from the Excel files, and it has not been run on this
+computer yet (or its results were deleted).
+
+**What to do:**
+1. Close this window.
+2. Double-click **`run_dashboard.bat`** in the project folder. It prepares the figures first (about one minute)
+   and then opens the dashboard again.
+
+Or, in a terminal in the project folder: `python src/pipeline.py`, then refresh this page.
+If this message comes back, see "Problems and what to do" in `docs/user_guide.md`.
+"""
+
+
+def require_warehouse() -> None:
+    """A friendly message (instead of an error) when the pipeline has not been run yet."""
+    if not db_path().exists():
+        st.info(NOT_BUILT)
+        st.stop()
+
+
 def query(sql: str, *params) -> pd.DataFrame:
     """Run a read-only SQL query on the warehouse (cached until the warehouse is rebuilt)."""
-    if not db_path().exists():
-        st.error("The data warehouse has not been built yet. Run `python src/pipeline.py` first.")
-        st.stop()
+    require_warehouse()
     return _query(sql, tuple(params), db_version())
 
 
@@ -142,6 +163,7 @@ def filters(sex_applies: bool = True) -> Filters:
         st.session_state["_standalone"] = True
         st.markdown(CSS, unsafe_allow_html=True)
         banner()
+        require_warehouse()
         st.session_state["filters"] = sidebar_filters(sex_applies)
     return st.session_state["filters"]
 
@@ -150,6 +172,44 @@ def filters(sex_applies: bool = True) -> Filters:
 def banner() -> None:
     if SETTINGS.get("synthetic_mode"):
         st.markdown(f"<div class='synthetic-banner'>⚠ {SETTINGS['synthetic_banner']}</div>", unsafe_allow_html=True)
+
+
+def how_to_read(page: str) -> None:
+    """The collapsed "How to read this page" guide (text in config/page_help.yaml, editable by staff)."""
+    text = load_yaml("page_help.yaml").get(page)
+    if text:
+        with st.expander("How to read this page"):
+            st.markdown(text)
+
+
+def no_data(what: str = "for this selection") -> None:
+    """A plain message instead of empty charts and tables."""
+    st.info(f"Nothing was recorded {what}. Try a wider date range, or another programme, project or district "
+            "in the filters on the left.")
+
+
+@st.cache_data(show_spinner=False)
+def _source_files(version: float) -> pd.DataFrame:
+    return _connection(version).cursor().execute(
+        "SELECT DISTINCT source_file FROM dq_by_source_file ORDER BY 1").df()
+
+
+def data_updated() -> tuple[str, list[str]]:
+    """When the figures were last prepared (the warehouse file's time) and the Excel files they came from."""
+    version = db_version()
+    when = dt.datetime.fromtimestamp(version).strftime("%d %B %Y, %H:%M") if version else "never"
+    files = list(_source_files(version)["source_file"]) if version else []
+    return when, files
+
+
+def footer() -> None:
+    """Shown at the bottom of every page (and printed): when the data was last updated, and from which files."""
+    when, files = data_updated()
+    st.markdown(f"<div class='muted' style='margin-top:1.2rem;border-top:1px solid #d0d7de;padding-top:0.4rem'>"
+                f"Data last updated {when} from {len(files)} source files. Figures as of {as_of():%d %B %Y}.</div>",
+                unsafe_allow_html=True)
+    with st.expander(f"Source files ({len(files)})"):
+        st.markdown("\n".join(f"- {f}" for f in files) or "None")
 
 
 def status_label(status: str, note: str | None = None) -> str:
@@ -324,7 +384,10 @@ h4 {font-size: 1.0rem !important; margin: 0.2rem 0 0.3rem 0 !important;}
 .answer ul {margin: 0.1rem 0 0.2rem 1rem; padding: 0; font-size: 0.82rem;}
 .answer li {margin-bottom: 0.1rem;}
 .small {font-size: 0.82rem;}
+@page {size: A4 landscape; margin: 10mm;}
 @media print {
+  [data-testid="stExpander"] details:not([open]) {display: none !important;}
+  .js-plotly-plot, [data-testid="stPlotlyChart"] {break-inside: avoid;}
   [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"], .stDownloadButton,
   [data-testid="stBaseButton-secondary"] {display: none !important;}
   .block-container {padding: 0 !important;}

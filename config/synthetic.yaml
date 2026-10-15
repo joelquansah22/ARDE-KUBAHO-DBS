@@ -170,13 +170,14 @@ indicator_targets:
 #   activity_cost_scale: multiplies the activity cost ranges above, per project, so
 #     that activity spending to the as-of date is a plausible share of the budget
 #     (about 60-80%; budgets also pay for staff and overheads). Before this, activity
-#     costs were 152% of the budgets.
+#     costs were 152% of the budgets. PRJ03 is DELIBERATELY over budget by about
+#     10% (D168), so the dashboard's over-budget warning has something to show.
 #   service_window_days: each person's services fall within this many days of their
 #     registration. Before this, services were spread up to the project end, so the
 #     number of people served each month rose steadily all the way to the end.
 # -----------------------------------------------------------------------------
 calibration:
-  activity_cost_scale: {PRJ01: 0.50, PRJ02: 0.33, PRJ03: 0.57, PRJ04: 0.40, PRJ05: 0.43}
+  activity_cost_scale: {PRJ01: 0.50, PRJ02: 0.33, PRJ03: 0.87, PRJ04: 0.40, PRJ05: 0.43}
   service_window_days: 365
 
 reconciliation_scenario:
@@ -253,4 +254,4 @@ error_groups:
 
 # Content fingerprint of a correct run (see docs/synthetic_data.md).
 # Check your copy with:  python src/generate_synthetic.py --verify
-expected_fingerprint: 287081b2accf9d2da7fb1e3238c0a73df8c46b6a8c9e5967886594b5684c96cd   # since 15 Oct 2026, D151 (was c43d0b4d...)
+expected_fingerprint: be6008ecb6ff62c997f6b7a613b8799d72c9c2010b05c601a22b949ac206a057   # since 15 Oct 2026, D168 (was 287081b2...)

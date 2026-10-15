@@ -15,7 +15,7 @@
 | namesakes kept apart % | n/a | 100.0 | 100.0 | 90.2 | 100.0 |
 | privacy % | 100.0 | 100.0 | 100.0 | 100.0 | 100.0 |
 | types below 90% | 0 | 1 | 6 | 18 | 2 |
-| false corrections | 0 of 58,328 | 0 of 60,675 | 0 of 54,280 | 0 of 51,500 | 0 of 57,392 |
+| false corrections | 0 of 58,329 | 0 of 60,675 | 0 of 54,280 | 0 of 51,500 | 0 of 57,392 |
 | rows missing | 0 | 0 | 596 | 1143 | 0 |
 | duplicate precision | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |
 | duplicate recall (merged) | 0.864 | 0.59 | 0.53 | 0.434 | 0.53 |
@@ -52,16 +52,16 @@ This round's fix 1 stops partial reads: a sheet missing any required field is no
 
 ### Results: Main set (seed 2023)
 
-- Genuine errors fixed or flagged: **99.8%** (1,202 of 1,205). Target 95%: **met**.
+- Genuine errors fixed or flagged: **99.8%** (1,201 of 1,204). Target 95%: **met**.
 - Error types below 90%: **0**.
-- False corrections: **0** clean values wrongly changed, out of 58,328 clean cells compared (0.000%); 0 more were wrong only as a knock-on from an injected error on the same row.
+- False corrections: **0** clean values wrongly changed, out of 58,329 clean cells compared (0.000%); 0 more were wrong only as a knock-on from an injected error on the same row.
 - Rows in the answer key missing from the cleaned tables: 0. Rows that should not be there: 0.
 
 #### (b) Totals by group
 
 | group | fixed | flagged | missed | total | fixed_or_flagged_% |
 |---|---|---|---|---|---|
-| genuine_errors | 353 | 849 | 3 | 1205 | 99.8 |
+| genuine_errors | 352 | 849 | 3 | 1204 | 99.8 |
 | officer_habits | 12960 | 857 | 0 | 13817 | 100.0 |
 | privacy | 31 | 0 | 0 | 31 | 100.0 |
 
@@ -87,7 +87,7 @@ This round's fix 1 stops partial reads: a sheet missing any required field is no
 | genuine_errors | percent_over_100 | 0 | 4 | 0 | 4 | 100.0 |  |
 | genuine_errors | sex_ambiguous_code_1 | 0 | 13 | 0 | 13 | 100.0 |  |
 | genuine_errors | sum_mismatch | 0 | 81 | 0 | 81 | 100.0 |  |
-| genuine_errors | transcription_error | 14 | 16 | 0 | 30 | 100.0 |  |
+| genuine_errors | transcription_error | 13 | 16 | 0 | 29 | 100.0 |  |
 | officer_habits | amount_in_usd | 3 | 0 | 0 | 3 | 100.0 |  |
 | officer_habits | blank_row | 69 | 0 | 0 | 69 | 100.0 |  |
 | officer_habits | date_dmy_text | 3927 | 0 | 0 | 3927 | 100.0 |  |
@@ -807,8 +807,15 @@ Scored at each indicator's comparison level (catalogue `derived.reconcile`, D162
 
 - Comparisons scored: 140; with a planted discrepancy: **47**; flagged: **22 (46.8%)**.
 - Of these, **20** have a planted difference of at least 5; flagged: **19 (95.0%)**.
-- Flags raised: 27; on a planted discrepancy: 22 (precision 81.5%).
-- Other flags explained by an injected data problem: 5. **Unexplained false alarms: 0.**
+
+**Every flag raised (27), by what it caught:**
+
+| What the flag caught | Flags |
+|---|---|
+| Planted discrepancies (over- or under-reporting) caught | 22 |
+| Genuine data errors caught (an injected problem in the report or the records, e.g. an extra zero, quarantined or duplicate records) | 5 |
+| Unexplained false alarms | 0 |
+
 - Comparisons with only a planted rounding difference that stayed within the tolerance: 4 of 5.
 
 | indicator_code | kind | outcome | comparisons |
@@ -876,6 +883,19 @@ Of 66 planted report rows (the grain the officer reports: project, district, mon
 | AGR-01 | PRJ04 | Rulindo | 2026-04-01 | Male | over_report | 2.0 | 3.0 | 1.0 | caught |
 | AGR-01 | PRJ04 | Rulindo | 2026-06-01 | Female | over_report | 1.0 | 2.0 | 1.0 | caught |
 | AGR-01 | PRJ04 | Rulindo | 2026-06-01 | Male | over_report | 2.0 | 3.0 | 1.0 | caught |
+
+## Changes made after seeing results
+
+Every answer-key correction or scoring change made after results were seen, one line each. Details and evidence are in `docs/decision_log.md`. The frozen scorecards v1 and v2 were not rescored.
+
+| Decision | What changed | Change |
+|---|---|---|
+| D54 | Answer key | 14 'completed but late' problems in the paper file relabelled undetectable (the paper form has no planned date); with 5 misspelt names, 19 problems left out of the genuine-error denominator. |
+| D78 / D90 | Scorer | An age worked out from a date of birth is compared with the age from the TRUE date of birth and the true date of that registration (the key copied the first registration's age with +/-1). |
+| D83 / D91 | Scorer | A blank age is a knock-on, not a miss, when the registration date on the same row carries an injected problem (all 7 cases checked by hand). |
+| D136 | Scorer | A USD amount is judged against the amount the officer wrote, converted at the configured rate (the generator had rounded the USD figure before writing it). |
+| D153 | Scoring rule | Reconciliation catch rate also reported for planted discrepancies at least the minimum difference (5) apart, after the minimum cut the raw catch rate to 30.3%; the raw figure is still reported. |
+| D162 | Comparison level | Reconciliation compared at a level set per indicator (WASH-01 by month, AGR-01 by quarter, totals only), after AGR-01's monthly district figures proved mostly under the minimum. |
 
 ## Hand-made test files (data/holdout/manual)
 

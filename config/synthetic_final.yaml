@@ -1,0 +1,40 @@
+# =============================================================================
+# FINAL held-out round (Phase 7; used ONLY by: python src/generate_synthetic.py --final)
+# =============================================================================
+# Written on 15 October 2026, BEFORE this data was generated or looked at.
+# Rules (team instruction, Phase 7 A):
+#   - the CURRENT pipeline is run unchanged (production config, no mapping overlays);
+#   - no fix of any kind after seeing these results; weaknesses go in as limitations;
+#   - the result is frozen in docs/phase7_final_holdout_scorecard.md.
+#
+# Design (decision log D169): starts from config/synthetic.yaml (the production officers
+# and layouts, the Phase 6 calibration, and the reconciliation scenario switched ON, D167),
+# with a fresh seed and held-out 2's harder mess (new date styles, district variants,
+# initials / hyphen / extra-name duplicates, namesakes). No new officer layout: an unknown
+# layout is skipped by design (D87), which held-out 2 already showed.
+# Everything here is invented.
+# =============================================================================
+
+extends: synthetic.yaml
+
+seed: 6151                          # chosen 15 October 2026, before generating; never used before
+
+injection_rates:
+  duplicate_beneficiary: 0.05
+
+holdout_mess:
+  new_date_format_rate: 0.08
+  new_date_styles: [mon_d_yyyy, d_slash_mon_yyyy, ymd_dotted, ordinal_long]
+  district_new_variant_rate: 0.06
+  district_variant_kinds: [space_inside, with_province, vowel_change, prefix_typo, old_name]
+  dup_variant_kinds: [initials, hyphen, extra_name, surname_slip]
+  dup_phone_missing: 0.50
+  dup_id_kept: 0.30
+  namesake_rate: 0.04
+  namesake_close_age: 0.50
+  namesake_phone_missing: 0.50
+  namesake_id_missing: 0.50
+
+# reconciliation_scenario and calibration are inherited from synthetic.yaml: ON.
+
+expected_fingerprint: null          # filled in after the first generation (it only guards later regenerations)

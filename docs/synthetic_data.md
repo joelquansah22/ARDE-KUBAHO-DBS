@@ -22,10 +22,10 @@ python src/generate_synthetic.py --verify
 It prints `OK` if your files match this content fingerprint (SHA-256):
 
 ```
-287081b2accf9d2da7fb1e3238c0a73df8c46b6a8c9e5967886594b5684c96cd
+be6008ecb6ff62c997f6b7a613b8799d72c9c2010b05c601a22b949ac206a057
 ```
 
-(Changed on 15 October 2026, when activity costs were calibrated to the project budgets and each person's services
+(Changed again on 15 October 2026, when PRJ03's activity costs were raised so that it is deliberately over budget by about 10% (D168). Before that it was `287081b2accf9d2da7fb1e3238c0a73df8c46b6a8c9e5967886594b5684c96cd`, from earlier on 15 October 2026, when activity costs were calibrated to the project budgets and each person's services
 were kept within a year of their registration; decision log D150 to D151. Before that it was
 `c43d0b4d26e19fd06d26ca663777b6deaad2d86f16753e5ca3b292a63ce7e1ab`, from 14 October 2026, when the monthly WASH-01
 and AGR-01 reports started being worked out from the same true data as the activity and register files, with planted

@@ -12,6 +12,7 @@ import measures          # noqa: E402  (src/measures.py: one definition per figu
 
 ui.filters(sex_applies=False)
 st.title("Data quality")
+ui.how_to_read("data_quality")
 st.markdown("<div class='muted'>This page covers every record in the source files, so the programme, project, district, "
             "date and sex filters do not apply here.</div>", unsafe_allow_html=True)
 
@@ -147,3 +148,5 @@ if issues_file.exists():
     ui.tiles([(words.get(r.action, r.action), f"{r.records:,}") for r in summary.itertuples()])
     st.caption("The full before/after comparison (raw files against cleaned data, for the same records) is added "
                "in Phase 7 (evaluate.py).")
+
+ui.footer()          # data last updated, with the source files (on every page, and printed)
