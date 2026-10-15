@@ -12,10 +12,11 @@ run = ui.query
 cat = ui.catalogue()
 quarter, q_start, q_end = ui.current_quarter()
 st.title("Executive summary")
-ui.how_to_read("home")
-st.markdown(f"<div class='muted'>{quarter} ({q_start:%d %b} to {q_end:%d %b %Y}) · {f.scope_text} · "
-            f"data as of {ui.as_of():%d %B %Y}</div>",
-            unsafe_allow_html=True)
+sub, help_ = st.columns([3, 1], vertical_alignment="center")
+sub.markdown(f"<div class='muted'>{quarter} ({q_start:%d %b} to {q_end:%d %b %Y}) · {f.scope_text} · "
+             f"data as of {ui.as_of():%d %B %Y}</div>", unsafe_allow_html=True)
+with help_:
+    ui.how_to_read("home")
 
 c1, c2, c3 = st.columns(3, gap="small")
 
@@ -82,12 +83,11 @@ with c3:
     gaps, cutoff = measures.pipeline_gaps(run, opps, today, ui.SETTINGS)
     lines = []
     for r in gaps[gaps["projects"] > 0].itertuples():
-        lines.append(f"<li>{r.theme}: annual budget of projects ending by {cutoff:%b %Y} "
-                     f"{ui.money(r.ending_budget, short=True)}; "
-                     f"weighted pipeline {ui.money(r.weighted, short=True)}"
+        lines.append(f"<li>{r.theme}: {ui.money(r.ending_budget, short=True)} a year ending by {cutoff:%b %Y}; "
+                     f"pipeline {ui.money(r.weighted, short=True)}"
                      + (f" → <b>gap {ui.money(r.gap, short=True)}</b>" if r.gap > 0 else " (covered)") + "</li>")
     st.markdown(f"<div class='small'><b>Next deadlines</b><ul>{items or '<li>None</li>'}</ul>"
-                f"<b>Pipeline gaps</b> <span class='muted'>(draft definition)</span><ul>{''.join(lines) or '<li>No project ends within 12 months</li>'}</ul>"
+                f"<b>Pipeline gaps</b> <span class='muted'>(annual budgets; draft definition)</span><ul>{''.join(lines) or '<li>No project ends within 12 months</li>'}</ul>"
                 f"<b>{overdue}</b> follow-up actions are overdue.</div>", unsafe_allow_html=True)
     st.page_link("pages/5_Donor_Pipeline.py", label="See the donor pipeline →", icon="🤝")
 

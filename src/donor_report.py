@@ -62,6 +62,7 @@ def gather(db: Path, project_id: str, quarter: str) -> dict:
         people = measures.people_reached(q, [project_id], start, last_day)
         totals = measures.activities_total(q, [project_id], start, last_day)
         acts = dict(done=totals["activities"], spend=totals["spend"], attendance=totals["attendance"])
+        budget_check = measures.budget_status(q, [project_id], last_day, load_settings()).iloc[0]
         spend_to_date = q("""SELECT SUM(cost_rwf) AS s FROM fact_activity f JOIN dim_activity a USING (activity_id)
                              WHERE a.project_id = ? AND f.date < ?""", project_id, end)["s"].iloc[0]
         flags = measures.reconciliation_counts(
@@ -72,12 +73,18 @@ def gather(db: Path, project_id: str, quarter: str) -> dict:
     finally:
         con.close()
     return dict(project=project, values=values, start=start, end=end, people=people, acts=acts,
-                spend_to_date=spend_to_date or 0, flags=int(flags), warnings=int(warnings))
+                spend_to_date=spend_to_date or 0, flags=int(flags), warnings=int(warnings), budget_check=budget_check)
 
 
 def indicator_rows(values: pd.DataFrame) -> list[list]:
+    from common import load_yaml
+    missing = {i["code"]: i["when_missing"] for i in load_yaml("indicator_catalogue.yaml")["indicators"]
+               if i.get("when_missing")}
     rows = []
     for r in values.itertuples():
+        if pd.isna(r.actual) and r.indicator_code in missing:      # e.g. cost per person: no reported reach
+            rows.append([r.indicator_code, r.indicator, r.source, "-", missing[r.indicator_code], "-", "-", ""])
+            continue
         pct = (f"{r.pct_achieved:.0f}%" if pd.notna(r.pct_achieved)
                else f"{r.partial_pct_achieved:.0f}% ({r.target_note})" if pd.notna(r.partial_pct_achieved) else "-")
         unit = "%" if r.unit == "percent" else (" RWF" if r.unit == "RWF" else "")
@@ -137,7 +144,8 @@ def make_report(project_id: str, quarter: str, out_dir: Path | None = None, db: 
             ("Activities completed in the quarter", f"{int(acts['done'] or 0):,}"),
             ("Activity spending in the quarter", f"RWF {float(acts['spend'] or 0):,.0f}"),
             ("Spending to date / budget", f"RWF {float(d['spend_to_date']):,.0f} / RWF {budget:,.0f} "
-             f"({100 * float(d['spend_to_date']) / budget:.0f}%)"),
+             f"({100 * float(d['spend_to_date']) / budget:.0f}%)"
+             + (f" - WARNING: {d['budget_check']['message']}" if d["budget_check"]["status"] == "over budget" else "")),
             ("Data checks", f"{d['flags']} reported-vs-records gaps flagged; {d['warnings']} activity rows with warnings")]
     headers = ["Code", "Indicator", "Source", "Target", "Actual", "% achieved", "Status", "Coverage"]
     rows = indicator_rows(d["values"])

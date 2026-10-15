@@ -37,4 +37,4 @@ holdout_mess:
 
 # reconciliation_scenario and calibration are inherited from synthetic.yaml: ON.
 
-expected_fingerprint: null          # filled in after the first generation (it only guards later regenerations)
+expected_fingerprint: 1adb57f26d24299f10eb5003faf93b7301cbe0a9b2b083dea605f94948de2fdc   # first generation, 15 Oct 2026

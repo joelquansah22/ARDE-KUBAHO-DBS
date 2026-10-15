@@ -165,6 +165,7 @@ def filters(sex_applies: bool = True) -> Filters:
         banner()
         require_warehouse()
         st.session_state["filters"] = sidebar_filters(sex_applies)
+        source_files_in_sidebar()
     return st.session_state["filters"]
 
 
@@ -203,12 +204,20 @@ def data_updated() -> tuple[str, list[str]]:
 
 
 def footer() -> None:
-    """Shown at the bottom of every page (and printed): when the data was last updated, and from which files."""
+    """One line at the bottom of every page (also printed): when the data was last updated, from which files.
+    The list of files is in the sidebar ("Source files"), so the line stays short."""
     when, files = data_updated()
-    st.markdown(f"<div class='muted' style='margin-top:1.2rem;border-top:1px solid #d0d7de;padding-top:0.4rem'>"
-                f"Data last updated {when} from {len(files)} source files. Figures as of {as_of():%d %B %Y}.</div>",
-                unsafe_allow_html=True)
-    with st.expander(f"Source files ({len(files)})"):
+    st.markdown(f"<div class='muted' style='margin-top:0.6rem;border-top:1px solid #d0d7de;padding-top:0.3rem'>"
+                f"Data last updated {when} from {len(files)} source files (listed in the sidebar). Figures as of "
+                f"{as_of():%d %B %Y}.</div>", unsafe_allow_html=True)
+
+
+def source_files_in_sidebar() -> None:
+    """The sidebar's data date and "Source files" list, on every page."""
+    when, files = data_updated()
+    st.sidebar.caption(f"Data as of {as_of():%d %B %Y}; last updated {when}. Figures are worked out by the pipeline; "
+                       "see the data dictionary for definitions.")
+    with st.sidebar.expander(f"Source files ({len(files)})"):
         st.markdown("\n".join(f"- {f}" for f in files) or "None")
 
 

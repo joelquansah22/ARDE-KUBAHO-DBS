@@ -5,6 +5,8 @@ font = "sans serif"
 
 [server]
 headless = true
+# Only this laptop can open the dashboard (not other devices on the same network): privacy.
+address = "127.0.0.1"
 runOnSave = false
 
 [browser]

@@ -80,7 +80,7 @@ def test_every_page_has_how_to_read_and_data_last_updated(run, page):
     at = render(page)
     assert any(e.label == "How to read this page" for e in at.expander)
     assert "Data last updated" in text(at)
-    assert any(e.label.startswith("Source files (") for e in at.expander)
+    assert any(e.label.startswith("Source files (") for e in at.sidebar.expander)
     assert load_yaml("page_help.yaml")[PAGES[page]].strip()
 
 

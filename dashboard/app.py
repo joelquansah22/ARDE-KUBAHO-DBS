@@ -36,7 +36,5 @@ ui.banner()                                           # on every page
 ui.require_warehouse()                                # a friendly message if the pipeline has not been run
 # The sex filter only applies where people are counted; elsewhere it is shown greyed out.
 st.session_state["filters"] = ui.sidebar_filters(sex_applies=page.title not in ("Data quality", "Donor pipeline"))
-updated, files = ui.data_updated()
-st.sidebar.caption(f"Data as of {ui.as_of():%d %B %Y}; last updated {updated} from {len(files)} source files. "
-                   "Figures are worked out by the pipeline; see the data dictionary for definitions.")
+ui.source_files_in_sidebar()
 page.run()
