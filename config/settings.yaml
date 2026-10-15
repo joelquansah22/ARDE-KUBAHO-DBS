@@ -2,7 +2,7 @@
 # ARDE/KUBAHO MEAL prototype: main settings
 # =============================================================================
 # This is the file to edit when something about the organisation changes
-# (paths, the pilot programme, the exchange rate, thresholds, allowed values).
+# (paths, the exchange rate, thresholds, allowed values).
 # You should not need to edit any Python code for these.
 #
 # Format notes for Excel users:
@@ -10,8 +10,6 @@
 #   - Indentation matters: use spaces, never tabs.
 #   - Text after a colon is the value. Keep the spacing as you see it.
 # =============================================================================
-
-project_name: "ARDE/KUBAHO MEAL and Donor Analytics Prototype"
 
 # While this is true, every file name starts with SYNTHETIC_ and every dashboard
 # page shows the banner below. Set to false only when real partner data is in use.
@@ -56,17 +54,10 @@ privacy:
   individual_donor_label: "Individual donor #{number:03d}"
 
 # -----------------------------------------------------------------------------
-# Pilot scope (TO BE CONFIRMED WITH PARTNER: which programme is the pilot)
-# -----------------------------------------------------------------------------
-pilot:
-  programme_ids: [PRG01, PRG02]    # both synthetic programmes until the pilot is chosen
-
-# -----------------------------------------------------------------------------
 # Dates and money
 # -----------------------------------------------------------------------------
 fiscal_year:
   start_month: 7                   # Rwanda fiscal year runs July to June
-  label_format: "FY{start}/{end_short}"   # e.g. FY2023/24
 
 reporting_window:
   start: 2023-07-01
@@ -82,8 +73,7 @@ budget_monitoring:
   over_budget_pct: 100
 
 currency:
-  base: RWF
-  show_usd_option: true
+  show_usd_option: true            # false = the dashboard shows RWF only (no RWF/USD switch)
   usd_to_rwf: 1450                 # TO BE CONFIRMED: update from the BNR rate when reporting
 
 # -----------------------------------------------------------------------------

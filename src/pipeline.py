@@ -21,6 +21,7 @@ import argparse
 import importlib
 import sys
 import time
+from pathlib import Path
 
 from common import load_settings, resolve_path
 
@@ -48,6 +49,21 @@ def run_step(name: str, module_name: str, func_name: str, phase: int) -> None:
     print(f"[done] {name} in {time.perf_counter() - t0:.1f}s")
 
 
+def mode_problems(raw: Path, settings: dict) -> list[str]:
+    """Synthetic and real files must never be mixed. In synthetic mode every input file must start with SYNTHETIC_
+    (the hand-made test files too); with real data (synthetic_mode: false) no file may."""
+    names = sorted(p.name for p in raw.glob("*.xlsx") if not p.name.startswith("~$"))
+    synthetic = [n for n in names if n.startswith("SYNTHETIC_")]
+    real = [n for n in names if not n.startswith("SYNTHETIC_")]
+    if settings.get("synthetic_mode") and real:
+        return [f"synthetic_mode is on, but these files in {raw} are not synthetic: {', '.join(real)}. Real files must "
+                "not be shown under the synthetic banner: follow docs/real_data_checklist.md."]
+    if not settings.get("synthetic_mode") and synthetic:
+        return [f"synthetic_mode is off (real data), but these synthetic files are still in {raw}: "
+                f"{', '.join(synthetic)}. Remove them (docs/real_data_checklist.md, step 4)."]
+    return []
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the ARDE/KUBAHO MEAL pipeline.")
     parser.add_argument("--score", action="store_true",
@@ -57,6 +73,10 @@ def main(argv: list[str] | None = None) -> int:
     raw = resolve_path("raw")
     if not any(raw.glob("*.xlsx")):
         print(f"No Excel files in {raw}. For the demonstration data run: python src/generate_synthetic.py")
+        return 1
+    problems = mode_problems(raw, load_settings())
+    if problems:
+        print("STOPPED: " + " ".join(problems))
         return 1
 
     started = time.perf_counter()

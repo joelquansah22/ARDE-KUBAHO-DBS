@@ -1957,11 +1957,5 @@ def main():
     generate(raw_dir, truth_dir, config_name=config_name)
 
 
-def generate_holdout() -> dict:
-    """Pipeline step: create the held-out test set in data/holdout/."""
-    return generate(resolve_path("holdout_raw"), resolve_path("holdout_ground_truth"),
-                    config_name="synthetic_holdout.yaml")
-
-
 if __name__ == "__main__":
     main()

@@ -87,3 +87,15 @@ def test_first_run_does_nothing_when_everything_is_ready():
 
 def test_dashboard_only_accepts_connections_from_this_laptop():
     assert 'address = "127.0.0.1"' in (PROJECT_ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------- synthetic and real files are never mixed
+def test_pipeline_refuses_to_mix_synthetic_and_real_files(tmp_path):
+    import pipeline
+    (tmp_path / "SYNTHETIC_activity_monitoring_FO01.xlsx").write_bytes(b"")
+    assert pipeline.mode_problems(tmp_path, {"synthetic_mode": True}) == []
+    assert pipeline.mode_problems(tmp_path, {"synthetic_mode": False})            # synthetic file left behind
+    (tmp_path / "activity_monitoring_Kirehe_2027-01.xlsx").write_bytes(b"")
+    assert pipeline.mode_problems(tmp_path, {"synthetic_mode": True})             # a real file under the banner
+    (tmp_path / "SYNTHETIC_activity_monitoring_FO01.xlsx").unlink()
+    assert pipeline.mode_problems(tmp_path, {"synthetic_mode": False}) == []

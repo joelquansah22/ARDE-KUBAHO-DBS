@@ -1,144 +1,141 @@
 # Evaluation summary
 
-For the team, the supervisors and ARDE/KUBAHO: what the evaluation shows so far against the **five measures of
-success in our proposal**, what is still waiting for human testing, and what can only be confirmed with real
+For the team, the supervisors and ARDE/KUBAHO: what the evaluation shows so far on the **five measures of success
+defined in our proposal**, what is still waiting for human testing, and what can only be confirmed with real
 ARDE/KUBAHO data.
 
-*Status on 15 October 2026 (end of Phase 7). Every figure here comes from **synthetic data**. The proposal's numeric
-targets for each measure are to be copied in by the team from the proposal; this summary does not restate them.*
+> **No numeric targets.** Our proposal states: *"Targets will be negotiated after the baseline audit; numerical
+> improvements are not promised before the data are examined."* This summary therefore **reports results**; it does
+> not measure them against promised targets. Every figure here comes from **synthetic data**.
 
-| Measure | Measured now (synthetic data) | Waiting for human testing | Only with real ARDE/KUBAHO data |
+*Status on 15 October 2026 (Phase 8).*
+
+| Proposal measure | What the proposal measures | How the proposal assesses it | Status |
 |---|---|---|---|
-| 1. Data quality | Yes | No | Yes |
-| 2. Reporting efficiency | Machine side only | Yes (timed task) | Yes |
-| 3. MEAL readiness | Partly | Yes (co-design session) | Yes |
-| 4. Usability | Automated checks only | Yes (SUS and tasks) | Staff testing |
-| 5. Sustainability | Partly | Yes (fresh-install test) | Handover |
+| 1. Data quality | Completeness, duplicates, invalid values | Before/after comparison on the same pilot records | Measured on synthetic records; pilot records pending |
+| 2. Reporting efficiency | Minutes to produce a selected report | Timed baseline versus prototype workflow | Protocol ready; human timing pending (machine time measured) |
+| 3. MEAL readiness | Share of pilot indicators with full definitions | Indicator catalogue audit | Measured: 100% filled in, 0% agreed yet |
+| 4. Usability | Task completion and staff feedback | Small user acceptance test | Protocol ready; test pending |
+| 5. Sustainability | Reproducible refresh and documentation | Handover walkthrough | Documentation and refresh ready; walkthrough pending |
 
 ---
 
 ## 1. Data quality
 
-**Measured (synthetic):**
+**Proposal:** completeness, duplicates and invalid values, assessed as a before/after comparison on the same pilot
+records.
 
-- **Before/after on the same records** (`docs/evaluation_before_after.md`, `src/evaluate.py`):
+**Result on synthetic records** (`src/evaluate.py`, `docs/evaluation_before_after.md`): the same rows compared as
+typed in the files and after the pipeline.
 
-  | Main set | Raw files | After cleaning |
-  |---|---|---|
-  | Activity records: cells not in a standard form | 17.8% | 1.5% |
-  | Registrations: cells not in a standard form | 18.6% | 0.3% |
-  | Indicator reports: cells not in a standard form | 10.2% | 0.1% |
-  | Activities where women + men differ from the total | 4.8% | 3.1% (all in the review queue) |
-  | Activity rows typed twice | 1.4% | 0.0% |
-  | People counted more than once (against the true number) | 4.4% | 0.6% |
-  | Required fields usable (activities / registrations) | 98.7% / 99.4% | 97.4% / 99.4% |
+| Main synthetic set | Raw files | After cleaning |
+|---|---|---|
+| **Completeness:** required fields usable, activities / registrations / reports | 98.7% / 99.4% / 100% | 97.4% / 99.4% / 100% |
+| **Duplicates:** activity rows typed twice | 1.4% | 0.0% |
+| **Duplicates:** people counted more than once (against the true number) | 4.4% | 0.6% |
+| **Invalid values:** cells not in a standard form, activities | 17.8% | 1.5% |
+| **Invalid values:** registrations | 18.6% | 0.3% |
+| **Invalid values:** indicator reports | 10.2% | 0.1% |
 
-  The final held-out set shows the same pattern (19.9% to 1.8%, 19.6% to 0.5%, 11.1% to 0.4%; duplicates of people
-  3.9% to 2.2%). Completeness falls slightly after cleaning because unreadable values are not guessed.
-- **Cleaning accuracy against the answer key** (scorecards):
+The final held-out set shows the same pattern. Completeness falls slightly after cleaning because an unreadable value
+is set aside, not guessed.
 
-  | Set | Genuine errors fixed or flagged | False corrections |
-  |---|---|---|
-  | Held-out 2 (headline, first score) | 92.9% | 0 |
-  | Final held-out round (frozen, unseen data) | **98.1%** | **0 of 60,332 cells** |
+**How far to trust the cleaner on new files: two held-out rounds, read together**
 
-  - **Duplicate merges are always correct** (precision 1.0). Of the true duplicates, 44% are merged automatically
-    and 87% are merged or sent for review.
-- **Reconciliation of reports against records** (final round): 29 of the 30 planted discrepancies of at least 5 are
-  caught (96.7%), with **0 unexplained false alarms**. 39 planted discrepancies are under 5 people on their own and
-  cannot be detected (a known limitation).
-- **Data-quality score** on the main set: 96.3% overall. The weakest dimension is timeliness (88.4%).
-- **Review queue:** about 8 to 10 records a month on the synthetic sets, about 20 minutes of the MEAL officer's time.
-  No month exceeds one hour.
+| Round | What it tests | Genuine errors fixed or flagged |
+|---|---|---|
+| **Held-out 2** (first score, frozen v2) | Kinds of mess the cleaner had **never seen**: new date styles, district variants, initials and extra names in duplicates, a partly unreadable layout | **92.9%** |
+| **Final round** (Phase 7, frozen) | The **same kinds of mess as held-out 2**, on **fresh data**, after the cleaner had been fixed against them | **98.1%** |
 
-**Only with real data:** the real error rates and kinds of mess, the real review-queue load, and whether the rules
-fit ARDE/KUBAHO's files. The synthetic files and the cleaner were written by the same team; the final held-out round
-reduces this bias but does not remove it.
+- **Held-out 2 (92.9%) measures robustness to new kinds of mess.** It is the figure to expect when real files bring
+  problems nobody has seen.
+- **The final round (98.1%) shows the fixes generalise to new records.** It does **not** show that they cover new
+  kinds of mess.
+- **Report both figures together;** neither stands alone. Both rounds made 0 false corrections, and duplicate merges
+  were always correct (precision 1.0).
+
+**Reconciliation of reports against records** (final round): 29 of the 30 planted discrepancies of at least 5 people
+are caught (96.7%), with 0 unexplained false alarms. Discrepancies under 5 people are not detected (a known
+limitation).
+
+**Still to do with real data:** the same before/after on the **pilot records** once ARDE/KUBAHO shares them (see
+`docs/real_data_checklist.md`).
 
 ## 2. Reporting efficiency
 
-**Measured (synthetic):**
+**Proposal:** minutes to produce a selected report, assessed by timing the baseline against the prototype workflow.
 
-- The donor report is generated in a median of **0.15 s** (slowest 0.35 s; `evaluation/report_generation_log.csv`).
-- **Dashboard pages load in 0.86 s or less on the server.** In Chrome on the team laptop, with other programs open,
-  the median load times are below 3 s for every page except the first visit to the Programme overview (3.4 s; it also loads the chart library once per session).
-  See `docs/screenshots/page_load_times.md`.
+**Measured:** the machine part only. The donor report is generated in a median of 0.15 s
+(`evaluation/report_generation_log.csv`). All dashboard pages load in under 3 s, except the first visit to the
+Programme overview, at 3.4 s on a busy laptop (`docs/screenshots/page_load_times.md`).
 
-**Waiting for human testing:**
-
-- The **timed reporting task**: the same quarterly report made by hand from the raw files versus with the dashboard
-  button, timed step by step, with errors counted against reference answers. The protocol, recording sheet and
-  reference answers are ready (`docs/evaluation_protocol.md`, `evaluation/`).
-- The machine time is not the task time. The human steps (opening the dashboard, choosing the report, checking it)
-  are timed in the protocol.
-
-**Only with real data:** how long ARDE/KUBAHO's current reporting really takes, and the monthly cycle from field
-files to report.
+**Pending:** the timed task with people. The same quarterly report is made by hand from the raw files and with the
+dashboard button, and both are timed step by step, including the human steps. Errors are counted against the
+reference answers. Everything is ready in `docs/evaluation_protocol.md` and `evaluation/`. The real baseline needs
+ARDE/KUBAHO staff and their current way of reporting.
 
 ## 3. MEAL readiness
 
-**Measured:**
+**Proposal:** share of pilot indicators with full definitions, assessed by an indicator catalogue audit.
 
-- **Indicator catalogue:** 13 draft indicators with full reference sheets (Markdown, and Excel with a staff comments
-  column). 11 are calculated; 2 outcome indicators wait for survey data.
-- **Traceability:** every value is traceable to its file, sheet and row.
-- **Methods:** a declared aggregation for each indicator, partial targets shown honestly, and coverage shown next to
-  partial values.
-- **Reconciliation:** reports are compared with records at a level set per indicator.
-- **Data-quality framework:** the six dimensions, 14 rules, a quarantine and a review queue.
+**Measured** (`docs/indicator_catalogue_audit.md`, calculated from `config/indicator_catalogue.yaml`). A full
+definition has all 15 fields of the brief: code, name, definition, level, unit, numerator, denominator, calculation
+rule, disaggregation, target-setting rule, frequency, data source, owner, direction and notes.
 
-**Waiting for human testing:** the **co-design session** with ARDE/KUBAHO staff. The indicators, their definitions,
-the targets, the cost-per-person reach indicators and the pipeline-gap definition are all drafts.
+| Result | Indicators | Share |
+|---|---|---|
+| All 15 definition fields filled in | 13 of 13 | **100%** |
+| Fully agreed with ARDE/KUBAHO (no field still "to be confirmed", status no longer draft) | 0 of 13 | **0%** |
+| Can be calculated from the data now | 11 of 13 | 85% |
 
-**Only with real data:** whether the indicators can be calculated from what ARDE/KUBAHO actually records, and the
-real targets.
+Every indicator has its owner still "to be confirmed", and 7 have a target-setting rule still to agree. The pilot
+programme is not chosen yet, so all 13 are audited. The co-design session with ARDE/KUBAHO staff is what moves the
+second figure.
 
 ## 4. Usability
 
+**Proposal:** task completion and staff feedback, assessed by a small user acceptance test.
+
 **Measured (automated, no people):**
+- Every page runs under many filter combinations.
+- Statuses always show a symbol and words.
+- The Executive summary fits 1366 × 768.
+- Every page has "How to read this page".
+- An empty selection gives a plain message.
+- 54 consistency tests confirm the same figure on every page.
 
-- Every page runs with no errors under many filter combinations.
-- Statuses always show a symbol and words, never colour alone.
-- The Executive summary fits 1366 × 768 without scrolling.
-- Every page has "How to read this page", plain messages for empty selections and a download on every table.
-- The text is in British English, and pages print on A4 landscape.
-- 54 cross-page consistency tests confirm the same figure on every page.
-
-**Waiting for human testing:** the **usability test** with 3 to 5 participants, 8 tasks across the three roles and
-the **System Usability Scale**. The protocol, consent note, results templates and scoring script are ready. The
-participant type (ARDE/KUBAHO staff or student role-play) is recorded and reported separately.
-
-**Only with ARDE/KUBAHO staff:** usability for the real users. Student role-play results cannot stand in for them.
+**Pending:** the acceptance test with 3 to 5 participants: 8 tasks across the executive director, programme manager
+and MEAL officer roles, plus the System Usability Scale and closing questions for feedback (`docs/evaluation_protocol.md`).
+The participant type (ARDE/KUBAHO staff or student role-play) is recorded and reported separately; student results do
+not stand in for staff feedback.
 
 ## 5. Sustainability
 
-**Measured:**
+**Proposal:** reproducible refresh and documentation, assessed by a handover walkthrough.
 
-- **Cost and setup:** free and open-source tools only, on one laptop, with no server and no cloud.
-- **Configuration:** business rules, file layouts, district spellings, indicators, labels and help texts live in
-  plain configuration files.
-- **Guides:** written for staff (user guide with glossary, maintenance guide, Power BI guide, privacy note).
-- **Automatic checks:** 362 tests (about 4 minutes), plus a first-run script that prepares a fresh copy.
+**Ready:**
+- **Refresh:** one command (`python src/pipeline.py`), or one double-click on a fresh copy. The synthetic data is
+  reproducible to a documented fingerprint.
+- **Tests:** 362 automatic tests.
+- **Rules in config:** business rules, layouts, spellings and indicators are kept in plain configuration files.
+- **Guides:** README, user guide with glossary, maintenance guide, Power BI guide, privacy note, and the real-data
+  checklist.
 
-**Waiting for human testing:** the **fresh-install test**. A teammate sets up the tool on another Windows laptop
-using only the README, timing each step and noting where they got stuck. The checklist is ready in
-`docs/fresh_install_test.md`; the README will be corrected from its results.
-
-**Only at handover:** who at ARDE/KUBAHO maintains the tool, on which laptop, and whether they can rerun the pipeline
-and add a file layout unaided.
+**Pending:**
+- **Fresh-install test** (`docs/fresh_install_test.md`).
+- **Handover walkthrough** with the person at ARDE/KUBAHO who will maintain the tool: they rerun the refresh and add a
+  file layout using only the guides.
+- **Ownership:** who that person is, and on which laptop, is to be confirmed with the partner.
 
 ---
 
-## Limitations to state in the report
+## Limitations (summary; full list in `docs/limitations_and_roadmap.md`)
 
 - **Synthetic data only.** No figure here describes ARDE/KUBAHO.
-- **Duplicates:** nicknames, initials and very different spellings of the same person are not merged automatically.
-  They wait for review (final round: 44% of duplicates merged automatically, 87% merged or flagged).
-- **Month-first dates** (`Mar 12, 2024`) are not read until the partner confirms whether staff use them. In the final
-  round they were the main cause of quarantined rows (296 of 521).
-- **Small discrepancies are not flagged:** reconciliation cannot detect a discrepancy of under 5 people (39 of 66
-  planted rows in the final round).
-- **Unknown file layouts are skipped**, never read partly, until a maintainer adds their column names.
-- **Cost per person reached** covers only projects that report a people-reached indicator (1 of 3 WASH projects and
-  1 of 2 agriculture projects).
-- **Page load times** were measured with other programs open; a quiet-laptop measurement is still to be done.
+- **Robustness to new kinds of mess** is 92.9% (held-out 2), not 98.1%.
+- **Month-first dates** (`Aug 16, 2023`) are not read until the partner confirms them. They were 296 of the 521 rows
+  quarantined in the final round.
+- **Duplicates:** nicknames, initials and very different spellings wait for review instead of being merged. In the
+  final round 44% were merged automatically and 87% merged or flagged.
+- **Small discrepancies:** reconciliation cannot detect a discrepancy of under 5 people.
+- **Draft indicators:** all are drafts, and none is agreed yet.

@@ -6,8 +6,9 @@ a dashboard and a one-page donor report. Staff keep working in Excel; the tool r
 > **Demonstration data.** Everything currently runs on **synthetic records, not ARDE/KUBAHO data**. Synthetic files
 > always start with `SYNTHETIC_`, and every dashboard page says so in a yellow banner.
 
-**Status:** Phase 7 of 8 (evaluation and documentation). Built by three ASU MS Business Analytics students as a
-capstone prototype; it is not a production system.
+**Status:** version 1.0, end of Phase 8 (real-data switch and handover). Built by three ASU MS Business Analytics
+students as a capstone prototype; it is not a production system. Moving to real ARDE/KUBAHO data:
+**`docs/real_data_checklist.md`**.
 
 ---
 
@@ -75,7 +76,14 @@ is **`docs/maintenance_guide.md`**.
 | `docs/indicator_reference_sheets.md` (and `.xlsx`) | MEAL officer, co-design session | Every draft indicator, with its definition and calculation |
 | `docs/data_dictionary.md` | Analysts | Every table and column |
 | `docs/data_quality_report.md` | MEAL officer | The latest data-quality checks (written by the pipeline) |
-| `docs/evaluation_summary.md` | Team, supervisors, partner | What the evaluation shows and what is still to be tested |
+| `docs/real_data_checklist.md` | MEAL officer, maintainer | Switching from synthetic to real files, and the first real run |
+| `docs/data_request_pack.md` | ARDE/KUBAHO management | What data the pilot needs, how to share it safely, points for a data-sharing agreement |
+| `docs/partner_questions.md` | Meeting with ARDE/KUBAHO | Every open question, by topic and priority |
+| `docs/limitations_and_roadmap.md` | Everyone | Known limitations; what to do now, in 3 months and later, and who owns it |
+| `docs/evaluation_summary.md` | Team, supervisors, partner | Results on the proposal's five measures; what still needs human testing |
+| `docs/evaluation_before_after.md`, `docs/indicator_catalogue_audit.md` | Team, supervisors | Data quality before and after cleaning; MEAL readiness audit |
+| `docs/phase2_cleaning_scorecard.md`, `docs/phase7_final_holdout_scorecard.md` | Team, supervisors | How well the cleaning works on the synthetic test sets (the held-out rounds explained) |
+| `docs/demo_script.md` | Presenters | The 10-minute demonstration for the final presentation |
 | `docs/evaluation_protocol.md`, `docs/fresh_install_test.md` | Team | How to run the timed task, the usability test and the install test |
 | `docs/decision_log.md`, `docs/instruction_log.md` | Team, supervisors | Every decision and assumption; every team instruction, word for word |
 

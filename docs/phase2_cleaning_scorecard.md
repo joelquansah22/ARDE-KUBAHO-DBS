@@ -26,6 +26,17 @@
 | sheets skipped | 0 | 0 | 1 | 3 | 0 |
 | crashed | no | no | no | no | no |
 
+## Reading the held-out rounds
+
+| Round | What it tests | Genuine errors fixed or flagged |
+|---|---|---|
+| Held-out 2 (first score, frozen v2) | Kinds of mess the cleaner had **never seen** | **92.9%** |
+| Final round (Phase 7, frozen `docs/phase7_final_holdout_scorecard.md`) | The **same kinds of mess as held-out 2**, on **fresh data**, after the cleaner had been fixed against them | **98.1%** |
+
+- **Held-out 2 measures robustness to new kinds of mess**: the figure to expect when real files bring problems nobody has seen.
+- **The final round shows that the fixes generalise to new records**, not to new kinds of mess.
+- Report both; never quote the final round alone.
+
 ## Why held-out 2 scored lower: officer FO06
 
 FO06's sheets were only **partly** recognisable. The activity sheet had five known column names (District, Sector, Cell, Village, Total), so in v2 it was read, but its activity date, activity, project, status, female/male and cost columns had names the pipeline did not know (`Event date`, `Type of activity`, `Implementation status`, `Females`...). Those rows arrived without their key values: 364 were quarantined and many injected problems could not be seen. FO06's register was read without its registration number and registration date. That one officer's files pulled genuine errors from 96.1% to 92.9% and habits from 100% to 87.5%.

@@ -281,3 +281,38 @@ H. Documentation: README, user guide (with glossary), maintenance guide (how to 
 
 Stop when Phase 7 is done. Report the final held-out results, the checklist status for item 2, and what is waiting on human testing.
 ```
+
+## 11. 15 October 2026, 13:49 UTC (saved before acting on it)
+
+```text
+Phase 7 approved. Before Phase 8:
+
+1. Evaluation summary: our proposal sets no numeric targets. It says: "Targets will be negotiated after the baseline audit; numerical improvements are not promised before the data are examined." Use these five measures exactly as the proposal defines them:
+   - Data quality: completeness, duplicates, invalid values. Assessed as a before/after comparison on the same pilot records.
+   - Reporting efficiency: minutes to produce a selected report. Assessed as timed baseline vs prototype workflow.
+   - MEAL readiness: share of pilot indicators with full definitions. Assessed by an indicator catalogue audit. Calculate this from the catalogue (fields complete per indicator) and report it.
+   - Usability: task completion and staff feedback. Assessed by a small user acceptance test.
+   - Sustainability: reproducible refresh and documentation. Assessed by a handover walkthrough.
+   Add the proposal's statement about targets to the summary, so it's clear we are reporting results rather than measuring against promised targets.
+
+2. Held-out reporting: in the evaluation summary and scorecard, explain the rounds clearly:
+   - Held-out 2 (92.9%) tested kinds of mess the cleaner had never seen. This is the measure of robustness to new mess.
+   - The final round (98.1%) used the same kinds of mess as held-out 2 on fresh data, after the cleaner had been fixed against them. This shows the fixes generalise to new records, not to new kinds of mess.
+   Report both. Do not present 98.1% alone.
+
+Then Phase 8 (real-data switch and handover), as in CLAUDE.md, plus:
+
+A. Real-data switch checklist (docs/real_data_checklist.md): config changes, mapping new column layouts, removing the synthetic banner and the SYNTHETIC_ prefix checks, generating a new salt, and confirming no synthetic files remain. Include a "first real run" procedure: work on a copy of ARDE's files; compare record counts and key totals against ARDE's own figures; review every SKIPPED message and the quarantine list with the MEAL officer before trusting any dashboard figure.
+
+B. Data request pack for ARDE (docs/data_request_pack.md): which files we need for the pilot, the minimum fields, the time period, and how files should be transferred and stored securely. Add a short list of points for a data-sharing agreement, in line with Law No. 058/2021 (purpose, access, storage, retention, deletion). Mark these "to be confirmed with ARDE and the university".
+
+C. Partner questions: collect every open partner question from the decision log into one document (docs/partner_questions.md), grouped by topic and ordered by priority, ready for a meeting.
+
+D. Limitations and roadmap (docs/limitations_and_roadmap.md): all known limitations in one place, then a prioritised roadmap (now / next 3 months / later) with rough effort and who at ARDE would own each item.
+
+E. Demo script (docs/demo_script.md): a 10-minute walkthrough for the final presentation. Follow the three executive-director questions, then show one data problem traced from the dashboard back to its source Excel row. Include what to say if a supervisor asks about synthetic data or the evaluation rounds.
+
+F. Final repository review: remove dead code and unused files, check every doc link works, run the full test suite, and tag the release v1.0.
+
+Stop when Phase 8 is done and report back.
+```

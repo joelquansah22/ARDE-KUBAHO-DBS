@@ -142,6 +142,8 @@ def pipeline_by_theme(opps: pd.DataFrame, settings: dict) -> pd.DataFrame:
     """Open opportunities' weighted and requested value by theme. The themes add up to the open pipeline.
     Columns: theme, weighted, requested, opportunities (an opportunity split between two themes counts 0.5 in each)."""
     themes = settings["donor_pipeline"]["themes"]
+    if settings["donor_pipeline"].get("multi_theme_allocation", "split_equally") != "split_equally":
+        raise ValueError("donor_pipeline.multi_theme_allocation: only 'split_equally' is supported")
     rows = []
     for r in opps[opps["is_open"]].itertuples():
         for theme, share in theme_shares(r.thematic_fit, themes).items():

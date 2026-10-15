@@ -627,24 +627,6 @@ def queue_summary(staging) -> dict:
                 quarantined=int((status["status"] == "quarantine").sum()))
 
 
-def frozen_v1_figures() -> dict:
-    """Held-out-1 figures from the frozen v1 scorecard (the 'before' column)."""
-    path = resolve_path("docs") / "phase2_scorecard_v1_holdout1.md"
-    out = {}
-    if not path.exists():
-        return out
-    import re
-    text = path.read_text(encoding="utf-8")
-    for group in ("genuine_errors", "officer_habits", "matching_traps", "privacy"):
-        m = re.search(rf"\| {group} \| ([\d.]*) \| ([\d.]*) \|", text)
-        if m:
-            out[group] = m.group(2)
-    m = re.search(r"### Held-out results in full.*?False corrections: \*\*(\d+)\*\*", text, re.S)
-    if m:
-        out["false_corrections"] = m.group(1)
-    return out
-
-
 def summary_row(name: str, r: dict, run: dict, staging) -> dict:
     groups = r["by_group"].set_index("group")["fixed_or_flagged_%"]
     fc = r["false_corrections"]
@@ -977,6 +959,25 @@ def final_round() -> Path:
     return out
 
 
+def held_out_rounds_lines() -> list[str]:
+    """How to read the two held-out figures (team instruction before Phase 8): never quote the final round alone."""
+    final = ""
+    if (resolve_path("docs") / FINAL_SCORECARD).exists():
+        table = frozen_side_table(FINAL_SCORECARD)
+        col = next((c for c in table.columns if c.startswith("FINAL")), None)
+        if col:
+            final = table.loc["genuine errors %", col]
+    return ["## Reading the held-out rounds", "",
+            "| Round | What it tests | Genuine errors fixed or flagged |", "|---|---|---|",
+            "| Held-out 2 (first score, frozen v2) | Kinds of mess the cleaner had **never seen** | **92.9%** |",
+            f"| Final round (Phase 7, frozen `docs/{FINAL_SCORECARD}`) | The **same kinds of mess as held-out 2**, on "
+            f"**fresh data**, after the cleaner had been fixed against them | **{final or 'not run yet'}%** |", "",
+            "- **Held-out 2 measures robustness to new kinds of mess**: the figure to expect when real files bring "
+            "problems nobody has seen.",
+            "- **The final round shows that the fixes generalise to new records**, not to new kinds of mess.",
+            "- Report both; never quote the final round alone.", ""]
+
+
 def main(argv: list[str] | None = None):
     import argparse
     parser = argparse.ArgumentParser(description="Score the cleaning against the synthetic answer keys.")
@@ -1015,6 +1016,7 @@ def main(argv: list[str] | None = None):
         "has now been seen, so it measures what the fixes recover, not how the cleaner does on new data. The "
         "columns marked v2 are copied from the frozen v2 scorecard; the others were re-scored now.", "",
         md_table(side.reset_index()), "",
+    ] + held_out_rounds_lines() + [
         "## Why held-out 2 scored lower: officer FO06", "",
         "FO06's sheets were only **partly** recognisable. The activity sheet had five known column names (District, "
         "Sector, Cell, Village, Total), so in v2 it was read, but its activity date, activity, project, status, "

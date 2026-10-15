@@ -150,8 +150,9 @@ def sidebar_filters(sex_applies: bool) -> Filters:
                    disabled=not sex_applies,
                    help="Applies to people counts and to indicators broken down by sex. Not used on this page."
                    if not sex_applies else "Applies to people counts and to indicators broken down by sex.")
-    currency = sb.radio("Currency", ["RWF", "USD"], key=_remember("f_currency", "RWF"), horizontal=True,
-                        help=f"USD at {SETTINGS['currency']['usd_to_rwf']:,} RWF per USD (settings.yaml).")
+    currency = (sb.radio("Currency", ["RWF", "USD"], key=_remember("f_currency", "RWF"), horizontal=True,
+                         help=f"USD at {SETTINGS['currency']['usd_to_rwf']:,} RWF per USD (settings.yaml).")
+                if SETTINGS["currency"].get("show_usd_option", True) else "RWF")
     return Filters(programme_id, proj_names[proj_label], None if dist_label == "All districts" else dist_label,
                    start, end, None if (sex == "All" or not sex_applies) else sex.lower(), currency)
 
