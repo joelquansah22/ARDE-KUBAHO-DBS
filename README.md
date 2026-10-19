@@ -174,8 +174,9 @@ On Mac or Linux the same steps apply with `python3`, `source .venv/bin/activate`
 
 ## 2. Everyday use
 
-- **Look at the figures:** double-click `run_dashboard.bat`. The first page is the **Executive summary**; the menu on
-  the left opens the other pages. Each page has a **"How to read this page"** section at the top.
+- **Look at the figures:** double-click `run_dashboard.bat`. The first page is **Home**: key figures, what needs
+  attention, and a tile for every page; the menu on the left has the same pages, grouped as Insights, Data and
+  Donors. Each page has a **"How to read this page"** section at the top.
 - **New monthly data:** upload each filled Excel template on the **Upload Excel** page (it shows what is accepted,
   held back for correction and sent for review before anything is added, and prepares the figures), or type records
   in on the **Data entry** page. Blank templates can be downloaded from the Upload Excel page (also in `templates/`).

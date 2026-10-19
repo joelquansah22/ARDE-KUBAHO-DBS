@@ -42,7 +42,7 @@ def test_status_colours_stay_fixed_and_separate_from_the_brand():
 
 
 def test_no_colour_is_hard_coded_in_the_pages():
-    for path in list((PROJECT_ROOT / "dashboard" / "pages").glob("*.py")) + [PROJECT_ROOT / "dashboard" / "home.py"]:
+    for path in list((PROJECT_ROOT / "dashboard" / "pages").glob("*.py")) + [PROJECT_ROOT / "dashboard" / "summary.py"]:
         found = re.findall(r"#[0-9a-fA-F]{6}\b", path.read_text(encoding="utf-8"))
         assert set(found) <= {"#FFFFFF"}, (path.name, found)
 
@@ -76,3 +76,18 @@ def test_sparkline_and_trend_words():
 def test_theme_css_has_no_unfilled_placeholders():
     css = ui._theme_css()
     assert not re.findall(r"\{[a-z_]+\}", css)
+
+
+def test_writing_the_theme_twice_keeps_a_valid_config(tmp_path):
+    """Found in the redesign: a "[" inside the chart colour list left part of the old theme behind on each run, until
+    Streamlit could no longer read config.toml."""
+    import toml
+    path = tmp_path / "config.toml"
+    path.write_text((PROJECT_ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8")
+                    + '\n["#3370E7", "#327F21"]\n', encoding="utf-8")            # a leftover from the old script
+    theme.write_config(path=path)
+    theme.write_config(path=path)
+    parsed = toml.load(path)
+    assert sorted(parsed) == ["browser", "client", "server", "theme"]
+    assert parsed["server"]["address"] == "127.0.0.1"
+    assert path.read_text(encoding="utf-8").count("[theme]") == 1

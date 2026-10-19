@@ -135,7 +135,7 @@ the test is run.
 **Ready:**
 - **Refresh:** one command (`python src/pipeline.py`), or one double-click on a fresh copy. The synthetic data is
   reproducible to a documented fingerprint.
-- **Tests:** 435 automatic tests.
+- **Tests:** 445 automatic tests.
 - **Donor data:** one home (the Donor entry page), with automatic backups, an Excel backup and a tested restore.
 - **Data entry:** Excel uploads and forms on the dashboard, with the same checks as the pipeline, a record of who
   added what and when, and a Records page that traces every record to its origin.

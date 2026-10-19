@@ -5,7 +5,35 @@
 # "summaries" is the one line under each page title: the question the page answers.
 # =============================================================================
 
+# The menu: one list for the sidebar (grouped under the section headings) and the menu tiles on the Home page.
+# file: the page's file in dashboard/; url: the address after http://localhost:8501/ ; icon: a Material icon
+# (https://fonts.google.com/icons, written :material/name:); description: one line, shown on the Home page tile.
+menu:
+  - section: ""                 # no heading: Home, at the top
+    pages:
+      - {key: start, file: start.py, title: Home, icon: ":material/home:", url: "", description: "Key figures, what needs attention, and every page"}
+  - section: Insights
+    pages:
+      - {key: home, file: summary.py, title: Executive summary, icon: ":material/space_dashboard:", url: summary, description: "On track, trustworthy, funded: the three questions on one screen"}
+      - {key: overview, file: pages/1_Programme_Overview.py, title: Programme overview, icon: ":material/monitoring:", url: overview, description: "People reached, activities, spending and targets by project"}
+      - {key: indicators, file: pages/2_Indicators.py, title: Indicators, icon: ":material/flag:", url: indicators, description: "Each MEAL indicator against its target, and reports against records"}
+      - {key: geography, file: pages/3_Geography.py, title: Geography, icon: ":material/map:", url: geography, description: "Results by district, on a map"}
+      - {key: data_quality, file: pages/4_Data_Quality.py, title: Data quality, icon: ":material/fact_check:", url: data-quality, description: "Quality score, records held back, the review queue"}
+  - section: Data
+    pages:
+      - {key: data_entry, file: pages/7_Data_Entry.py, title: Data entry, icon: ":material/edit_note:", url: data-entry, description: "Type in activity records and monthly indicator reports"}
+      - {key: upload_excel, file: pages/8_Upload_Excel.py, title: Upload Excel, icon: ":material/upload_file:", url: upload-excel, description: "Check and add a filled Excel template; blank templates"}
+      - {key: records, file: pages/9_Records.py, title: Records, icon: ":material/table_view:", url: records, description: "Search every record, see where it came from, export to Excel"}
+  - section: Donors
+    pages:
+      - {key: donor_pipeline, file: pages/5_Donor_Pipeline.py, title: Donor pipeline, icon: ":material/handshake:", url: donor-pipeline, description: "Open opportunities, deadlines and the weighted pipeline"}
+      - {key: donor_entry, file: pages/6_Donor_Entry.py, title: Donor entry, icon: ":material/volunteer_activism:", url: donor-entry, description: "Add and update donors and opportunities"}
+
+# Pages where the sidebar's sex filter does not apply (it is shown greyed out).
+no_sex_filter: [data_quality, donor_pipeline, donor_entry, data_entry, upload_excel, records]
+
 summaries:
+  start: "Programme and donor data in one place: what needs attention today, and where to find everything."
   home: "Are we on track this quarter, can we trust the numbers, and what funding is coming up?"
   overview: "How many people and activities, how much spent, and how each project compares with its targets."
   indicators: "Each MEAL indicator against its target, month by month, and where reports and records disagree."

@@ -77,12 +77,12 @@ font = "sans serif"
 chartCategoricalColors = [{chart}]
 
 [theme.sidebar]
-backgroundColor = "{c['primary']}"
+backgroundColor = "{c['sidebar_background']}"
 secondaryBackgroundColor = "{c['sidebar_input_background']}"
 textColor = "{c['sidebar_text']}"
-primaryColor = "{c['white']}"
-linkColor = "{c['sidebar_text']}"
-borderColor = "{c['primary_dark']}"
+primaryColor = "{c['primary']}"
+linkColor = "{c['primary_dark']}"
+borderColor = "{c['border']}"
 '''
 
 
@@ -90,7 +90,17 @@ def write_config(theme: dict | None = None, path: Path = CONFIG_TOML) -> None:
     """Replace the theme sections of config.toml, keeping every other section."""
     theme = theme or load_theme()
     text = path.read_text(encoding="utf-8") if path.exists() else ""
-    kept = re.sub(r"\[theme(\.[a-z]+)?\][^\[]*", "", text).strip()
+    # Keep every section except [theme] and [theme.*], line by line (a value may itself contain "[", e.g. a list).
+    kept_lines, in_theme = [], False
+    for line in text.splitlines():
+        header = re.match(r"^\[([A-Za-z0-9_.]+)\]\s*$", line)
+        if header:
+            in_theme = header.group(1) == "theme" or header.group(1).startswith("theme.")
+        elif re.match(r'^\["#', line):        # leftovers of an earlier version of this script
+            continue
+        if not in_theme:
+            kept_lines.append(line)
+    kept = re.sub(r"\n{3,}", "\n\n", "\n".join(kept_lines)).strip()
     path.write_text(theme_toml(theme) + "\n" + kept + "\n", encoding="utf-8", newline="\n")
 
 

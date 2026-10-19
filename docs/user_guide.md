@@ -28,6 +28,11 @@ field officers. No Python needed. The person who looks after the tool also needs
 Double-click **`run_dashboard.bat`** in the project folder. A black window opens (leave it open) and then the
 dashboard in your browser (http://localhost:8501). To stop, close the black window.
 
+The dashboard opens on the **Home** page (section 4). The menu on the left has Home at the top, then the pages in
+three groups: **Insights** (Executive summary, Programme overview, Indicators, Geography, Data quality), **Data**
+(Data entry, Upload Excel, Records) and **Donors** (Donor pipeline, Donor entry). The page you are on is highlighted
+in light green with a green bar.
+
 If the page says **"The figures have not been prepared yet"**, follow the steps on that page (it means the
 pipeline has not been run on this computer).
 
@@ -49,9 +54,19 @@ under "Source files" in the sidebar.
 
 ## 4. The pages
 
-Every page starts with a collapsed **"How to read this page"**: open it the first few times.
+Every page except Home starts with a collapsed **"How to read this page"**: open it the first few times.
 
-### Executive summary (the first page)
+### Home (the first page)
+The place to start, on one screen:
+- **Four key figures**: people reached (in the date range of the filters), indicators on track this quarter, the
+  weighted open pipeline and the data-quality score. They follow the filters and are the same numbers as on their own
+  pages.
+- **Needs attention**: records to review, records held back for correction, overdue donor actions and donor
+  deadlines in the next 30 days. Click one to open the page where it is dealt with.
+- **Every page as a tile**, in the same three groups as the menu, each with one line on what it is for. Click a
+  tile to open the page.
+
+### Executive summary
 Three questions on one screen, for the current fiscal quarter:
 - **Are we on track?** How many indicators are on track, at risk or off track (with a symbol and words, never colour
   alone), the indicators that are off track or at risk, and any project that is **over budget**.

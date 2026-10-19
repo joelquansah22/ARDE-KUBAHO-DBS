@@ -15,7 +15,7 @@ from common import load_settings, load_yaml, resolve_path
 
 APP = Path(__file__).resolve().parent.parent / "dashboard" / "app.py"
 S = load_settings()
-PAGES = {None: "home", "pages/1_Programme_Overview.py": "overview", "pages/2_Indicators.py": "indicators",
+PAGES = {"summary.py": "home", "pages/1_Programme_Overview.py": "overview", "pages/2_Indicators.py": "indicators",
          "pages/3_Geography.py": "geography", "pages/4_Data_Quality.py": "data_quality",
          "pages/5_Donor_Pipeline.py": "donor_pipeline"}
 
@@ -62,7 +62,7 @@ def test_over_budget_warning_is_shown_with_a_warning_status(run):
     overview = text(render("pages/1_Programme_Overview.py"))
     assert f"▲ Warning: {message}" in overview          # the budget table: symbol and words, not colour alone
     assert f"▲ PRJ03 {message}" in overview             # the budget tile
-    assert f"{message}" in text(render())                # the executive summary
+    assert f"{message}" in text(render("summary.py"))    # the executive summary
 
 
 # ---------------------------------------------------------------- d. empty selections, help, footer, print

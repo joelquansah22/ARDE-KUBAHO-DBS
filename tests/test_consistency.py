@@ -241,7 +241,7 @@ def test_pending_in_the_whole_register_is_the_same_everywhere(con, run, combo):
     assert f"({register} in the whole register)" in tile(ov, "People reached (different people)")[1]
     dq = render("pages/4_Data_Quality.py", combo, con)
     assert to_int(tile(dq, "People pending duplicate review")[0]) == register
-    home = render(None, combo, con)
+    home = render("summary.py", combo, con)             # the Executive summary (Home is the landing page)
     assert f"<b>{register}</b> people in the whole register pending duplicate review" in html(home)
 
 
@@ -261,7 +261,7 @@ def test_activity_spending_is_the_same_on_overview_and_geography(con, run, combo
 @pytest.mark.parametrize("combo", ["no filters", "one project"])
 def test_pipeline_figures_are_the_same_on_summary_and_donor_page(con, run, combo):
     opps = measures.opportunities(run, S)
-    home = render(None, combo, con)
+    home = render("summary.py", combo, con)             # the Executive summary (Home is the landing page)
     donor = render("pages/5_Donor_Pipeline.py", combo, con)
     assert tile(home, "Weighted open pipeline")[0] == tile(donor, "Weighted open pipeline")[0]
     in_90 = len(measures.deadlines_within(opps, S["as_of_date"], 90))
@@ -284,7 +284,7 @@ def test_indicator_statuses_on_summary_match_the_indicators_page(con, run, combo
     f = filters(run, combo)
     rows = measures.indicator_rows(run, CAT, "quarter", "FY2025/26 Q4", f)
     counts = measures.status_counts(rows)
-    home = render(None, combo, con)
+    home = render("summary.py", combo, con)             # the Executive summary (Home is the landing page)
     for label, status in (("✔ On track", "on track"), ("▲ At risk", "at risk"), ("✖ Off track", "off track")):
         value, note = tile(home, label)
         assert (value, note) == (f"{counts.get(status, 0)}", f"of {counts['total']}")

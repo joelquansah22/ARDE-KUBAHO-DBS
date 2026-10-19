@@ -13,7 +13,7 @@ and ID numbers at the first step, cleans and checks the records, and shows the r
   with every figure traceable to its file, sheet and row, exports for Power BI.
 - **MEAL indicators:** 13 draft indicators (all fields defined), reported values compared with the activity and
   register records.
-- **Dashboard** (10 pages): an executive summary answering the director's three questions, programme overview,
+- **Dashboard** (11 pages, menu grouped as Insights, Data and Donors): a **Home** page (key figures, what needs attention, a tile for every page), an executive summary answering the director's three questions, programme overview,
   indicators, geography, data quality, donor pipeline, and **donor entry** (donor data recorded directly, with a
   change history, automatic backups and a one-time import of the Excel tracker). One-click quarterly **donor report**
   (Excel and PDF).
@@ -23,7 +23,7 @@ and ID numbers at the first step, cleans and checks the records, and shows the r
   indicator reports, checked with the cleaner's rules; and a read-only **Records** page to search every stored record,
   see where it came from, and export it to Excel. KoboToolbox was removed (it stays in the v1.1 tag).
 - **Documentation for NGO staff** (user and maintenance guides, privacy note, Power BI guide, real-data
-  checklist, data request pack) and **435 automated tests**. Every team instruction is in `docs/instruction_log.md`;
+  checklist, data request pack) and **445 automated tests**. Every team instruction is in `docs/instruction_log.md`;
   every decision in `docs/decision_log.md`.
 
 ## Evaluation results so far

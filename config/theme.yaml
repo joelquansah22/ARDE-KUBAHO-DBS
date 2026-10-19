@@ -22,16 +22,22 @@ logo_colours:
   black: "#1D1D1D"
 
 colours:
-  primary: "#327F21"            # logo green, slightly darker so white text on it passes (sidebar, buttons, active menu)
-  primary_dark: "#28641A"       # logo green, darker: headings and the active menu item
+  # Lighter look (team instruction 20, 19 October 2026): white page and cards, a very light green sidebar, and green
+  # used only as an accent (headings, buttons, the active menu item, card top borders).
+  primary: "#327F21"            # logo green, slightly darker so white text on it passes: buttons, card top borders, bars
+  primary_dark: "#28641A"       # logo green, darker: headings and the active menu item's text
   link: "#2F69D9"               # logo blue, darker so it passes as text
   text: "#1D1D1D"               # logo black: all body text
   muted_text: "#4A5649"         # notes and captions
-  page_background: "#F7FBF6"    # a light tint of the logo green
-  card_background: "#F2F8F1"    # a slightly stronger tint, for cards and the page header (light enough for the amber warning)
-  border: "#C9DEC2"
-  sidebar_text: "#FFFFFF"
-  sidebar_input_background: "#28641A"
+  page_background: "#FFFFFF"    # white
+  card_background: "#FFFFFF"    # cards and the page header are white too, with a border and a light shadow
+  tint: "#F4F9F2"               # a very light tint of the logo green: table headers, the "needs attention" box
+  border: "#D5E3D0"
+  sidebar_background: "#F4F9F2" # the same very light green tint
+  sidebar_text: "#1D1D1D"
+  sidebar_input_background: "#FFFFFF"
+  active_item_background: "#DCEFD6"   # the active menu item: a light green background...
+  active_item_bar: "#327F21"          # ...with a green bar on its left
   white: "#FFFFFF"
   map_no_data: "#EEEEEE"        # districts with no data on the map
   map_low: "#DCE7FB"            # the light end of the map's colour scale (the dark end is chart colour 1)
@@ -56,14 +62,20 @@ status:
 contrast_checks:
   - [text, page_background, 4.5, "body text on the page"]
   - [text, card_background, 4.5, "text on cards and the page header"]
+  - [text, tint, 4.5, "text on the light green tint (table headers, needs-attention box)"]
   - [muted_text, page_background, 4.5, "notes on the page"]
   - [muted_text, card_background, 4.5, "notes on cards"]
+  - [muted_text, tint, 4.5, "notes on the light green tint"]
   - [primary_dark, card_background, 4.5, "page title on the header band"]
   - [primary_dark, page_background, 4.5, "headings on the page"]
   - [white, primary, 4.5, "button text on the primary colour"]
-  - [sidebar_text, primary, 4.5, "sidebar text on the sidebar"]
+  - [sidebar_text, sidebar_background, 4.5, "sidebar text on the sidebar"]
+  - [muted_text, sidebar_background, 4.5, "notes in the sidebar"]
   - [sidebar_text, sidebar_input_background, 4.5, "text in sidebar inputs"]
-  - [white, primary_dark, 4.5, "active menu item"]
+  - [primary_dark, active_item_background, 4.5, "active menu item"]
+  - [primary_dark, sidebar_background, 4.5, "menu section headings"]
+  - [active_item_bar, active_item_background, 3.0, "green bar of the active menu item (a mark, not text)"]
+  - [primary, white, 3.0, "card top borders (a mark, not text)"]
   - [link, page_background, 4.5, "links"]
   - [status.on_track, page_background, 4.5, "on track (text)"]
   - [status.at_risk, page_background, 4.5, "at risk (text)"]

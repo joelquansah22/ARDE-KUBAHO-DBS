@@ -2,25 +2,21 @@
 # Written by src/theme.py from config/theme.yaml: change the colours there, not here.
 base = "light"
 primaryColor = "#327F21"
-backgroundColor = "#F7FBF6"
-secondaryBackgroundColor = "#F2F8F1"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#FFFFFF"
 textColor = "#1D1D1D"
 linkColor = "#2F69D9"
-borderColor = "#C9DEC2"
+borderColor = "#D5E3D0"
 font = "sans serif"
 chartCategoricalColors = ["#3370E7", "#327F21", "#8A7A00", "#1D1D1D"]
 
 [theme.sidebar]
-backgroundColor = "#327F21"
-secondaryBackgroundColor = "#28641A"
-textColor = "#FFFFFF"
-primaryColor = "#FFFFFF"
-linkColor = "#FFFFFF"
-borderColor = "#28641A"
-
-["#3370E7", "#327F21", "#8A7A00", "#1D1D1D"]
-
-["#3370E7", "#327F21", "#8A7A00", "#1D1D1D", "#7FA8F0", "#8FC47F"]
+backgroundColor = "#F4F9F2"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1D1D1D"
+primaryColor = "#327F21"
+linkColor = "#28641A"
+borderColor = "#D5E3D0"
 
 [server]
 headless = true

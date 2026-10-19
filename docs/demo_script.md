@@ -13,7 +13,8 @@ data is regenerated).
       import can be shown live. (After the talk, the state is kept; run it again before the next demonstration.)
 - [ ] Laptop plugged in, other programs closed (load times are better), screen at 1366 × 768 or larger, browser zoom
       100%.
-- [ ] Dashboard started with `run_dashboard.bat`; every page opened once (so the first visits are fast during the talk).
+- [ ] Dashboard started with `run_dashboard.bat`; every page opened once (so the first visits are fast during the
+      talk), then back to **Home**, where the demonstration starts.
 - [ ] Filters at their defaults (all programmes, all projects, all districts, 01/07/2023 to 30/06/2026, sex All, RWF).
 - [ ] Donor entry page: **You are** set to **MEAL01** (the same choice is used on Data entry and Upload Excel).
 - [ ] **The file for the upload step:** `python tools/make_demo_upload.py` writes
@@ -29,7 +30,7 @@ data is regenerated).
 
 | Time | Show | Say (in your own words) |
 |---|---|---|
-| 0:00 to 0:45 | Executive summary, pointing at the yellow banner | "ARDE/KUBAHO keeps its records in Excel and on paper, spread over many files. This prototype reads those files as they are, checks and cleans them, and answers the director's questions on one screen. Everything you see is **synthetic**: invented records with realistic mistakes, because we have not received real data." |
+| 0:00 to 0:45 | **Home**, pointing at the yellow banner, then the key figures, "Needs attention" and the tiles; click the **Executive summary** tile | "ARDE/KUBAHO keeps its records in Excel and on paper, spread over many files. This prototype reads those files as they are, checks and cleans them, and puts everything on one screen: the key figures, what needs attention today, and every page, grouped as insights, data and donors. Everything you see is **synthetic**: invented records with realistic mistakes, because we have not received real data." |
 | 0:45 to 1:45 | **Question 1: "Are we on track this quarter?"** | "1 of 11 indicators is on track, 2 at risk, 1 off track: people with access to improved water, 68% of target. Every status has a symbol and a word, never colour alone. One project is over budget: Hygiene Behaviour Change, by RWF 14.7 million, 10%." |
 | 1:45 to 2:45 | **Question 2: "Can we trust these numbers?"** | "Data quality 96%; the weakest dimension is timeliness. This quarter, 4 of 13 comparisons between monthly reports and activity records disagree by more than 10% and at least 5 people. Records with serious problems are quarantined, not dropped or guessed." |
 | 2:45 to 3:30 | **Question 3: "What funding is coming up?"** | "10 deadlines in 90 days, a weighted open pipeline of RWF 2.45 billion, 13 follow-up actions overdue." Click **See the donor pipeline**; point at the line under the title: "right now the donor data still comes from an Excel tracker." |

@@ -9,7 +9,7 @@ from streamlit.testing.v1 import AppTest
 import donor_report
 from common import load_settings
 
-PAGES = [None, "pages/1_Programme_Overview.py", "pages/2_Indicators.py", "pages/3_Geography.py",
+PAGES = [None, "summary.py", "pages/1_Programme_Overview.py", "pages/2_Indicators.py", "pages/3_Geography.py",
          "pages/4_Data_Quality.py", "pages/5_Donor_Pipeline.py"]
 BANNER = load_settings()["synthetic_banner"]
 APP = Path(__file__).resolve().parent.parent / "dashboard" / "app.py"
@@ -38,7 +38,7 @@ def test_every_page_runs_and_shows_the_synthetic_banner(page):
 
 
 def test_executive_summary_answers_the_three_questions():
-    at = run_page(None)
+    at = run_page("summary.py")                        # the Executive summary
     text = " ".join(m.value for m in at.markdown)
     for question in ("Are we on track this quarter?", "Can we trust these numbers?", "Funding: the next 90 days"):
         assert question in text

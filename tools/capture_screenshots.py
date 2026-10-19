@@ -29,11 +29,13 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "screenshots"
 PORT = 8599
-PAGES = [("executive_summary", "", "Executive summary"), ("programme_overview", "overview", "Programme overview"),
+PAGES = [("home", "", "Home"), ("executive_summary", "summary", "Executive summary"),
+         ("programme_overview", "overview", "Programme overview"),
          ("indicators", "indicators", "Indicators"), ("geography", "geography", "Geography"),
          ("data_quality", "data-quality", "Data quality"), ("donor_pipeline", "donor-pipeline", "Donor pipeline"),
          ("donor_entry", "donor-entry", "Donor entry"), ("data_entry", "data-entry", "Data entry"),
          ("upload_excel", "upload-excel", "Upload Excel"), ("records", "records", "Records")]
+HEADINGS = {"Home": "Programme and Donor Data System"}   # pages whose main heading is not their menu title
 WIDTH, HEIGHT = 1366, 768
 
 
@@ -49,7 +51,8 @@ def wait_for_port(port: int, timeout: float = 60) -> None:
 
 def wait_until_loaded(page, title: str) -> None:
     """Loaded = the page title is shown and Streamlit has finished running the page script."""
-    page.wait_for_selector(f"h1:has-text('{title}')", timeout=60_000)
+    page.wait_for_selector(f"h1:has-text('{HEADINGS.get(title, title)}')", timeout=60_000)
+    page.wait_for_selector("#page-complete", state="attached", timeout=120_000)   # app.py: after the whole page
     page.wait_for_function("""() => {
         const s = document.querySelector('[data-testid="stStatusWidget"]');
         return !s || !s.innerText.toLowerCase().includes('running');
@@ -112,6 +115,18 @@ def timing_run(port: int, screenshots: bool = False) -> list[dict]:
                     results.append(dict(page=title, cold=timings[0], warm=timings[1], fits=None, height=None))
                     continue
                 page.wait_for_timeout(1500)           # let charts and tables finish drawing before measuring
+                # On a busy laptop 1.5 s is not always enough: also wait until every chart has drawn and the page
+                # has stopped growing (found in the redesign: a blank chart and a missing tile in two screenshots).
+                page.wait_for_function("""() => [...document.querySelectorAll('[data-testid="stPlotlyChart"]')]
+                    .every(c => c.querySelector('.main-svg'))""", timeout=60_000)
+                last = -1
+                for _ in range(20):
+                    height = page.evaluate("""() => (document.querySelector('[data-testid="stMain"]') ||
+                                                     document.body).scrollHeight""")
+                    if height == last:
+                        break
+                    last = height
+                    page.wait_for_timeout(700)
                 fits = page.evaluate("""() => {
                     const m = document.querySelector('[data-testid="stMain"]') ||
                               document.querySelector('[data-testid="stAppViewContainer"]');

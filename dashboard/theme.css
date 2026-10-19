@@ -1,8 +1,10 @@
-/* ARDE/KUBAHO look. Colours come from config/theme.yaml: ui.py fills in each name in curly brackets. */
+/* ARDE/KUBAHO look. Colours come from config/theme.yaml: ui.py fills in each name in curly brackets.
+   Lighter look (team instruction 20): white page and cards, a very light green sidebar, green only as an accent. */
 
-/* Page header band: a light tint, so the yellow synthetic-data banner above it stays the most visible element. */
-.page-header {background: {card_background}; border: 1px solid {border}; border-left: 6px solid {primary};
-              border-radius: 8px; padding: 0.45rem 0.9rem 0.4rem 0.9rem; margin: 0.1rem 0 0.4rem 0;}
+/* Page header band: white, with a green bar on the left, so the yellow synthetic-data banner stays the most visible. */
+.page-header {background: {card_background}; border: 1px solid {border}; border-left: 5px solid {primary};
+              border-radius: 8px; padding: 0.45rem 0.9rem 0.4rem 0.9rem; margin: 0.1rem 0 0.4rem 0;
+              box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);}
 .page-header h1 {color: {primary_dark} !important; font-size: 1.45rem !important; margin: 0 !important;
                  padding: 0 !important; line-height: 1.25;}
 .page-header p {color: {muted_text}; font-size: 0.85rem; margin: 0.1rem 0 0 0;}
@@ -11,26 +13,51 @@
 h2, h3, h4 {color: {primary_dark} !important;}
 .muted {color: {muted_text} !important;}
 
-/* KPI cards: brand top border, bigger numbers, optional sparkline */
-.tile {border: 1px solid {border} !important; border-top: 4px solid {primary} !important;
-       background: {card_background} !important; border-radius: 8px;}
+/* KPI cards: white, a subtle border and shadow, a green top border */
+.tile {border: 1px solid {border} !important; border-top: 3px solid {primary} !important;
+       background: {card_background} !important; border-radius: 8px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);}
 .tile-value {font-size: clamp(1.1rem, 1.6vw, 1.5rem) !important; color: {text}; white-space: nowrap;}
 .tile-label, .tile-note {color: {muted_text} !important;}
 .tile-trend {font-size: 0.72rem; color: {muted_text}; display: flex; align-items: center; gap: 0.35rem;}
 .tile-trend svg {flex: none;}
 
+/* Bordered containers (home page menu tiles, needs-attention box): white cards with a light shadow */
+[data-testid="stVerticalBlockBorderWrapper"] {background: {card_background}; border-color: {border} !important;
+                                              box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);}
+
 /* Tables */
-table.tbl th {background: {card_background} !important; border-bottom: 2px solid {border} !important;
-              color: {text};}
+table.tbl th {background: {tint} !important; border-bottom: 2px solid {border} !important; color: {text};}
 table.tbl td {border-bottom: 1px solid {border} !important;}
 
-/* Sidebar: logo with the organisation name; the active menu item in the darker brand green */
+/* Sidebar: a very light green tint with dark text; the organisation name next to the logo */
+[data-testid="stSidebar"] {border-right: 1px solid {border};}
 [data-testid="stSidebarHeader"] {align-items: center; gap: 0.6rem;}
 [data-testid="stSidebarHeader"] img {background: {white}; border-radius: 8px; padding: 2px;}
-[data-testid="stSidebarHeader"]::after {content: "{organisation_name}"; color: {sidebar_text}; font-weight: 700;
+[data-testid="stSidebarHeader"]::after {content: "{organisation_name}"; color: {primary_dark}; font-weight: 700;
                                         font-size: 1.05rem; letter-spacing: 0.02em;}
-[data-testid="stSidebarNav"] a[aria-current="page"] {background: {primary_dark} !important;}
-[data-testid="stSidebarNav"] a[aria-current="page"] span {color: {white} !important; font-weight: 700;}
+/* Menu section headings (Insights, Data, Donors) */
+[data-testid="stNavSectionHeader"], [data-testid="stNavSectionHeader"] * {color: {primary_dark} !important;
+                                                                          font-weight: 700 !important;}
+/* The active menu item: a light green background with a green bar on its left */
+[data-testid="stSidebarNav"] a {border-left: 4px solid transparent; border-radius: 0 6px 6px 0;}
+[data-testid="stSidebarNav"] a[aria-current="page"] {background: {active_item_background} !important;
+                                                     border-left: 4px solid {active_item_bar};}
+[data-testid="stSidebarNav"] a[aria-current="page"] span {color: {primary_dark} !important; font-weight: 700;}
 
 /* Answer boxes (Executive summary) */
 .answer {border: 1px solid {border}; border-radius: 10px; padding: 0.6rem 0.8rem 0.4rem 0.8rem; height: 100%;}
+
+/* Home page */
+.welcome {display: flex; align-items: center; gap: 0.9rem; padding: 0.2rem 0 0.5rem 0;}
+.welcome img {height: 52px; width: auto; border-radius: 8px; border: 1px solid {border}; background: {white};}
+.welcome h1 {color: {primary_dark} !important; font-size: 1.5rem !important; margin: 0 !important; padding: 0 !important;
+             line-height: 1.2;}
+.welcome p {color: {muted_text}; font-size: 0.88rem; margin: 0.15rem 0 0 0;}
+.menu-section {color: {primary_dark}; font-weight: 700; font-size: 0.95rem; margin: 0.35rem 0 0.15rem 0;}
+.menu-note {color: {muted_text}; font-size: 0.76rem; line-height: 1.3; margin: -0.35rem 0 0 0;}
+.attention {background: {tint}; border: 1px solid {border}; border-radius: 8px; padding: 0.35rem 0.8rem 0.15rem 0.8rem;}
+.attention-title {color: {text}; font-weight: 700; font-size: 0.88rem;}
+/* Links in the page (home tiles, needs attention): wrap long labels instead of cutting them off */
+[data-testid="stMain"] [data-testid="stPageLink-NavLink"] p,
+[data-testid="stMain"] [data-testid="stPageLink-NavLink"] span {white-space: normal !important; overflow: visible !important;
+                                                                text-overflow: clip !important; line-height: 1.25 !important;}

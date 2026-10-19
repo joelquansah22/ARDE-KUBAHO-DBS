@@ -357,6 +357,17 @@ def donor_sources_note() -> str:
     return text + " Figures change after the pipeline runs."
 
 
+def menu() -> list[dict]:
+    """The menu (config/page_help.yaml: menu): sections, each with its pages (file, title, Material icon, address,
+    one-line description). Used by the sidebar (app.py) and the Home page tiles, so the two always match."""
+    return load_yaml("page_help.yaml")["menu"]
+
+
+def menu_page(key: str) -> dict:
+    """One page of the menu, by its key (e.g. 'indicators')."""
+    return next(p for section in menu() for p in section["pages"] if p["key"] == key)
+
+
 def staff_picker(what: str = "anything") -> tuple[str, dict, bool]:
     """'You are': there is no login, so the person picks their staff code (config/staff.yaml). The choice is kept
     between the entry pages. Returns (code, {code: label}, ready)."""

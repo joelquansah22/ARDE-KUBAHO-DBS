@@ -230,6 +230,13 @@ replaced by a corrected upload is moved to `data/app/replaced_files/`.
 - The check runs on a scratch copy in `data/app/upload_check/`, deleted afterwards; if the laptop was switched off
   during a check, the folder can be deleted.
 
+## 8c-2. The menu
+
+The menu on the left and the tiles on the Home page come from one list, `menu` in `config/page_help.yaml`: the
+groups (Insights, Data, Donors), and for each page its file, title, icon, address and one-line description. To
+rename a page, change its description or move it to another group, edit that list and reload the dashboard. Icons
+are Google Material icons, written `:material/name:` (names at https://fonts.google.com/icons).
+
 ## 8d. Colours and logo
 
 All colours are in `config/theme.yaml` (brand colours to be confirmed with ARDE/KUBAHO). After changing them:
@@ -239,7 +246,8 @@ python src/theme.py
 ```
 
 It writes the Streamlit theme into `.streamlit/config.toml` and checks every colour pair for contrast (WCAG AA):
-anything marked FAIL must be darkened before use. Restart the dashboard to see the change. The logo is
+anything marked FAIL must be darkened before use (the three raw logo colours fail and are not used for text or
+marks). Restart the dashboard to see the change. The logo is
 `assets/arde_logo.png` (no logo is shown if the file is missing). The yellow synthetic-data banner is not part of the
 theme and must not be changed.
 

@@ -46,7 +46,7 @@ with c1:
     for r in budgets[budgets["status"] == "over budget"].itertuples():
         st.markdown(f"<div class='small' style='color:{ui.WARNING}'><b>▲ {r.project_id} {r.name}: {r.message}</b> "
                     "(activity costs to date)</div>", unsafe_allow_html=True)
-    st.page_link("pages/2_Indicators.py", label="See all indicators →", icon="🎯")
+    st.page_link("pages/2_Indicators.py", label="See all indicators →", icon=ui.menu_page("indicators")["icon"])
 
 # ------------------------------------------------------------------ 2. Can we trust the numbers?
 with c2:
@@ -68,7 +68,7 @@ with c2:
         <li><b>{pending}</b> people in the whole register pending duplicate review (people counts may be slightly high)</li>
         <li><b>{int(quarantined):,}</b> records quarantined (not used until corrected)</li></ul></div>""",
                 unsafe_allow_html=True)
-    st.page_link("pages/4_Data_Quality.py", label="See data quality →", icon="✅")
+    st.page_link("pages/4_Data_Quality.py", label="See data quality →", icon=ui.menu_page("data_quality")["icon"])
 
 # ------------------------------------------------------------------ 3. Funding in the next 90 days
 with c3:
@@ -89,6 +89,6 @@ with c3:
     st.markdown(f"<div class='small'><b>Next deadlines</b><ul>{items or '<li>None</li>'}</ul>"
                 f"<b>Pipeline gaps</b> <span class='muted'>(annual budgets; draft definition)</span><ul>{''.join(lines) or '<li>No project ends within 12 months</li>'}</ul>"
                 f"<b>{overdue}</b> follow-up actions are overdue.</div>", unsafe_allow_html=True)
-    st.page_link("pages/5_Donor_Pipeline.py", label="See the donor pipeline →", icon="🤝")
+    st.page_link("pages/5_Donor_Pipeline.py", label="See the donor pipeline →", icon=ui.menu_page("donor_pipeline")["icon"])
 
 ui.footer()          # data last updated, with the source files (on every page, and printed)

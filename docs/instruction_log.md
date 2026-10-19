@@ -522,3 +522,11 @@ UI change (allowed under the feature freeze; no new functions):
 
 4. Check at 1366 x 768 that the home page fits without scrolling. Retake screenshots (including the home page), update the user guide and demo script to start from the home page, commit, push, and stop.
 ```
+
+## 20. 19 October 2026, 13:06 UTC (saved before acting on it)
+
+```text
+Yes, the redesign is my instruction. Please do it now: the home page as the landing page, the grouped sidebar with Material icons, and the lighter colours, exactly as in the text you logged as "not acted on". Then send me the home page screenshot path and stop.
+```
+
+The redesign text is the pasted block under instruction 19.
