@@ -2,7 +2,7 @@
 
 > **Draft, for co-design with ARDE/KUBAHO staff.** Nothing here has been agreed with ARDE/KUBAHO. Use `docs/indicator_reference_sheets.xlsx` (with a Staff comments column) in the co-design session.
 
-*Generated from `config/indicator_catalogue.yaml` by `src/indicators.py` on 15 October 2026. Do not edit by hand: change the YAML file instead.*
+*Generated from `config/indicator_catalogue.yaml` by `src/indicators.py` on 19 October 2026. Do not edit by hand: change the YAML file instead.*
 
 Traffic-light status (% of target achieved, from `config/settings.yaml`): on track 90% or more; at risk 70% to 89%; off track below 70%. A missing target shows "no target set".
 

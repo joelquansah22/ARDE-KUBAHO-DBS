@@ -45,8 +45,9 @@ The salt makes the coded keys for people. The salt used with the synthetic data 
 
 - [ ] Delete everything in `data/raw/`, `data/staging/`, `data/warehouse/`, `data/exports/` (including
       `data/exports/donor_reports/`) and `data/ground_truth/`. The held-out folders (`data/holdout*`, `data/final_holdout`)
-      are only needed in the demo copy: delete them here. Also delete `data/app/entries.db` (donor entries made during
-      demonstrations) and `data/kobo_test/` (synthetic Kobo exports).
+      are only needed in the demo copy: delete them here. Also delete `data/app/entries.db` **and the folder
+      `data/app/backups/`** (donor entries and backups made during demonstrations), and `data/kobo_test/` (synthetic
+      Kobo exports). Never run `python src/reset_demo.py` on the real copy (it refuses when `synthetic_mode` is off).
 - [ ] In a command window in the project folder: `dir /s /b SYNTHETIC_*`. It must list **nothing** (no `.xlsx`,
       `.csv`, `.parquet` or `.pdf` file whose name starts with `SYNTHETIC_`).
 - [ ] The pipeline double-checks: with `synthetic_mode: false` it **stops** if any `SYNTHETIC_` file is in `data/raw/`,
@@ -118,6 +119,37 @@ Then run the **before/after comparison on the pilot records** (`python src/evalu
 line needs the synthetic answer key and is left out with real data) and copy the results into
 `docs/evaluation_summary.md`.
 
+## 6b. Donor data, phones and branding
+
+**Donor entries (one home for donor data).**
+
+- [ ] `data/app/entries.db` starts empty (step 4). The first save on the Donor entry page creates it.
+- [ ] `config/staff.yaml` holds ARDE/KUBAHO's real staff codes and roles (partner question F7).
+- [ ] After the first real run has read the real donor tracker: on the **Donor entry** page, **Import from the Excel
+      tracker** tab, the finance officer and the MEAL officer go through the preview together. Rows listed "to correct
+      in Excel first" are corrected in the tracker, the pipeline is run again, and the import is repeated until nothing
+      is left. Then the donor data is kept on the Donor entry page; the Excel donor template is only an offline fallback.
+- [ ] Check that the Donor pipeline page says the data is kept on the Donor entry page, and that its totals match the
+      tracker's own totals (number of opportunities, amount requested, weighted pipeline).
+- [ ] **Backups:** after the first save, `data/app/backups/` holds dated copies. Agree who downloads the Excel backup
+      (Backup tab) each month and where it is kept (offline, not shared). Try one restore on a copy (maintenance guide,
+      8b-2) before relying on it.
+
+**KoboToolbox (if phones are used).**
+
+- [ ] Decide the **server (global or EU) and where the data may be stored** (partner questions A5 and F8) **before**
+      uploading any form. Create an organisational account, not a personal one.
+- [ ] `python src/build_kobo_forms.py` (after the first real run, so the lists match the real programme master), upload
+      both forms, and test them on **one phone** with a few made-up submissions: export, run the pipeline, delete the
+      test submissions in Kobo. Only then give the forms to field officers (`docs/kobo_guide.md`).
+- [ ] An officer who moves to Kobo stops sending the same activities in Excel (they would be counted twice).
+
+**Logo and colours.**
+
+- [ ] ARDE/KUBAHO confirms the brand colours and gives permission to use its logo in the tool (partner question F6).
+      If not: delete `assets/arde_logo.png` (no logo is shown) and change the colours in `config/theme.yaml`, then
+      `python src/theme.py` (every pair must pass its contrast check).
+
 ## 7. After the switch
 
 - [ ] `python -m pytest`: tests that check the synthetic warehouse are skipped automatically when `synthetic_mode` is
@@ -135,4 +167,7 @@ line needs the synthetic answer key and is left out with real data) and copy the
 | 4. Synthetic files removed | | |
 | 5. Files mapped | | |
 | 6. First real run signed off | | |
+| 6b. Donor entries, import and backups | | |
+| 6b. Kobo server chosen and tested on a phone | | |
+| 6b. Logo and colours confirmed | | |
 | 7. After the switch | | |

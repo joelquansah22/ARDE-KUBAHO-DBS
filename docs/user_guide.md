@@ -93,7 +93,9 @@ download only their records to correct. This page covers all records, so the fil
 
 ### Donor pipeline
 Open opportunities by stage (count, amount requested and weighted value), outcomes (awarded, declined), pipeline gaps
-by theme (draft), deadlines in the next 30, 60 and 90 days, overdue next actions, and all opportunities.
+by theme (draft), deadlines in the next 30, 60 and 90 days, overdue next actions, and all opportunities. The line
+under the title says where the donor figures come from (the Donor entry page, and any rows still read from the Excel
+tracker).
 
 ### Donor entry
 Add donors and funding opportunities, update them, and mark next actions as done, directly on the dashboard
@@ -168,6 +170,8 @@ Printing: use the browser's Print (Ctrl+P). Pages print on **A4 landscape** with
 | A file's records are missing | The pipeline **skipped** a sheet it could not read | Data quality page, red box at the top; the maintenance guide explains the fix |
 | A number looks wrong | It may come from a record in the review queue, or a quarantined record is missing | Indicators drill-down (◇ months) and the Data quality work lists; check the Excel row shown |
 | Figures did not change after correcting a file | The pipeline was not run again, or the page was not reloaded | Run the pipeline, then press F5 in the browser |
+| "Choose your name above before adding or changing anything" | Donor entry: nobody is selected in "You are" | Pick your staff code at the top of the page |
+| A new opportunity is not on the Donor pipeline page | The figures have not been updated since it was saved | Donor entry page, bottom: **Update the figures now** |
 | "python is not recognised" | Python is not installed, or installed without "Add to PATH" | Reinstall Python with the tick (README, step 1) |
 
 ## 8. Glossary

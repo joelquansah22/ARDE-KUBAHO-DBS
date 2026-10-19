@@ -403,3 +403,25 @@ F. Final repository review: remove dead code and unused files, check every doc l
 
 Stop when Phase 8 is done and report back.
 ```
+
+## 14. 19 October 2026, 09:51 UTC (saved before acting on it)
+
+```text
+Follow-ups approved. Final wrap-up round, then feature freeze:
+
+1. Demo state: run the one-time tracker import on the synthetic demo data. Add a "reset demo" command (python src/reset_demo.py) that regenerates the main set, clears entries.db and its backups, and reruns the pipeline, so the import can be shown live. Document it in the demo script.
+
+2. Bring the Phase 8 documents up to date with everything added after v1.0:
+   - Demo script: add the Donor entry page (add an opportunity, update a stage, show the change history and backup) and one slide's worth on Kobo. Keep the total at 10 minutes.
+   - Real-data checklist: entries.db, backups, staff.yaml, the Excel tracker import, the Kobo server choice, and the theme/logo permission.
+   - Data request pack and privacy note: Kobo data storage and the donor entries database.
+   - Evaluation summary: add the Kobo import results and the donor entry tests, labelled as automated checks, not user testing.
+   - Limitations and roadmap: check it is complete after D187 to D205.
+   - README and user guide: check every step still matches the app.
+
+3. Full test suite, retake all screenshots, re-measure load times, check every doc link. Tag the release v1.1.
+
+4. Write docs/project_status.md, one page for our supervisors: what was built; the evaluation results so far (held-out 2 and final round, explained as before); what is waiting on human testing (timed task, usability test, fresh install, Kobo phone test); and the open partner questions that block the real-data switch.
+
+After this, no new features unless I ask. Stop and report back.
+```

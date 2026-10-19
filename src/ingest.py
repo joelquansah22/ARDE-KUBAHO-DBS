@@ -578,8 +578,11 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
                 reader.records[entity] = kept
                 for (f, sh), n in pd.Series([(r["source_file"], r["source_sheet"]) for r in before if r not in kept]
                                             ).value_counts().items():
-                    reader.inventory.append(dict(source_file=f, source_sheet=sh, entity=entity, rows=0,
-                                                 note=f"{n} rows already moved to the dashboard (Donor entry): not read"))
+                    # A note on the sheet's own inventory row (one row per sheet: the model checks this).
+                    note = f"{n} rows already moved to the dashboard (Donor entry): not read"
+                    for row in reader.inventory:
+                        if row.get("source_file") == f and row.get("source_sheet") == sh:
+                            row["note"] = "; ".join(x for x in (row.get("note"), note) if isinstance(x, str) and x)
     if app_donors or app_opps:
         reader.records.setdefault("donor", []).extend(app_donors)
         reader.records.setdefault("opportunity", []).extend(app_opps)

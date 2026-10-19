@@ -68,6 +68,19 @@ confirmed with ARDE/KUBAHO and the university** (and a lawyer if ARDE/KUBAHO wis
 | **Rights of the people in the data** | Requests to see, correct or delete data go to ARDE/KUBAHO, which tells the team to act on them |
 | **Outputs** | ARDE/KUBAHO may review the capstone report and presentation before they are shared, to check no person can be identified |
 | **Contacts** | One contact at ARDE/KUBAHO, one in the team, one at ASU |
+| **Donor entries database** | `data/app/entries.db` and its backups stay on ARDE/KUBAHO's laptop and are never sent to the team. They hold organisation donors' names, opportunities, staff codes and the change history; no contact details, and no names of individual donors. If the team needs to check them, ARDE/KUBAHO may share the downloaded Excel backup, by the route in section 3 |
+| **Phone data (KoboToolbox)** | If ARDE/KUBAHO uses KoboToolbox, its activity and indicator submissions are stored on KoboToolbox's servers (global or EU, outside Rwanda) under an ARDE/KUBAHO account; whether this is allowed must be confirmed first (partner questions A5, F8). No beneficiary names are collected on the phone forms. The team works only with a test project and made-up submissions, unless agreed otherwise |
+
+## 4b. Donor data and phones (no request to the team)
+
+These do **not** require sending anything to the team, but they are part of the same agreement:
+
+- **Donor data** entered on the dashboard stays on ARDE/KUBAHO's laptop (`data/app/`), with automatic local backups.
+  The one-time import of the Excel donor tracker is done on that laptop by ARDE/KUBAHO staff.
+- **KoboToolbox** (optional): ARDE/KUBAHO decides the server and account before any real submission (see
+  `docs/kobo_guide.md`). The team can test the forms on its own test account with invented data only.
+
+**To be confirmed with ARDE/KUBAHO and the university.**
 
 ## 5. What ARDE/KUBAHO gets back
 

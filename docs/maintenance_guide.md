@@ -252,7 +252,7 @@ copy the salt file to the same place on the new computer **before** the first ru
 python -m pytest
 ```
 
-About 4 minutes. It should end with "passed" and no "failed". Run it after any change to `config/` or the code. With
+About 5 to 10 minutes. It should end with "passed" and no "failed". Run it after any change to `config/` or the code. With
 real data, some tests that check the synthetic answer key will be skipped or need the synthetic data; see the
 Phase 8 checklist.
 

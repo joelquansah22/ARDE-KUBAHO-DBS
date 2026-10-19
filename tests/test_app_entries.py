@@ -262,3 +262,25 @@ def test_rows_with_problems_stay_in_excel_with_the_reason(tracker_staging, tmp_p
     assert list(preview["problems"]["opportunity_id"]) == [o.loc[o.index[0], "opportunity_id"]]
     assert "Probability is required" in preview["problems"]["problem"].iloc[0]
     assert "row" in preview["problems"]["where"].iloc[0]
+
+
+def test_the_whole_pipeline_runs_after_the_import(synthetic, tracker_staging, tmp_path):
+    """Found on the demo data: after the import the model refused to save (a sheet listed twice). Now ingest, clean,
+    validate, model and indicators all run, and every opportunity is still counted once."""
+    import clean
+    import indicators
+    import ingest
+    import model
+    import validate
+    db = tmp_path / "entries.db"
+    app_store.import_tracker("MEAL01", tracker_staging, db)
+    staging, wh, docs = tmp_path / "staging", tmp_path / "wh.duckdb", tmp_path / "docs"
+    docs.mkdir()
+    ingest.run(synthetic["raw"], staging, app_entries=db)
+    clean.run(staging)
+    validate.run(staging, docs)
+    tables = model.run(staging, wh, tmp_path / "exports", docs)
+    indicators.run(wh, tmp_path / "exports", docs)
+    assert len(tables["fact_opportunity"]) == len(pd.read_parquet(tracker_staging / "clean_opportunity.parquet"))
+    assert set(tables["fact_opportunity"]["source_file"]) == {"entries.db"}
+    assert not tables["dq_by_source_file"].duplicated(["source_file", "source_sheet"]).any()

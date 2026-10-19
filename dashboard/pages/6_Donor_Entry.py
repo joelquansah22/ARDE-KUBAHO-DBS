@@ -32,6 +32,25 @@ ready = who in labels
 if not ready:
     st.info("Choose your name above before adding or changing anything.")
 
+def _stamp(path) -> float:
+    return path.stat().st_mtime if path.exists() else 0.0
+
+
+@st.cache_data(show_spinner=False, max_entries=4)
+def _preview(db_stamp: float, staging_stamp: float):
+    """The import preview, worked out again only when the entries or the pipeline's output change."""
+    try:
+        return app_store.import_preview(), None
+    except app_store.EntryError as e:
+        return None, str(e)
+
+
+@st.cache_data(show_spinner=False, max_entries=2)
+def _backup_workbook(db_stamp: float) -> bytes:
+    """The Excel backup, built again only when the entries change."""
+    return app_store.export_workbook()
+
+
 app_donors = pd.DataFrame(app_store.table("donors"))
 app_opps = pd.DataFrame(app_store.table("opportunities"))
 
@@ -182,11 +201,10 @@ with tabs[5]:
                 "data has one home. IDs are kept, and each record keeps a note of the Excel file, sheet and row it "
                 "came from. After the import the pipeline no longer reads those Excel rows; the Excel donor template "
                 "stays only as an **offline fallback** for new opportunities (see the user guide).")
-    try:
-        preview = app_store.import_preview()
-    except app_store.EntryError as e:
-        preview = None
-        st.info(str(e))
+    preview, message = _preview(_stamp(app_store.db_path()),
+                                _stamp(ui.resolve_path("staging") / "clean_opportunity.parquet"))
+    if message:
+        st.info(message)
     if preview is not None:
         d, o, problems = preview["donors"], preview["opportunities"], preview["problems"]
         if not len(d) and not len(o) and not len(problems):
@@ -217,7 +235,7 @@ with tabs[6]:
                 f"(in `data/app/backups/`, the newest {ui.SETTINGS.get('app_backups_keep', 30)}). "
                 f"{len(backups)} copies now" + (f"; the newest: {backups[0].name}." if backups else "."))
     st.download_button("⬇ Download backup (Excel: donors, opportunities, change history)",
-                       app_store.export_workbook() if app_store.db_path().exists() else b"",
+                       _backup_workbook(_stamp(app_store.db_path())) if app_store.db_path().exists() else b"",
                        file_name=f"donor_entries_backup_{dt.date.today():%Y-%m-%d}.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                        disabled=not app_store.db_path().exists(), key="dl_entries_backup")

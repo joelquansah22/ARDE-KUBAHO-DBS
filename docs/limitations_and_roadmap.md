@@ -54,6 +54,11 @@ ARDE/KUBAHO, suggested by the team and to be confirmed with the partner** (`docs
 | L26 | **Single laptop:** `data/app/entries.db` is not shared over a network; one person enters donor data at a time, on the one laptop. Backups are local copies (`data/app/backups/`) plus the Excel download | D187, D200 |
 | L27 | **Kobo forms are unchecked on a real account and phone** until the team tests them: they convert with pyxform (tested), but have not been deployed on KoboToolbox or filled in with KoboCollect (ODK Validate not run) | D191, D203 |
 | L30 | **Donor rows that need correcting stay in the Excel tracker** after the import until they are fixed and imported, and **new opportunities typed in the offline Excel template** are read from Excel until they are imported: during that time donor data has two homes | D201 |
+| L31 | **Beneficiary registration is not on KoboToolbox:** it stays in the Excel register until ARDE/KUBAHO decides whether names may be stored on Kobo's servers | D193 |
+| L32 | **Donor entry backups are on the same laptop** as the database: a lost or broken laptop loses both. Only the downloaded Excel backup, kept elsewhere, protects against that | D200 |
+| L33 | **The Kobo indicator form takes one submission per indicator** (and per sex where broken down), which is slower for officers than one form per month; chosen so the export is one flat table read through configuration only | D191 |
+| L34 | **Donor entries reach the other pages only after the figures are updated** (button on the Donor entry page, about 20 seconds) | D187 |
+| L35 | **The Kobo forms were checked with pyxform only;** ODK Validate (Java) has not been run | D203 |
 | L28 | **A Kobo export and an Excel file covering the same activities** would be counted twice | D192 |
 | L29 | **Brand colours and logo** not yet confirmed with ARDE/KUBAHO; an opened dropdown in the green sidebar was not checked automatically | D196, D198 |
 
@@ -95,3 +100,5 @@ the capstone; after that, the ARDE/KUBAHO owner (suggested role, to be confirmed
 | R15 | Budget data including staff and overheads, if finance can export it, for a full budget-versus-spend view | L17 | M | Finance officer |
 | R16 | If the tool is used by several people: real user accounts, a shared, access-controlled location and backups (a server with logins is a different project) | L19, L25, L26, L20 | L | Executive director |
 | R17 | A small "small numbers" rule for reports shared outside ARDE/KUBAHO, if agreed | Privacy | S | MEAL officer |
+| R18 | If ARDE/KUBAHO allows it: a Kobo beneficiary registration form, with the same pseudonymisation at import | L31 | M | MEAL officer, executive director (decision) |
+| R19 | A Kobo indicator form with one submission per month (a repeat group), with an import step for repeat sheets, if officers find one submission per indicator too slow | L33 | M | MEAL officer |
