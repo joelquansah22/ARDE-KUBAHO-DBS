@@ -32,7 +32,8 @@ PORT = 8599
 PAGES = [("executive_summary", "", "Executive summary"), ("programme_overview", "overview", "Programme overview"),
          ("indicators", "indicators", "Indicators"), ("geography", "geography", "Geography"),
          ("data_quality", "data-quality", "Data quality"), ("donor_pipeline", "donor-pipeline", "Donor pipeline"),
-         ("donor_entry", "donor-entry", "Donor entry")]
+         ("donor_entry", "donor-entry", "Donor entry"), ("data_entry", "data-entry", "Data entry"),
+         ("upload_excel", "upload-excel", "Upload Excel"), ("records", "records", "Records")]
 WIDTH, HEIGHT = 1366, 768
 
 

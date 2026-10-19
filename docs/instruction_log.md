@@ -425,3 +425,50 @@ Follow-ups approved. Final wrap-up round, then feature freeze:
 
 After this, no new features unless I ask. Stop and report back.
 ```
+
+## 15. 19 October 2026, 10:36 UTC (saved before acting on it)
+
+```text
+Push the project to a private GitHub repository.
+
+1. Before pushing, confirm: data/ and all its contents are gitignored, no salt file or entries.db is in the repo, no real data exists anywhere in the repo history, and .venv is excluded. Show me the list of files that will be pushed and wait for my confirmation.
+2. After I confirm: create a private repository named arde-meal-prototype (if gh is not available or not logged in, give me exact steps to create it on github.com instead), push all commits and the v1.0 and v1.1 tags.
+3. Add a short "For teammates" section to the README: how to clone, set up and run the demo.
+4. Stop and report the repository URL.
+```
+
+## 16. 19 October 2026, 10:49 UTC (saved before acting on it)
+
+```text
+Before that do the following:
+
+Lift the feature freeze for one extension. ARDE needs a database staff can work in, not only a dashboard. Data comes in through Excel and the app only. No Kobo.
+
+1. Remove Kobo: remove the Kobo forms, the import adapter, its tests, the Kobo guide and every Kobo mention in the app and docs (demo script, limitations, partner questions, real-data checklist, privacy note, evaluation summary). It stays available in the v1.1 tag. Log this in the decision log.
+
+2. Excel upload page:
+   - Staff upload a filled Excel template in the app instead of copying files into data/raw.
+   - After upload, show a plain summary: rows accepted, rows held back for correction (with reasons and row numbers), rows sent for review, and any SKIPPED message.
+   - Keep each uploaded file with the date and who uploaded it. Warn if the same file, or one with the same records, was already uploaded.
+   - Link to download the blank templates from the same page.
+
+3. Records page (read and search):
+   - Browse every stored table: activities, indicator results, donors, opportunities, records held back for correction, review queue.
+   - Search and filter by project, district, officer, date range, status and source (Excel upload / entered in app).
+   - Each record shows where it came from (file, sheet, row, or app entry with who and when).
+   - Export the filtered view to Excel.
+   - No beneficiary names, phones or IDs anywhere.
+
+4. Entry forms for programme data, saving to entries.db:
+   - Activity record: project, activity, district/sector/cell/village (cascading dropdowns), date, planned date, status, female/male/total participants, cost, officer.
+   - Monthly indicator report: project, district, month, indicator, target, actual.
+   - Reuse the cleaner's rules for validation on entry (female + male = total, no negatives, dates in the project window, valid codes). Show plain error messages.
+   - Change history, automatic backups and the backup download, as for donors.
+   - Records entered in the app can be edited in the app. Records from Excel are read-only in the app and corrected in the Excel file, then re-uploaded; the page says so.
+
+5. The pipeline reads app entries as another source, with lineage. Warn when an app entry looks like a duplicate of an Excel record (same project, activity, date and place).
+
+6. Tests, decision log, user guide (a short "how to enter this month's data" section covering both upload and forms), demo script (one minute showing an upload and a form entry appearing on the dashboard), limitations (single laptop and no login still apply). Retake screenshots.
+
+7. Tag v1.2, then return to the feature freeze. Stop and report back.
+```

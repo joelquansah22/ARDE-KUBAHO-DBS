@@ -1,5 +1,5 @@
 # =============================================================================
-# Staff who can enter data on the dashboard (Donor entry page)
+# Staff who can enter data on the dashboard (Donor entry, Data entry and Upload Excel pages)
 # =============================================================================
 # There is no login system: the person entering data picks themselves from this
 # list, and every change is recorded with their code in the change history.
@@ -14,3 +14,7 @@ staff:
   - {code: PM02, role: Programme manager (agriculture)}
   - {code: MEAL01, role: MEAL officer}
   - {code: FIN01, role: Finance officer}
+  - {code: FO01, role: Field officer (Nyagatare, Kayonza)}
+  - {code: FO02, role: Field officer (Bugesera, Kirehe)}
+  - {code: FO03, role: Field officer (Nyamagabe, Huye)}
+  - {code: FO04, role: Field officer (Rulindo, Karongi)}

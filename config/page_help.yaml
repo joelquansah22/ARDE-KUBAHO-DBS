@@ -13,6 +13,9 @@ summaries:
   data_quality: "How complete and correct the records are, and which records need correcting or checking."
   donor_pipeline: "Which funding opportunities are open, what they are worth, and what is due next."
   donor_entry: "Add and update donors and funding opportunities; every change is recorded."
+  data_entry: "Enter this month's activity records and indicator reports; every change is recorded."
+  upload_excel: "Upload a filled Excel template: see what is accepted, held back or sent for review, then add it."
+  records: "Browse and search every stored record, see where it came from, and export it to Excel."
 
 home: |
   - This page answers three questions for the current fiscal quarter: are we on track, can we trust the numbers, and what funding is coming up.
@@ -63,3 +66,25 @@ donor_entry: |
   - **Update an opportunity** changes the stage, amounts, probability, deadline, next action or owner of opportunities added on this page. Opportunities in the Excel tracker are updated in the Excel file.
   - **Next actions**: "Mark done" keeps the action in the change history and clears it; then add the next one.
   - New entries reach the Donor pipeline and Executive summary pages when the figures are updated: use the button at the bottom of the page.
+
+data_entry: |
+  - **Choose your name** first ("You are"). There is no login: every change is recorded with your staff code in the change history.
+  - **New activity record**: the lists depend on each other: choose the project first (then its activities and districts), then the district, sector, cell and village.
+  - Entries are checked with **the same rules as Excel rows**: women + men must equal the total, no negative numbers, the date within the project and not in the future, valid codes. If something is wrong, nothing is saved and the page says what to correct. If something only needs checking, the entry is saved and goes to the MEAL officer's review queue.
+  - **New monthly indicator report**: one entry per project, district, month and indicator (and sex, for indicators reported for women and men separately). The page lists the months still missing. A report already in an Excel file is refused: correct the Excel file instead.
+  - **Records from Excel files are read-only here**: correct them in the Excel file and upload it again (Upload Excel page). Entries made on this page are changed on the "Change an entry" tab.
+  - New entries reach the other pages when the figures are updated: use the button at the bottom of the page.
+
+upload_excel: |
+  - **Choose your name** first ("You are"): the upload is recorded with your staff code and the date.
+  - Download a **blank template**, fill it in Excel, then upload it. The kind of file is worked out from its sheets; change it if it is wrong.
+  - **Check the file** reads it exactly as the pipeline would. Nothing is added yet. **Accepted** rows go into the figures; rows **held back for correction** are not counted until they are corrected (the row number and the reason are listed); rows **sent for review** are counted and checked by the MEAL officer. A **SKIPPED** message means a whole sheet could not be read, usually because a required column is missing.
+  - A warning appears if **the same file**, or a file with **the same records**, was already uploaded. If the new file is a corrected version, choose to replace the earlier file: it is kept in data/app/replaced_files/, never deleted.
+  - **Add this file** keeps it, records it in the list at the bottom, and updates the figures (about 20 seconds).
+
+records: |
+  - Choose a **table**. The sidebar's project, district and date filters apply where the table has them; officer, status, source and search are on this page.
+  - **Origin** says where each record came from: the Excel file, sheet and row (and who uploaded the file, and when), or the app entry, who made it and when.
+  - **Held back for correction** and **Review queue** list rows from every file, with the reason. People (beneficiaries) are never listed: no names, phones or ID numbers.
+  - **Export this view to Excel** downloads exactly what is shown, with an "About" sheet giving the filters.
+  - This page is read-only: correct Excel records in their file and upload it again; change app entries on the Data entry or Donor entry page.

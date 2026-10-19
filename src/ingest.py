@@ -161,8 +161,7 @@ class Reader:
         self.refs: dict[str, pd.DataFrame] = {}
         self.inventory: list[dict] = []
         self.log = IssueLog()
-        # Columns that are known and deliberately not read (e.g. KoboToolbox's own columns): not reported as unknown.
-        self.ignored = {norm_key(c) for c in self.mappings.get("ignore_columns", [])}
+        self.template_sheets = {t.lower() for t in self.mappings.get("template_sheets", [])}
         self.totals = {" ".join(re.sub(r"[^a-z ]", " ", norm_key(t)).split())
                        for t in settings["cleaning"]["totals_labels"]}
 
@@ -174,7 +173,10 @@ class Reader:
             for ws in wb.worksheets:
                 entity = sheet_entity(path.name, ws.title, self.mappings)
                 rows = list(ws.iter_rows(values_only=True))
-                if entity is None:
+                if ws.title.strip().lower() in self.template_sheets:
+                    self.inventory.append(dict(source_file=path.name, source_sheet=ws.title, entity=None,
+                                               note="template help sheet (source_mappings.yaml: template_sheets): ignored"))
+                elif entity is None:
                     self.inventory.append(dict(source_file=path.name, source_sheet=ws.title, entity=None,
                                                note="sheet not listed in source_mappings.yaml: ignored"))
                 elif entity.startswith("ref_"):
@@ -237,7 +239,6 @@ class Reader:
                       headers, max(score, 0), [])
             return
         assigned, unmapped = assign_fields(list(rows[h]) if rows else [], index)
-        unmapped = [u for u in unmapped if norm_key(u) not in self.ignored]
         missing = self.missing_required(entity, set(assigned.values()))
         if missing:
             # No silent partial reads: a sheet without all its required fields is skipped.
@@ -252,7 +253,9 @@ class Reader:
                 self.log.add(entity, {**base, "source_row": i + 1}, None, "header_preamble_row_removed", REMOVED,
                              detail="title or group-header row above the column names")
         out = self.records.setdefault(entity, [])
-        for i in range(h + 1, len(rows)):
+        # Rows after the last filled one are not records (a template is formatted far below its data): not logged.
+        last = max((i for i in range(h + 1, len(rows)) if any(not is_blank(v) for v in rows[i])), default=h)
+        for i in range(h + 1, last + 1):
             row, excel_row = rows[i], i + 1
             rec = {**base, "source_row": excel_row}
             if all(is_blank(v) for v in row):
@@ -529,6 +532,21 @@ def load_registration_identities(raw_dir: Path | None = None, settings: dict | N
 APP_SOURCE = "entries.db"
 
 
+def read_app_programme_entries(path: Path | None = None) -> tuple[list[dict], list[dict]]:
+    """Activity records and monthly indicator reports entered on the dashboard (Data entry page), in the same form as
+    rows read from Excel, with lineage (source_file entries.db, the table, the row number)."""
+    import app_store
+    import entry_checks
+    path = Path(path or app_store.db_path())
+    if not path.exists():
+        return [], []
+    acts = [entry_checks.raw_record("activity", r, r["entry_date"], "activities", r["row_id"])
+            for r in app_store.table("activities", path)]
+    reps = [dict(entry_checks.raw_record("indicator_report", r, None, "indicator_reports", r["row_id"]),
+                 entered_by=r["created_by"]) for r in app_store.table("indicator_reports", path)]
+    return acts, reps
+
+
 def read_app_entries(path: Path | None = None) -> tuple[list[dict], list[dict]]:
     """Donors and opportunities entered on the dashboard's Donor entry page (data/app/entries.db), as records in the
     same form as rows read from the Excel donor tracker, with lineage (source_file entries.db, the table, the row)."""
@@ -566,6 +584,13 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
     log = reader.log
     # Donor tracking entered on the dashboard: read next to the Excel donor tracker (both sources work together).
     app_donors, app_opps = read_app_entries(app_entries) if use_app_entries else ([], [])
+    app_acts, app_reps = read_app_programme_entries(app_entries) if use_app_entries else ([], [])
+    if app_acts or app_reps:
+        reader.records.setdefault("activity", []).extend(app_acts)
+        reader.records.setdefault("indicator_result", []).extend(app_reps)
+        for sheet, entity, n in (("activities", "activity", len(app_acts)),
+                                 ("indicator_reports", "indicator_result", len(app_reps))):
+            reader.inventory.append(dict(source_file=APP_SOURCE, source_sheet=sheet, entity=entity, rows=n))
     if use_app_entries:
         # One home for donor data: rows imported into the dashboard are no longer read from the Excel tracker.
         import app_store
@@ -593,10 +618,14 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
     regs = reader.records.get("registration", [])
     ids = identity_frame(regs, settings, log)
     review_pairs: list = []
-    clusters = cluster_identities(ids, settings["duplicate_matching"]["name_similarity_threshold"], settings,
+    if not regs:                                       # e.g. checking one uploaded activity file on its own
+        ids = ids.assign(beneficiary_key=None, registration_key=None, cluster=None, duplicate_group_size=0,
+                         age=None, age_source=None)
+    clusters = None if not regs else cluster_identities(ids, settings["duplicate_matching"]["name_similarity_threshold"], settings,
                                   review_pairs=review_pairs)
-    ids = assign_keys(ids, clusters, salt, settings["duplicate_matching"]["compare_id_digits"])
-    certainty = duplicate_certainty(ids, settings)
+    if regs:
+        ids = assign_keys(ids, clusters, salt, settings["duplicate_matching"]["compare_id_digits"])
+    certainty = duplicate_certainty(ids, settings) if regs else {}
     review_partners: dict[int, int] = {}
     for i, j in review_pairs:
         if clusters[i] != clusters[j]:
@@ -622,7 +651,7 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
                 detail=f"similar name to {count} other registration(s) in the same district, but no phone or ID "
                        "to confirm it; NOT merged - please check")
     initials_partners: dict[int, int] = {}
-    for i, j in initials_review_pairs(ids, settings):
+    for i, j in (initials_review_pairs(ids, settings) if regs else []):
         if clusters[i] != clusters[j]:
             initials_partners[i] = initials_partners.get(i, 0) + 1
             initials_partners[j] = initials_partners.get(j, 0) + 1
@@ -675,6 +704,14 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
                            for r in recs])
         df.to_parquet(staging / f"ingested_{entity}.parquet", index=False)
         written[entity] = df
+    # Every kind of record gets a table, empty if no file held it (e.g. checking one uploaded file on its own).
+    for entity, fields in reader.mappings["fields"].items():
+        if entity not in written:
+            cols = ["source_file", "source_sheet", "source_row"] + [f for f in fields
+                                                                   if f not in personal.get(entity, [])]
+            empty = pd.DataFrame({c: pd.Series(dtype="object") for c in cols})
+            empty.to_parquet(staging / f"ingested_{entity}.parquet", index=False)
+            written[entity] = empty
     for entity, df in reader.refs.items():
         df.to_parquet(staging / f"{entity}.parquet", index=False)
     log.frame().to_parquet(staging / "ingest_issues.parquet", index=False)

@@ -20,22 +20,22 @@ No table holds names, phone numbers or national ID numbers. People and donors ar
 | `dim_date` | dimension | 1,461 | date | One row per calendar day, with Rwanda's fiscal year (July to June). |
 | `dim_beneficiary` | dimension | 1,509 | beneficiary_key | One row per person (after duplicate matching). No names, phone numbers or ID numbers: the person is identified only by a salted hash. Details come from the person's earliest registration that passed the data-quality checks. |
 | `dim_donor` | dimension | 25 | donor_key | One row per donor. Organisations keep their names; individual donors appear only as "Individual donor #NNN". Contact names, emails and phone numbers are never stored. |
-| `fact_activity` | fact | 2,728 | source_file, source_sheet, source_row | One row per activity event from the activity monitoring files and digitised paper records. Rows that broke a critical rule are not here: they are in the quarantine table. |
+| `fact_activity` | fact | 2,729 | source_file, source_sheet, source_row | One row per activity event from the activity monitoring files and digitised paper records. Rows that broke a critical rule are not here: they are in the quarantine table. |
 | `fact_beneficiary_service` | fact | 4,475 | source_file, source_sheet, source_row | One row per service a registered person received. |
-| `fact_indicator_result` | fact | 581 | source_file, source_sheet, source_row | One row per indicator value reported in the monthly indicator reports (per project, district, month and, where relevant, sex). Rows that broke a critical rule are in the quarantine table instead. |
+| `fact_indicator_result` | fact | 583 | source_file, source_sheet, source_row | One row per indicator value reported in the monthly indicator reports (per project, district, month and, where relevant, sex). Rows that broke a critical rule are in the quarantine table instead. |
 | `fact_opportunity` | fact | 30 | opportunity_id | One row per funding opportunity in the donor tracker. |
 | `dq_results` | data quality | 14 | rule_id | One row per data-quality rule (config/dq_rules.yaml), with how many records it checked and how many broke it. |
-| `dq_rule_results_by_file` | data quality | 185 | source_file, source_sheet, rule_id | Every data-quality rule scored separately for each source file and sheet, for finding which rule drives a low score. |
+| `dq_rule_results_by_file` | data quality | 209 | source_file, source_sheet, rule_id | Every data-quality rule scored separately for each source file and sheet, for finding which rule drives a low score. |
 | `dq_dimension_scores` | data quality | 7 | dimension | One row per data-quality dimension, plus an "overall" row (the average of the six). |
-| `dq_by_source_file` | data quality | 28 | source_file, source_sheet | One row per Excel file and sheet read, with how many of its rows had problems. |
-| `dq_by_field_officer` | data quality | 4 | field_officer | One row per field officer (activity records, indicator reports and registers that carry an officer code), with their data-quality results. |
-| `quarantine` | data quality | 235 | source_file, source_sheet, source_row | Every row that broke a critical rule, with the reasons. These rows are kept here, not in the fact tables, until the source Excel file is corrected and the pipeline is run again. |
+| `dq_by_source_file` | data quality | 31 | source_file, source_sheet | One row per Excel file and sheet read, with how many of its rows had problems. |
+| `dq_by_field_officer` | data quality | 5 | field_officer | One row per field officer (activity records, indicator reports and registers that carry an officer code), with their data-quality results. |
+| `quarantine` | data quality | 236 | source_file, source_sheet, source_row | Every row that broke a critical rule, with the reasons. These rows are kept here, not in the fact tables, until the source Excel file is corrected and the pipeline is run again. |
 | `review_queue` | data quality | 282 | source_file, source_sheet, source_row | Every row with warnings (and no critical problem). The row is used in results, but a person should check it. |
 | `skipped_sheets` | data quality | 0 | source_file, source_sheet | Every sheet the pipeline could not read, with the reason and the column headers it did not recognise. |
 | `dq_info_measures` | data quality | 6 | metric_id | Data-quality measures shown on the dashboard instead of rows to review (info-level flags). |
 | `report_completeness` | data quality | 417 | project_id, district, period | One row per monthly indicator report that was due, and whether it arrived. |
 | `indicator_values` | indicator | 6,853 | value_id | One row per indicator value: for each indicator, source (reported or derived), project, district, period and breakdown. "All" in project_id or district means all projects or all districts together (worked out directly, not by adding up the rows below, so a person is never counted twice). |
-| `indicator_value_sources` | indicator | 99,567 | value_id, source_table, source_file, source_sheet, source_row, record_key | Traceability: for each indicator value, every record it was worked out from. Use it to go from any number on the dashboard back to the Excel rows. |
+| `indicator_value_sources` | indicator | 99,621 | value_id, source_table, source_file, source_sheet, source_row, record_key | Traceability: for each indicator value, every record it was worked out from. Use it to go from any number on the dashboard back to the Excel rows. |
 | `indicator_reconciliation` | indicator | 916 | indicator_code, project_id, district, period_type, period, disaggregation | A key MEAL check: where an indicator is both reported and derived LIKE FOR LIKE (catalogue: derived.like_for_like), the two values side by side, for every month (by project, district and breakdown) and, for indicators compared by quarter, every quarter. The catalogue's derived.reconcile sets the COMPARISON LEVEL (month or quarter, totals only): only rows at that level can be flagged. Gaps above the tolerance (settings: indicators.reconciliation_tolerance_pct) AND at least the minimum difference (reconciliation_min_difference) are flagged. A month with a report but no matching records counts as derived 0. A quarter adds up only the months that have a report, on both sides. Other rows (breakdowns by sex, months of a quarterly indicator) are for information. |
 
 ## How the tables link
@@ -193,7 +193,7 @@ Rows: 25. Key: donor_key.
 
 One row per activity event from the activity monitoring files and digitised paper records. Rows that broke a critical rule are not here: they are in the quarantine table.
 
-Rows: 2,728. Key: source_file, source_sheet, source_row.
+Rows: 2,729. Key: source_file, source_sheet, source_row.
 
 | Column | Type | Description |
 |---|---|---|
@@ -234,7 +234,7 @@ Rows: 4,475. Key: source_file, source_sheet, source_row.
 
 One row per indicator value reported in the monthly indicator reports (per project, district, month and, where relevant, sex). Rows that broke a critical rule are in the quarantine table instead.
 
-Rows: 581. Key: source_file, source_sheet, source_row.
+Rows: 583. Key: source_file, source_sheet, source_row.
 
 | Column | Type | Description |
 |---|---|---|
@@ -299,7 +299,7 @@ Rows: 14. Key: rule_id.
 
 Every data-quality rule scored separately for each source file and sheet, for finding which rule drives a low score.
 
-Rows: 185. Key: source_file, source_sheet, rule_id.
+Rows: 209. Key: source_file, source_sheet, rule_id.
 
 | Column | Type | Description |
 |---|---|---|
@@ -330,7 +330,7 @@ Rows: 7. Key: dimension.
 
 One row per Excel file and sheet read, with how many of its rows had problems.
 
-Rows: 28. Key: source_file, source_sheet.
+Rows: 31. Key: source_file, source_sheet.
 
 | Column | Type | Description |
 |---|---|---|
@@ -349,7 +349,7 @@ Rows: 28. Key: source_file, source_sheet.
 
 One row per field officer (activity records, indicator reports and registers that carry an officer code), with their data-quality results.
 
-Rows: 4. Key: field_officer.
+Rows: 5. Key: field_officer.
 
 | Column | Type | Description |
 |---|---|---|
@@ -364,7 +364,7 @@ Rows: 4. Key: field_officer.
 
 Every row that broke a critical rule, with the reasons. These rows are kept here, not in the fact tables, until the source Excel file is corrected and the pipeline is run again.
 
-Rows: 235. Key: source_file, source_sheet, source_row.
+Rows: 236. Key: source_file, source_sheet, source_row.
 
 | Column | Type | Description |
 |---|---|---|
@@ -477,7 +477,7 @@ Rows: 6,853. Key: value_id.
 
 Traceability: for each indicator value, every record it was worked out from. Use it to go from any number on the dashboard back to the Excel rows.
 
-Rows: 99,567. Key: value_id, source_table, source_file, source_sheet, source_row, record_key.
+Rows: 99,621. Key: value_id, source_table, source_file, source_sheet, source_row, record_key.
 
 | Column | Type | Description |
 |---|---|---|

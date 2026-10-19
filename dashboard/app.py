@@ -33,11 +33,15 @@ PAGES = [
     st.Page(str(HERE / "pages" / "4_Data_Quality.py"), title="Data quality", icon="✅", url_path="data-quality"),
     st.Page(str(HERE / "pages" / "5_Donor_Pipeline.py"), title="Donor pipeline", icon="🤝", url_path="donor-pipeline"),
     st.Page(str(HERE / "pages" / "6_Donor_Entry.py"), title="Donor entry", icon="✏️", url_path="donor-entry"),
+    st.Page(str(HERE / "pages" / "7_Data_Entry.py"), title="Data entry", icon="📝", url_path="data-entry"),
+    st.Page(str(HERE / "pages" / "8_Upload_Excel.py"), title="Upload Excel", icon="📤", url_path="upload-excel"),
+    st.Page(str(HERE / "pages" / "9_Records.py"), title="Records", icon="🗂️", url_path="records"),
 ]
+NO_SEX_FILTER = ("Data quality", "Donor pipeline", "Donor entry", "Data entry", "Upload Excel", "Records")
 page = st.navigation(PAGES)
 ui.banner()                                           # on every page
 ui.require_warehouse()                                # a friendly message if the pipeline has not been run
 # The sex filter only applies where people are counted; elsewhere it is shown greyed out.
-st.session_state["filters"] = ui.sidebar_filters(sex_applies=page.title not in ("Data quality", "Donor pipeline", "Donor entry"))
+st.session_state["filters"] = ui.sidebar_filters(sex_applies=page.title not in NO_SEX_FILTER)
 ui.source_files_in_sidebar()
 page.run()

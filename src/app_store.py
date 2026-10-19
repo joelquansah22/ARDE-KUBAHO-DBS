@@ -75,6 +75,46 @@ CREATE TABLE IF NOT EXISTS opportunities (
     origin_file TEXT, origin_sheet TEXT, origin_row INTEGER,       -- set when imported from the Excel tracker
     CHECK (donor_id IS NOT NULL OR donor_key IS NOT NULL)
 );
+CREATE TABLE IF NOT EXISTS activities (
+    row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    record_id TEXT NOT NULL UNIQUE,                                -- APP-A001...
+    project_id TEXT NOT NULL,
+    activity_id TEXT NOT NULL,
+    district TEXT NOT NULL, sector TEXT NOT NULL, cell TEXT NOT NULL, village TEXT NOT NULL,
+    date TEXT, planned_date TEXT, entry_date TEXT NOT NULL,
+    status TEXT NOT NULL,
+    participants_female INTEGER CHECK (participants_female IS NULL OR participants_female >= 0),
+    participants_male INTEGER CHECK (participants_male IS NULL OR participants_male >= 0),
+    participants_total INTEGER CHECK (participants_total IS NULL OR participants_total >= 0),
+    cost_rwf REAL CHECK (cost_rwf IS NULL OR cost_rwf >= 0),
+    officer TEXT NOT NULL,
+    created_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_by TEXT, updated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS indicator_reports (
+    row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    record_id TEXT NOT NULL UNIQUE,                                -- APP-R001...
+    project_id TEXT NOT NULL,
+    district TEXT NOT NULL,
+    period TEXT NOT NULL,                                          -- first day of the month
+    indicator_code TEXT NOT NULL,
+    sex TEXT CHECK (sex IS NULL OR sex IN ('female', 'male')),
+    target_value REAL CHECK (target_value IS NULL OR target_value >= 0),
+    actual_value REAL NOT NULL CHECK (actual_value >= 0),
+    created_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_by TEXT, updated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS uploads (
+    row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    upload_id TEXT NOT NULL UNIQUE,                                -- UP001...
+    stored_file TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    uploaded_by TEXT NOT NULL,
+    uploaded_at TEXT NOT NULL,
+    rows_read INTEGER, accepted INTEGER, held_back INTEGER, to_review INTEGER, skipped_sheets INTEGER,
+    status TEXT NOT NULL DEFAULT 'active',                         -- active, or replaced by a corrected file
+    replaced_by TEXT
+);
 CREATE TABLE IF NOT EXISTS change_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     changed_at TEXT NOT NULL,
@@ -307,8 +347,11 @@ def mark_next_action_done(opportunity_id: str, by: str, path: Path | None = None
 
 
 # ---------------------------------------------------------------- reading
+TABLES = ("donors", "opportunities", "activities", "indicator_reports", "uploads", "change_history")
+
+
 def table(name: str, path: Path | None = None) -> list[dict]:
-    if name not in ("donors", "opportunities", "change_history"):
+    if name not in TABLES:
         raise ValueError(name)
     path = Path(path or db_path())
     if not path.exists():
@@ -385,7 +428,9 @@ def export_workbook(path: Path | None = None) -> bytes:
     if load_settings().get("synthetic_mode"):
         info.append([load_settings()["synthetic_banner"]])
     info.append(["No names, phone numbers, emails or ID numbers of people are stored in this database."])
-    for name, title in (("donors", "Donors"), ("opportunities", "Opportunities"), ("change_history", "Change history")):
+    for name, title in (("donors", "Donors"), ("opportunities", "Opportunities"), ("activities", "Activities"),
+                        ("indicator_reports", "Indicator reports"), ("uploads", "Uploads"),
+                        ("change_history", "Change history")):
         rows = table(name, path)
         ws = wb.create_sheet(title)
         columns = list(rows[0]) if rows else []
@@ -503,3 +548,89 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+# ======================================================================================
+# Programme data entered on the dashboard: activity records and monthly indicator reports
+# ======================================================================================
+ACTIVITY_FIELDS = ["project_id", "activity_id", "district", "sector", "cell", "village", "date", "planned_date",
+                   "status", "participants_female", "participants_male", "participants_total", "cost_rwf", "officer"]
+REPORT_FIELDS = ["project_id", "district", "period", "indicator_code", "sex", "target_value", "actual_value"]
+
+
+def _clean_values(rec: dict, fields: list) -> dict:
+    out = {}
+    for k in fields:
+        v = rec.get(k)
+        if isinstance(v, str):
+            v = v.strip() or None
+        if k in ("date", "planned_date", "period") and isinstance(v, str):
+            v = dt.date.fromisoformat(v[:10])
+        if k in ("participants_female", "participants_male", "participants_total") and v is not None:
+            v = int(v) if float(v) == int(float(v)) else float(v)
+        if k in ("cost_rwf", "target_value", "actual_value") and v is not None:
+            v = float(v)
+        out[k] = v
+    if out.get("period"):
+        out["period"] = out["period"].replace(day=1)
+    return out
+
+
+def _save_programme_entry(kind: str, rec: dict, by: str, path: Path | None, record_id: str | None,
+                          staging: Path | None) -> tuple[str, list[str]]:
+    """Check an entry with the cleaner's own rules (entry_checks.py), then add it (record_id None) or change it.
+    Returns (record ID, warnings). Problems that would hold the row back raise EntryError in plain words."""
+    import entry_checks
+    _check_staff(by)
+    table_name, fields, prefix = (("activities", ACTIVITY_FIELDS, "APP-A") if kind == "activity"
+                                  else ("indicator_reports", REPORT_FIELDS, "APP-R"))
+    with connect(path) as con:
+        current = None
+        if record_id:
+            row = con.execute(f"SELECT * FROM {table_name} WHERE record_id = ?", (record_id,)).fetchone()
+            if row is None:
+                raise EntryError(f"{record_id} was not found.")
+            current = _clean_values(dict(row), fields)
+        new = _clean_values({**(current or {}), **rec}, fields)
+        entry_date = dict(row)["entry_date"] if (record_id and kind == "activity") else today().isoformat()
+        others = [dict(r) for r in con.execute(f"SELECT * FROM {table_name}") if r["record_id"] != record_id]
+        problems, warnings = entry_checks.check(kind, new, entry_date, others, staging)
+        if problems:
+            raise EntryError(" ".join(problems))
+        if record_id is None:
+            record_id = _next_id(con, table_name, "record_id", prefix)
+            cols = fields + (["entry_date"] if kind == "activity" else [])
+            values = [_store(new[k]) for k in fields] + ([entry_date] if kind == "activity" else [])
+            con.execute(f"INSERT INTO {table_name} (record_id, {', '.join(cols)}, created_by, created_at) "
+                        f"VALUES (?, {', '.join('?' for _ in cols)}, ?, ?)", (record_id, *values, by, now()))
+            _history(con, by, table_name, record_id, "added")
+        else:
+            changed = [k for k in fields if new[k] != current[k]]
+            for k in changed:
+                con.execute(f"UPDATE {table_name} SET {k} = ? WHERE record_id = ?", (_store(new[k]), record_id))
+                _history(con, by, table_name, record_id, "changed", k, current[k], new[k])
+            if not changed:
+                return record_id, warnings
+            con.execute(f"UPDATE {table_name} SET updated_by = ?, updated_at = ? WHERE record_id = ?",
+                        (by, now(), record_id))
+    backup(path, "save")
+    return record_id, warnings
+
+
+def add_activity(rec: dict, by: str, path: Path | None = None, staging: Path | None = None) -> tuple[str, list[str]]:
+    return _save_programme_entry("activity", rec, by, path, None, staging)
+
+
+def update_activity(record_id: str, changes: dict, by: str, path: Path | None = None,
+                    staging: Path | None = None) -> tuple[str, list[str]]:
+    return _save_programme_entry("activity", changes, by, path, record_id, staging)
+
+
+def add_indicator_report(rec: dict, by: str, path: Path | None = None,
+                         staging: Path | None = None) -> tuple[str, list[str]]:
+    return _save_programme_entry("indicator_report", rec, by, path, None, staging)
+
+
+def update_indicator_report(record_id: str, changes: dict, by: str, path: Path | None = None,
+                            staging: Path | None = None) -> tuple[str, list[str]]:
+    return _save_programme_entry("indicator_report", changes, by, path, record_id, staging)

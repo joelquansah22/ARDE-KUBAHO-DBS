@@ -8,7 +8,7 @@ ARDE/KUBAHO data.
 > improvements are not promised before the data are examined."* This summary therefore **reports results**; it does
 > not measure them against promised targets. Every figure here comes from **synthetic data**.
 
-*Status on 19 October 2026 (v1.1: v1.0 plus donor entry, KoboToolbox and the visual design).*
+*Status on 19 October 2026 (v1.2: v1.0 plus donor entry, data entry and upload, and the visual design).*
 
 | Proposal measure | What the proposal measures | How the proposal assesses it | Status |
 |---|---|---|---|
@@ -57,14 +57,6 @@ is set aside, not guessed.
 **Reconciliation of reports against records** (final round): 29 of the 30 planted discrepancies of at least 5 people
 are caught (96.7%), with 0 unexplained false alarms. Discrepancies under 5 people are not detected (a known
 limitation).
-
-**KoboToolbox exports (automated check, not user testing).** Synthetic Kobo exports made from the true records (FO01's
-activities in the "XML values and headers" format, the WASH indicator reports in the "labels" format), read with the
-production configuration: 9,108 of 9,108 activity cells and 1,610 of 1,610 indicator cells correct, 21 of 21 repeated
-submissions removed, 41 of 41 skipped optional costs left blank, nothing quarantined, no sheet skipped
-(`docs/phase2_cleaning_scorecard.md`). The forms prevent the Excel kinds of mess, so 100% is expected: this checks the
-import, not the cleaning. Both forms also convert with pyxform 4.5.0 (the converter KoboToolbox uses) without errors
-or warnings, in the tests. **Not yet tested:** the forms on a real KoboToolbox account and an Android phone.
 
 **Still to do with real data:** the same before/after on the **pilot records** once ARDE/KUBAHO shares them (see
 `docs/real_data_checklist.md`).
@@ -119,14 +111,22 @@ second figure.
   table; the one-time tracker import keeps IDs, lineage, donor keys and "Individual donor #NNN" labels, the pipeline
   then counts each opportunity once, and on the demonstration data the donor figures were identical before and after
   the import (30 opportunities, RWF 2.45bn weighted, 13 overdue actions).
+- **Data entry and uploads (automated checks, not user testing, v1.2):** activity records and monthly reports
+  typed in are checked with the cleaner's own rules (women + men = total, no negatives, dates in the project and not
+  in the future, valid codes, the sex rule) and refused in plain words; a report already in Excel is refused with
+  its file and row; changes are recorded and validated; the pipeline reads the entries with lineage and flags
+  repeats of Excel records; an upload check gives the same counts as the pipeline, lists held-back rows with their
+  row numbers, warns about a repeated file or repeated records, and a replaced file is kept; the Records page shows
+  every record's origin and no personal data column.
 - **Visual design (automated):** every colour pair in use passes WCAG AA contrast; status colours unchanged; the
   synthetic-data banner byte-for-byte unchanged; pages loaded in under 3 s after the redesign (15 October); on 19 October the laptop was short of memory and the browser times were not representative (see the load-times note).
 
 **Pending:** the acceptance test with 3 to 5 participants: 8 tasks across the executive director, programme manager
 and MEAL officer roles, plus the System Usability Scale and closing questions for feedback (`docs/evaluation_protocol.md`).
 The participant type (ARDE/KUBAHO staff or student role-play) is recorded and reported separately; student results do
-not stand in for staff feedback. The Donor entry page is not yet in the task list: add one task (record a new
-opportunity and update its stage) when the test is run.
+not stand in for staff feedback. The Donor entry, Data entry and Upload Excel pages are not yet in the task list: add
+two tasks (upload a filled template and correct a held-back row; record a new opportunity and update its stage) when
+the test is run.
 
 ## 5. Sustainability
 
@@ -135,8 +135,10 @@ opportunity and update its stage) when the test is run.
 **Ready:**
 - **Refresh:** one command (`python src/pipeline.py`), or one double-click on a fresh copy. The synthetic data is
   reproducible to a documented fingerprint.
-- **Tests:** 406 automatic tests.
+- **Tests:** 435 automatic tests.
 - **Donor data:** one home (the Donor entry page), with automatic backups, an Excel backup and a tested restore.
+- **Data entry:** Excel uploads and forms on the dashboard, with the same checks as the pipeline, a record of who
+  added what and when, and a Records page that traces every record to its origin.
 - **Rules in config:** business rules, layouts, spellings and indicators are kept in plain configuration files.
 - **Guides:** README, user guide with glossary, maintenance guide, Power BI guide, privacy note, and the real-data
   checklist.
@@ -146,8 +148,6 @@ opportunity and update its stage) when the test is run.
 - **Handover walkthrough** with the person at ARDE/KUBAHO who will maintain the tool: they rerun the refresh and add a
   file layout using only the guides.
 - **Ownership:** who that person is, and on which laptop, is to be confirmed with the partner.
-- **Kobo phone test:** the forms on a real KoboToolbox account and one Android phone, then an export through the
-  pipeline (`docs/kobo_guide.md`).
 
 ---
 

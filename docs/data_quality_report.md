@@ -14,7 +14,7 @@ All sheets were read. None was skipped.
 
 | dimension | score % | rules |
 |---|---|---|
-| completeness | 96.9 | 4 |
+| completeness | 97.1 | 4 |
 | validity | 99.5 | 3 |
 | consistency | 96.9 | 3 |
 | uniqueness | 97.8 | 2 |
@@ -35,24 +35,24 @@ Each rule's score is the percentage of the records it applies to that do not bre
 
 | rule_id | dimension | description | records_checked | records_failed | score % | critical_failures | warning_failures | info_failures | dimension_impact |
 |---|---|---|---|---|---|---|---|---|---|
-| COM-01 | completeness | Every sheet could be read (none skipped for unknown or missing columns) | 28 | 0 | 100.0 | 0 | 0 | 0 | 0.0 |
-| COM-02 | completeness | Required fields are filled in | 9553 | 108 | 98.9 | 108 | 0 | 0 | 0.3 |
-| COM-03 | completeness | Every indicator result has a target | 588 | 42 | 92.9 | 0 | 42 | 0 | 1.8 |
-| COM-04 | completeness | Expected monthly indicator reports were received | 417 | 17 | 95.9 | 0 | 0 | 17 | 1.0 |
-| VAL-01 | validity | Dates can be read and fall inside the project window | 9553 | 20 | 99.8 | 20 | 0 | 0 | 0.1 |
-| VAL-02 | validity | Codes are in the allowed lists (sex, status, district, village, project, activity, indicator, stage, donor) | 9578 | 20 | 99.8 | 15 | 5 | 0 | 0.1 |
-| VAL-03 | validity | Numbers are readable and possible (no negatives, percentages 0 to 100, plausible ages and household sizes) | 5078 | 54 | 98.9 | 54 | 0 | 0 | 0.4 |
-| CON-01 | consistency | Female + male = total participants, and women are not more than the total | 2894 | 146 | 95.0 | 43 | 103 | 0 | 1.7 |
-| CON-02 | consistency | The district belongs to the stated province | 4460 | 25 | 99.4 | 0 | 25 | 0 | 0.2 |
-| CON-03 | consistency | Status and dates agree (no "completed" activity done late; no entry before the activity) | 2894 | 105 | 96.4 | 19 | 86 | 0 | 1.2 |
-| UNI-01 | uniqueness | No activity row is entered twice | 2936 | 42 | 98.6 | 0 | 0 | 42 | 0.7 |
+| COM-01 | completeness | Every sheet could be read (none skipped for unknown or missing columns) | 31 | 0 | 100.0 | 0 | 0 | 0 | 0.0 |
+| COM-02 | completeness | Required fields are filled in | 9557 | 108 | 98.9 | 108 | 0 | 0 | 0.3 |
+| COM-03 | completeness | Every indicator result has a target | 591 | 42 | 92.9 | 0 | 42 | 0 | 1.8 |
+| COM-04 | completeness | Expected monthly indicator reports were received | 417 | 14 | 96.6 | 0 | 0 | 14 | 0.9 |
+| VAL-01 | validity | Dates can be read and fall inside the project window | 9557 | 20 | 99.8 | 20 | 0 | 0 | 0.1 |
+| VAL-02 | validity | Codes are in the allowed lists (sex, status, district, village, project, activity, indicator, stage, donor) | 9582 | 20 | 99.8 | 15 | 5 | 0 | 0.1 |
+| VAL-03 | validity | Numbers are readable and possible (no negatives, percentages 0 to 100, plausible ages and household sizes) | 5082 | 55 | 98.9 | 55 | 0 | 0 | 0.4 |
+| CON-01 | consistency | Female + male = total participants, and women are not more than the total | 2895 | 146 | 95.0 | 43 | 103 | 0 | 1.7 |
+| CON-02 | consistency | The district belongs to the stated province | 4461 | 25 | 99.4 | 0 | 25 | 0 | 0.2 |
+| CON-03 | consistency | Status and dates agree (no "completed" activity done late; no entry before the activity) | 2895 | 105 | 96.4 | 19 | 86 | 0 | 1.2 |
+| UNI-01 | uniqueness | No activity row is entered twice | 2937 | 42 | 98.6 | 0 | 0 | 42 | 0.7 |
 | UNI-02 | uniqueness | No unresolved suspected duplicate beneficiaries (after fuzzy matching) | 1566 | 46 | 97.1 | 0 | 46 | 0 | 1.5 |
-| TIM-01 | timeliness | Activities are entered within the allowed number of days after they take place (set in settings.yaml) | 2501 | 291 | 88.4 | 0 | 0 | 291 | 11.6 |
-| ACC-01 | accuracy | Reported actual is not more than 3 times the target (flagged for review) | 588 | 11 | 98.1 | 0 | 11 | 0 | 1.9 |
+| TIM-01 | timeliness | Activities are entered within the allowed number of days after they take place (set in settings.yaml) | 2502 | 291 | 88.4 | 0 | 0 | 291 | 11.6 |
+| ACC-01 | accuracy | Reported actual is not more than 3 times the target (flagged for review) | 591 | 11 | 98.1 | 0 | 11 | 0 | 1.9 |
 
 ## 4. Quarantined records
 
-**235 rows are quarantined.** They broke a critical rule, so they are not used in any result. They are kept, with their reasons, in the `quarantine` table of the warehouse: correct them in the source Excel file and run the pipeline again.
+**236 rows are quarantined.** They broke a critical rule, so they are not used in any result. They are kept, with their reasons, in the `quarantine` table of the warehouse: correct them in the source Excel file and run the pipeline again.
 
 By reason (a row can have more than one):
 
@@ -67,15 +67,15 @@ By reason (a row can have more than one):
 | impossible_age | 8 |
 | impossible_household_size | 7 |
 | percent_over_100 | 4 |
+| number_unreadable | 2 |
 | village_unrecognised | 2 |
-| number_unreadable | 1 |
 
 By kind of record:
 
 | entity | rows |
 |---|---|
 | activity | 166 |
-| indicator_result | 7 |
+| indicator_result | 8 |
 | registration | 62 |
 
 ## 5. Review queue
@@ -102,10 +102,10 @@ Each is defined once, in `config/dq_metrics.yaml`.
 
 | metric_id | metric | % | numerator | denominator | note |
 |---|---|---|---|---|---|
-| timeliness | Timeliness: activity records entered within the allowed days | 88.4 | 2210 | 2501 | Activities that took place, with a known day and an entry date; entered within late_entry_days (settings). Activities whose day is unknown cannot be judged and are left out. |
-| reporting_completeness | Reporting completeness: expected monthly reports received | 95.9 | 400 | 417 | Every project, district and month for which an indicator report was due (indicator CC-04). |
-| dates_known_day | Activity dates with a known day | 90.6 | 2501 | 2760 | Activities with a date; the rest were typed as a month only. |
-| on_time_checkable | Activities whose on-time status can be checked | 74.2 | 2134 | 2876 | Needs exact activity and planned dates (coverage of indicator CC-02). |
+| timeliness | Timeliness: activity records entered within the allowed days | 88.4 | 2211 | 2502 | Activities that took place, with a known day and an entry date; entered within late_entry_days (settings). Activities whose day is unknown cannot be judged and are left out. |
+| reporting_completeness | Reporting completeness: expected monthly reports received | 96.6 | 403 | 417 | Every project, district and month for which an indicator report was due (indicator CC-04). |
+| dates_known_day | Activity dates with a known day | 90.6 | 2502 | 2761 | Activities with a date; the rest were typed as a month only. |
+| on_time_checkable | Activities whose on-time status can be checked | 74.2 | 2135 | 2877 | Needs exact activity and planned dates (coverage of indicator CC-02). |
 | ids_typed_as_text | National IDs typed as text (all 16 digits kept) | 81.9 | 1250 | 1527 | An ID stored as a number in Excel loses its last digit, which cannot be recovered. |
 | people_not_pending_duplicate_review | People with no duplicate check pending | 97.9 | 1477 | 1509 | People (unique beneficiary keys) whose records are not waiting for a duplicate review. The people count on the dashboard includes the others, so it may be slightly too high until the review is done. |
 
@@ -133,12 +133,15 @@ Each is defined once, in `config/dq_metrics.yaml`.
 | SYNTHETIC_digitised_paper_records.xlsx | Services | service |  | 754 | 0 | 0 | 754 | 100.0 | False |
 | SYNTHETIC_donor_opportunity_tracker.xlsx | Donors | donor |  | 0 | 0 | 0 | 0 |  | False |
 | SYNTHETIC_donor_opportunity_tracker.xlsx | Opportunities | opportunity |  | 0 | 0 | 0 | 0 |  | False |
+| SYNTHETIC_indicator_report_upload_20261019-131909_MEAL01_SYNTHETIC_june_report_PRJ01.xlsx | Report | indicator_result | FO01 | 2 | 1 | 0 | 1 | 50.0 | False |
 | SYNTHETIC_indicator_reports_AGRI.xlsx | FY2023-24 | indicator_result |  | 121 | 0 | 18 | 103 | 85.1 | False |
 | SYNTHETIC_indicator_reports_AGRI.xlsx | FY2024-25 | indicator_result |  | 119 | 1 | 7 | 111 | 93.3 | False |
 | SYNTHETIC_indicator_reports_AGRI.xlsx | FY2025-26 | indicator_result |  | 118 | 1 | 11 | 106 | 89.8 | False |
 | SYNTHETIC_indicator_reports_WASH.xlsx | FY2023-24 | indicator_result |  | 68 | 0 | 6 | 62 | 91.2 | False |
 | SYNTHETIC_indicator_reports_WASH.xlsx | FY2024-25 | indicator_result |  | 80 | 3 | 4 | 73 | 91.2 | False |
 | SYNTHETIC_indicator_reports_WASH.xlsx | FY2025-26 | indicator_result |  | 82 | 2 | 7 | 73 | 89.0 | False |
+| entries.db | activities | activity | FO01 | 1 | 0 | 0 | 1 | 100.0 | False |
+| entries.db | indicator_reports | indicator_result | MEAL01 | 1 | 0 | 0 | 1 | 100.0 | False |
 | entries.db | donors | donor |  | 25 | 0 | 0 | 25 | 100.0 | False |
 | entries.db | opportunities | opportunity |  | 30 | 0 | 0 | 30 | 100.0 | False |
 
@@ -148,10 +151,11 @@ Activity records, indicator reports and registers that carry an officer code.
 
 | field_officer | rows | rows_quarantined | rows_for_review | late_entries | score |
 |---|---|---|---|---|---|
-| FO01 | 1015 | 48 | 68 | 93 | 88.6 |
+| FO01 | 1018 | 49 | 68 | 93 | 88.5 |
 | FO02 | 1141 | 56 | 82 | 92 | 87.9 |
 | FO03 | 574 | 33 | 33 | 55 | 88.5 |
 | FO04 | 752 | 36 | 49 | 65 | 88.7 |
+| MEAL01 | 1 | 0 | 0 | 0 | 100.0 |
 
 ## How the scores are worked out
 

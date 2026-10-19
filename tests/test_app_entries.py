@@ -201,7 +201,8 @@ def test_download_backup_holds_every_table_and_the_history(db):
     app_store.add_donor({"donor_type": "individual"}, "ED01", db)
     app_store.add_opportunity(opportunity(), "PM01", db)
     wb = load_workbook(BytesIO(app_store.export_workbook(db)))
-    assert wb.sheetnames == ["About", "Donors", "Opportunities", "Change history"]
+    assert wb.sheetnames == ["About", "Donors", "Opportunities", "Activities", "Indicator reports", "Uploads",
+                             "Change history"]
     assert wb["Opportunities"].max_row == 2 and wb["Change history"].max_row == 3
     assert wb["Donors"]["C2"].value is None                       # donor_name of the individual: empty
 

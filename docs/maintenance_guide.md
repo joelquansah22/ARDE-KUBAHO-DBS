@@ -174,20 +174,24 @@ Data quality page are under `labels:` at the end of `settings.yaml`.
 
 ## 8. The templates
 
-The Excel entry templates in `templates/` are built from `config/templates.yaml` (columns, dropdown lists, checks,
-instructions). After changing that file run `python src/build_templates.py`. Dropdown lists for projects, activities
-and officers come from the settings and the programme master.
+The four Excel entry templates in `templates/` (activity monitoring, beneficiary register, monthly indicator report,
+donor tracker) are built from `config/templates.yaml` (columns, dropdown lists, checks, instructions). After changing
+that file run `python src/build_templates.py`. Dropdown lists for projects, activities and officers come from the
+settings and the programme master; the indicator list is the catalogue's indicators reported monthly. Staff download
+them from the **Upload Excel** page. The Instructions and Lists sheets are never read as records
+(`source_mappings.yaml: template_sheets`), so a filled template can be uploaded as it is.
 
-## 8b. Staff on the Donor entry page
+## 8b. Staff on the entry pages
 
-The names people pick on the Donor entry page come from `config/staff.yaml` (a staff code and a role each). Add or
+The names people pick on the Donor entry, Data entry and Upload Excel pages come from `config/staff.yaml` (a staff code and a role each). Add or
 remove a line, keeping the spaces, and reload the page. Codes are recommended rather than full names. The entries
 are in `data/app/entries.db` (SQLite): back it up with the Excel files; to inspect it, the free "DB Browser for
 SQLite" opens it (read only, please).
 
-## 8b-2. Restoring donor entries
+## 8b-2. Restoring dashboard entries
 
-Donor entries live only in `data/app/entries.db`. Copies are kept in `data/app/backups/` (after every save, each
+Everything entered on the dashboard (donors, opportunities, activity records, monthly reports, the list of uploads
+and the change history) lives only in `data/app/entries.db`. Uploaded files themselves are in `data/raw/`. Copies are kept in `data/app/backups/` (after every save, each
 time the dashboard starts, after an import; the newest 30, `app_backups_keep` in `settings.yaml`), each named with
 its date and time, e.g. `entries_20261019-101500-123456_save.db`.
 
@@ -205,25 +209,26 @@ To put a backup back (for example after a mistaken change, or a damaged file):
    ```
    The current file is first copied to a `..._before-restore.db` backup, so a restore can itself be undone the same
    way.
-4. Start the dashboard, open **Donor entry**, check the entries and the change history, then click **Update the
-   figures now**.
+4. Start the dashboard, open **Donor entry** or **Data entry**, check the entries and the change history, then click
+   **Update the figures now**.
 
 If every copy on the laptop is lost (for example a broken disk), the downloaded Excel backup holds the same data:
 ask the person who maintains the tool to load it into a fresh database (each sheet is one table, with the same
 column names). Restoring is tested automatically (`tests/test_app_entries.py`).
 
-## 8c. KoboToolbox forms
+## 8c. Uploaded files
 
-The forms in `forms/` are built from the programme master and the indicator catalogue:
+An upload is kept in `data/raw/` as `{kind}_upload_{date-time}_{staff code}_{original name}.xlsx` (with `SYNTHETIC_`
+in front in the demonstration) and listed in the `uploads` table (Upload Excel page, "Files uploaded so far"). A file
+replaced by a corrected upload is moved to `data/app/replaced_files/`.
 
-```
-python src/build_kobo_forms.py
-```
-
-Run it after a new project, activity, officer or village is added to the programme master (and after the pipeline
-has read it), then replace the form in KoboToolbox (`docs/kobo_guide.md`, section 3). If a Kobo export is SKIPPED, a
-question was renamed or added: add its name to `config/source_mappings.yaml` as for any new column (section 4).
-Kobo's own columns (start, end, _uuid...) are listed under `ignore_columns` there.
+- **A file was added twice, or by mistake:** close the dashboard, move that file from `data/raw/` to
+  `data/app/replaced_files/`, start the dashboard and run the pipeline (section 2). The uploads list still shows it as
+  active: note the upload ID in the decision log.
+- **An upload check fails with "The file could not be read":** open the file in Excel and save it again as `.xlsx`
+  (not `.xls` or `.csv`); if it still fails, compare its column headings with the template.
+- The check runs on a scratch copy in `data/app/upload_check/`, deleted afterwards; if the laptop was switched off
+  during a check, the folder can be deleted.
 
 ## 8d. Colours and logo
 

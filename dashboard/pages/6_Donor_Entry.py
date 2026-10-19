@@ -6,8 +6,6 @@ page after the figures are updated (button at the bottom of this page).
 """
 
 import datetime as dt
-import subprocess
-import sys
 
 import pandas as pd
 import streamlit as st
@@ -23,14 +21,7 @@ S = ui.SETTINGS["donor_pipeline"]
 today = app_store.today()
 
 # ------------------------------------------------------------------ who is entering data
-people = app_store.staff()
-labels = {p["code"]: f"{p['code']} ({p['role']})" for p in people}
-who = st.selectbox("You are", ["Choose your name..."] + list(labels), format_func=lambda c: labels.get(c, c),
-                   key=ui._remember("entry_staff", "Choose your name..."),
-                   help="There is no login: pick yourself. Every change is recorded with this code.")
-ready = who in labels
-if not ready:
-    st.info("Choose your name above before adding or changing anything.")
+who, labels, ready = ui.staff_picker("adding or changing anything")
 
 def _stamp(path) -> float:
     return path.stat().st_mtime if path.exists() else 0.0
@@ -119,7 +110,7 @@ with tabs[0]:
                 thematic_fit=theme, stage=stage, deadline=deadline, owner=owner, requested_amount_rwf=requested,
                 awarded_amount_rwf=awarded or None, probability=probability / 100, next_action=next_action,
                 next_action_date=next_date), who)
-    st.caption("* required. Amounts in RWF, numbers only. The deadline must be in the future.")
+    st.caption("Fields marked * are required. Amounts in RWF, numbers only. The deadline must be in the future.")
 
 # ------------------------------------------------------------------ update an opportunity
 with tabs[1]:
@@ -234,7 +225,7 @@ with tabs[6]:
     st.markdown(f"A dated copy is kept automatically after every save and each time the dashboard starts "
                 f"(in `data/app/backups/`, the newest {ui.SETTINGS.get('app_backups_keep', 30)}). "
                 f"{len(backups)} copies now" + (f"; the newest: {backups[0].name}." if backups else "."))
-    st.download_button("⬇ Download backup (Excel: donors, opportunities, change history)",
+    st.download_button("⬇ Download backup (Excel: every entry made on the dashboard, uploads, change history)",
                        _backup_workbook(_stamp(app_store.db_path())) if app_store.db_path().exists() else b"",
                        file_name=f"donor_entries_backup_{dt.date.today():%Y-%m-%d}.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -252,16 +243,6 @@ if len(app_opps):
         "Next action": app_opps["next_action"], "Due": app_opps["next_action_date"]}), "donor_entry_opportunities")
 else:
     st.caption("None yet.")
-st.markdown("**Update the dashboard figures** so the entries appear on the Donor pipeline and Executive summary "
-            "pages (about 20 seconds).")
-if st.button("Update the figures now", disabled=not ready):
-    with st.spinner("Preparing the figures..."):
-        r = subprocess.run([sys.executable, str(ui.ROOT / "src" / "pipeline.py")], cwd=ui.ROOT, capture_output=True,
-                           text=True)
-    if r.returncode == 0:
-        st.success("The figures are up to date.")
-    else:
-        st.error("The figures could not be updated. Ask the MEAL officer to run the pipeline (maintenance guide):\n\n"
-                 + (r.stdout + r.stderr)[-800:])
+ui.update_figures_button(ready, "the Donor pipeline and Executive summary pages")
 
 ui.footer()

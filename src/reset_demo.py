@@ -1,9 +1,11 @@
-"""Reset the demonstration: fresh synthetic data, no donor entries, figures prepared (DEMONSTRATION ONLY).
+"""Reset the demonstration: fresh synthetic data, no dashboard entries or uploads, figures prepared (DEMO ONLY).
 
 WHAT THIS SCRIPT DOES
 ---------------------
 1. Regenerates the main synthetic set (data/raw/, the answer key), exactly reproducible (documented fingerprint).
-2. Deletes the donor entries database (data/app/entries.db) and all its backups (data/app/backups/).
+2. Deletes the dashboard entries database (data/app/entries.db: donor entries, activity records, monthly
+   reports, the uploads list), all its backups (data/app/backups/) and the files replaced by uploads
+   (data/app/replaced_files/). Uploaded files are SYNTHETIC_ files in data/raw, removed by step 1.
 3. Runs the pipeline, so the dashboard shows the synthetic figures with the donor data still in the Excel tracker.
 
 So the one-time "Import from the Excel tracker" (Donor entry page) can be shown live, again and again.
@@ -29,17 +31,18 @@ from common import load_settings
 
 
 def clear_entries(db: Path) -> list[Path]:
-    """Delete the entries database and its backups folder; returns what was deleted."""
+    """Delete the entries database, its backups and the files replaced by uploads; returns what was deleted.
+    (Uploaded files themselves are SYNTHETIC_ files in data/raw: regenerating the data removes them.)"""
     import app_store
     removed = []
     for path in (db, Path(str(db) + "-journal")):
         if path.exists():
             path.unlink()
             removed.append(path)
-    folder = app_store.backup_folder(db)
-    if folder.exists():
-        shutil.rmtree(folder)
-        removed.append(folder)
+    for folder in (app_store.backup_folder(db), db.parent / "replaced_files", db.parent / "upload_check"):
+        if folder.exists():
+            shutil.rmtree(folder)
+            removed.append(folder)
     return removed
 
 
@@ -53,7 +56,7 @@ def reset(do_import: bool = False, db: Path | None = None) -> dict:
     db = Path(db or app_store.db_path())
     print("1/3 Regenerating the synthetic demonstration data...")
     generate_synthetic.generate(quiet=True)
-    print("2/3 Clearing the donor entries and their backups...")
+    print("2/3 Clearing the dashboard entries, uploads and backups...")
     removed = clear_entries(db)
     print("   " + (", ".join(p.name for p in removed) if removed else "nothing to clear"))
     print("3/3 Preparing the figures...")

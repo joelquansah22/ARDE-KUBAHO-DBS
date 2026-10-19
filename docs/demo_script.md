@@ -1,7 +1,8 @@
 # Demo script: 10-minute walkthrough for the final presentation
 
 For the presenter(s). The demonstration follows the executive director's three questions, traces one data problem
-from the dashboard back to the Excel row it came from, then shows donor data entry and, in one slide, KoboToolbox.
+from the dashboard back to the Excel row it came from, then shows data entry: an Excel upload, a form entry appearing
+on the dashboard, and donor data.
 Figures below are from the main synthetic set on 19 October 2026; **check them on the day** (they change if the
 data is regenerated).
 
@@ -14,10 +15,14 @@ data is regenerated).
       100%.
 - [ ] Dashboard started with `run_dashboard.bat`; every page opened once (so the first visits are fast during the talk).
 - [ ] Filters at their defaults (all programmes, all projects, all districts, 01/07/2023 to 30/06/2026, sex All, RWF).
-- [ ] Donor entry page: **You are** set to **MEAL01**.
+- [ ] Donor entry page: **You are** set to **MEAL01** (the same choice is used on Data entry and Upload Excel).
+- [ ] **The file for the upload step:** `python tools/make_demo_upload.py` writes
+      `data/exports/SYNTHETIC_june_report_PRJ01.xlsx`, the blank monthly report template with **two rows**: a report
+      missing from the data (PRJ01, Nyagatare, February 2026, WASH-01) and one deliberately wrong (PRJ01, Kayonza,
+      August 2024, achieved typed as "about 30"). Run it after the reset.
+- [ ] Data entry page, **New monthly indicator report**, PRJ01, Bugesera: the line under the form lists the missing
+      months; **May 2025** is the one used in the demonstration.
 - [ ] `data/raw/SYNTHETIC_indicator_reports_WASH.xlsx` open in Excel on the **FY2025-26** sheet, scrolled to the top.
-- [ ] The Kobo slide ready (below), with a screenshot of `forms/activity_monitoring_kobo.xlsx` (survey sheet) and the
-      scorecard's "KoboToolbox exports" table.
 - [ ] Backup: the screenshots in `docs/screenshots/` and a PDF donor report in case the laptop fails.
 
 ## The walkthrough (10 minutes)
@@ -29,10 +34,10 @@ data is regenerated).
 | 1:45 to 2:45 | **Question 2: "Can we trust these numbers?"** | "Data quality 96%; the weakest dimension is timeliness. This quarter, 4 of 13 comparisons between monthly reports and activity records disagree by more than 10% and at least 5 people. Records with serious problems are quarantined, not dropped or guessed." |
 | 2:45 to 3:30 | **Question 3: "What funding is coming up?"** | "10 deadlines in 90 days, a weighted open pipeline of RWF 2.45 billion, 13 follow-up actions overdue." Click **See the donor pipeline**; point at the line under the title: "right now the donor data still comes from an Excel tracker." |
 | 3:30 to 5:30 | **Trace one problem to its Excel row** (below) | |
-| 5:30 to 7:45 | **Donor entry** (below) | |
-| 7:45 to 8:30 | **Kobo slide** (below) | |
+| 5:30 to 6:30 | **Upload and form entry** (below) | |
+| 6:30 to 8:30 | **Donor entry** (below) | |
 | 8:30 to 9:15 | Programme overview, **Generate donor report** for PRJ01, FY2025/26 Q4; open the PDF | "The quarterly donor report takes under a second. In the evaluation we will time the same report made by hand from the raw files." |
-| 9:15 to 10:00 | Close | "Free tools, one laptop, Excel and phones as the front door, no names leave the reading step. Next: real data on one pilot programme, a co-design session for the indicators, and the usability, timing and phone tests with staff." |
+| 9:15 to 10:00 | Close | "Free tools, one laptop, Excel uploads and the app's forms as the front door, no names leave the reading step. Next: real data on one pilot programme, a co-design session for the indicators, and the usability, timing and phone tests with staff." |
 
 ### Tracing one data problem (3:30 to 5:30)
 
@@ -47,31 +52,34 @@ data is regenerated).
 
 *(In the synthetic answer key this is a planted over-report: the true figure was 28. Say this only if asked.)*
 
-### Donor entry (5:30 to 7:45)
+### Upload and form entry (5:30 to 6:30)
 
-1. **Donor entry** page (You are: MEAL01). **Import from the Excel tracker** tab (0:30): "Donor data had two homes.
+1. **Upload Excel** page (0:25): choose `SYNTHETIC_june_report_PRJ01.xlsx`, **Check the file**. "It reads the file
+   exactly as the pipeline would, before anything is added: 1 row accepted, 1 held back: row 3, 'about 30' is not a
+   number." Correcting means fixing row 3 in Excel and uploading again.
+   Tick, **Add this file**. "The file is kept with the date and who uploaded it, and the figures are prepared again."
+2. **Data entry** page (0:20), **New monthly indicator report**: PRJ01, Bugesera, May 2025, WASH-01, target 120,
+   achieved 96. **Save monthly report**. (If asked: save it a second time: it is refused, "already entered".)
+3. **Records** page (0:15), table **Indicator results**, Source **Entered in the app**: "Here it is, with who entered
+   it and when; the uploaded row shows its file and row, and who uploaded it. Export to Excel is one click."
+   *(The upload already prepared the figures; for the form entry, the **Update the figures now** button takes about
+   20 seconds: press it before going to Records, or show Records after the Donor entry part.)*
+
+### Donor entry (6:30 to 8:30)
+
+1. **Donor entry** page (You are: MEAL01). **Import from the Excel tracker** tab (0:25): "Donor data had two homes.
    This moves it here, once." Show the preview (25 donors, 30 opportunities, nothing to correct), tick the box, click
    **Import now**. "IDs are kept, and each record remembers the Excel row it came from. Individual donors stay
    unnamed."
-2. **New opportunity** tab (0:40): title "Safe water for schools - Kayonza", donor **Kestrel Impact Partners**, WASH,
+2. **New opportunity** tab (0:35): title "Safe water for schools - Kayonza", donor **Kestrel Impact Partners**, WASH,
    stage Identified, a deadline next month, RWF 150,000,000, 30%, next action "Send concept note" with a date. Click
    **Save opportunity**. (If asked: try a probability of 120% or a past deadline first: the page refuses and says why.)
-3. **Update an opportunity** tab (0:25): choose the new APP-O001, change the stage to **Concept note**, save.
+3. **Update an opportunity** tab (0:20): choose the new APP-O001, change the stage to **Concept note**, save.
 4. **Change history** tab (0:20): "Who changed what, from what to what, and when: the import, the new opportunity, the
    stage change, all under MEAL01."
 5. **Backup** tab (0:20): "A dated copy after every save and each start; one button downloads everything to Excel."
 6. (Optional, only with time to spare: **Update the figures now** takes about 20 seconds; afterwards the Donor
    pipeline page says the data is kept on this page.)
-
-### Kobo slide (7:45 to 8:30)
-
-One slide: "Field data on phones". Left: the survey sheet of `forms/activity_monitoring_kobo.xlsx`. Right: the
-scorecard's KoboToolbox table. Say: "Officers can fill in the activity and indicator forms on a phone with
-KoboToolbox, a free tool many NGOs use, even offline. The phone checks dates, negative numbers and that women plus
-men equal the total, and the dropdowns stop district misspellings. The MEAL officer exports an Excel file that the
-pipeline reads through the same configuration, with no code change. On synthetic exports every cell was read
-correctly, repeated submissions were removed and skipped answers left blank. We have not yet tested the forms on a
-real Kobo account and phone: that is our next step."
 
 ## If a supervisor asks...
 
@@ -91,14 +99,8 @@ the fixes generalise to new records, not that they cover new kinds of mess. In b
 corrections, and every duplicate it merged was a true duplicate. We froze both scorecards before looking at the
 results and made no changes afterwards."
 
-**"The Kobo test scored 100%: isn't that too good?"**
-"It is expected, and it is an automated check, not a user test. The phone forms prevent the kinds of mess the Excel
-files have, so the test checks something narrower: that the pipeline reads both Kobo export formats correctly,
-removes repeated submissions and leaves skipped answers blank. Whether the forms work on a real account and phone is
-still to be tested."
-
-**"Who can change the donor data?"**
-"Anyone using the laptop: there is no login. Staff pick their code, and the change history records who people say
+**"Who can change the data?"**
+"Anyone using the laptop: there is no login, on the Donor entry, Data entry and Upload Excel pages alike. Staff pick their code, and the change history records who people say
 they are. That is acceptable on one protected laptop, and it is listed as a limitation: real user accounts are
 needed before several people use it."
 
@@ -121,5 +123,5 @@ ARDE/KUBAHO can choose."
 **"What does not work yet?"**
 "Month-first dates are not read until staff confirm they use them; nicknames and initials wait for review instead of
 being merged; discrepancies under 5 people are not flagged; all indicators are drafts; there is no login; and the
-human tests (timing, usability, fresh install, Kobo on a phone) are still to run. They are listed in
+human tests (timing, usability, fresh install) are still to run. They are listed in
 `docs/limitations_and_roadmap.md`."

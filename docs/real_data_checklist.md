@@ -45,9 +45,8 @@ The salt makes the coded keys for people. The salt used with the synthetic data 
 
 - [ ] Delete everything in `data/raw/`, `data/staging/`, `data/warehouse/`, `data/exports/` (including
       `data/exports/donor_reports/`) and `data/ground_truth/`. The held-out folders (`data/holdout*`, `data/final_holdout`)
-      are only needed in the demo copy: delete them here. Also delete `data/app/entries.db` **and the folder
-      `data/app/backups/`** (donor entries and backups made during demonstrations), and `data/kobo_test/` (synthetic
-      Kobo exports). Never run `python src/reset_demo.py` on the real copy (it refuses when `synthetic_mode` is off).
+      are only needed in the demo copy: delete them here. Also delete `data/app/entries.db` **and the folders
+      `data/app/backups/` and `data/app/replaced_files/`** (entries, uploads and backups made during demonstrations). Never run `python src/reset_demo.py` on the real copy (it refuses when `synthetic_mode` is off).
 - [ ] In a command window in the project folder: `dir /s /b SYNTHETIC_*`. It must list **nothing** (no `.xlsx`,
       `.csv`, `.parquet` or `.pdf` file whose name starts with `SYNTHETIC_`).
 - [ ] The pipeline double-checks: with `synthetic_mode: false` it **stops** if any `SYNTHETIC_` file is in `data/raw/`,
@@ -85,8 +84,7 @@ activity_type`; `location_id, province, district, sector, cell, village`; `offic
 | `config/indicator_catalogue.yaml` | The indicator list itself, as agreed at the co-design session (names exactly as typed in the monthly reports) | [ ] |
 | `config/templates.yaml` | `projects`, `activities`, `officers` lists: replace `{from: synthetic_...}` with the real lists, then `python src/build_templates.py --force` | [ ] |
 | `config/district_legacy_map.yaml` | Old names confirmed with the field officers | [ ] |
-| `config/staff.yaml` | ARDE/KUBAHO's real staff codes for the Donor entry page | [ ] |
-| `forms/` | After the first real run: `python src/build_kobo_forms.py`, then upload the forms to ARDE/KUBAHO's own KoboToolbox account (`docs/kobo_guide.md`) | [ ] |
+| `config/staff.yaml` | ARDE/KUBAHO's real staff codes (including field officers) for the entry pages | [ ] |
 | `config/theme.yaml` | Brand colours and logo confirmed with ARDE/KUBAHO | [ ] |
 | `config/settings.yaml` | `sex_mapping`, `activity_status_mapping`: any new spellings staff use | [ ] |
 | `config/settings.yaml` | Month-first dates: whether staff write `Mar 12, 2024` (partner question) | [ ] |
@@ -119,11 +117,15 @@ Then run the **before/after comparison on the pilot records** (`python src/evalu
 line needs the synthetic answer key and is left out with real data) and copy the results into
 `docs/evaluation_summary.md`.
 
-## 6b. Donor data, phones and branding
+## 6b. Donor data and branding
 
 **Donor entries (one home for donor data).**
 
-- [ ] `data/app/entries.db` starts empty (step 4). The first save on the Donor entry page creates it.
+- [ ] `data/app/entries.db` starts empty (step 4). The first save on an entry page, or the first upload, creates it.
+- [ ] **Uploads and forms:** upload one real file on the Upload Excel page and compare the summary (rows accepted,
+      held back, for review) with the Data quality page after the pipeline has run; type one real activity on the Data
+      entry page and find it on the Records page (Source: Entered in the app). Agree with the field officers whether
+      they upload themselves or send files to the MEAL officer (one laptop, L26).
 - [ ] `config/staff.yaml` holds ARDE/KUBAHO's real staff codes and roles (partner question F7).
 - [ ] After the first real run has read the real donor tracker: on the **Donor entry** page, **Import from the Excel
       tracker** tab, the finance officer and the MEAL officer go through the preview together. Rows listed "to correct
@@ -134,15 +136,6 @@ line needs the synthetic answer key and is left out with real data) and copy the
 - [ ] **Backups:** after the first save, `data/app/backups/` holds dated copies. Agree who downloads the Excel backup
       (Backup tab) each month and where it is kept (offline, not shared). Try one restore on a copy (maintenance guide,
       8b-2) before relying on it.
-
-**KoboToolbox (if phones are used).**
-
-- [ ] Decide the **server (global or EU) and where the data may be stored** (partner questions A5 and F8) **before**
-      uploading any form. Create an organisational account, not a personal one.
-- [ ] `python src/build_kobo_forms.py` (after the first real run, so the lists match the real programme master), upload
-      both forms, and test them on **one phone** with a few made-up submissions: export, run the pipeline, delete the
-      test submissions in Kobo. Only then give the forms to field officers (`docs/kobo_guide.md`).
-- [ ] An officer who moves to Kobo stops sending the same activities in Excel (they would be counted twice).
 
 **Logo and colours.**
 
@@ -168,6 +161,5 @@ line needs the synthetic answer key and is left out with real data) and copy the
 | 5. Files mapped | | |
 | 6. First real run signed off | | |
 | 6b. Donor entries, import and backups | | |
-| 6b. Kobo server chosen and tested on a phone | | |
 | 6b. Logo and colours confirmed | | |
 | 7. After the switch | | |

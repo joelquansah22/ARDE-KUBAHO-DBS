@@ -40,7 +40,12 @@ def resolve_list(spec) -> list[str]:
         return sorted(d for ds in load_admin()["provinces"].values() for d in ds)
     if source == "donor_pipeline_stages":
         return load_settings()["donor_pipeline"]["stages"]
+    if source == "catalogue_reported":
+        return [i["code"] for i in load_yaml("indicator_catalogue.yaml")["indicators"]
+                if i.get("availability") == "available" and "reported" in (i.get("calculation") or {})]
     synthetic = load_yaml("synthetic.yaml")
+    if source == "synthetic_project_codes":
+        return [p["project_id"] for p in synthetic["projects"]]
     if source == "synthetic_projects":
         return [p["name"] for p in synthetic["projects"]]
     if source == "synthetic_activities":

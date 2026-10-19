@@ -357,6 +357,36 @@ def donor_sources_note() -> str:
     return text + " Figures change after the pipeline runs."
 
 
+def staff_picker(what: str = "anything") -> tuple[str, dict, bool]:
+    """'You are': there is no login, so the person picks their staff code (config/staff.yaml). The choice is kept
+    between the entry pages. Returns (code, {code: label}, ready)."""
+    import app_store
+    labels = {p["code"]: f"{p['code']} ({p['role']})" for p in app_store.staff()}
+    who = st.selectbox("You are", ["Choose your name..."] + list(labels), format_func=lambda c: labels.get(c, c),
+                       key=_remember("entry_staff", "Choose your name..."),
+                       help="There is no login: pick yourself. Every change is recorded with this code.")
+    ready = who in labels
+    if not ready:
+        st.info(f"Choose your name above before {what}.")
+    return who, labels, ready
+
+
+def update_figures_button(ready: bool, where: str) -> None:
+    """Run the pipeline (about 20 seconds) so new entries and uploads appear on the other pages."""
+    import subprocess
+    import sys
+    st.markdown(f"**Update the dashboard figures** so the entries appear on {where} (about 20 seconds).")
+    if st.button("Update the figures now", disabled=not ready, key="update_figures"):
+        with st.spinner("Preparing the figures..."):
+            r = subprocess.run([sys.executable, str(ROOT / "src" / "pipeline.py")], cwd=ROOT, capture_output=True,
+                               text=True)
+        if r.returncode == 0:
+            st.success("The figures are up to date.")
+        else:
+            st.error("The figures could not be updated. Ask the MEAL officer to run the pipeline (maintenance guide):"
+                     + chr(10) * 2 + (r.stdout + r.stderr)[-800:])
+
+
 def sidebar_logo() -> None:
     """The logo at the top of the sidebar, with the organisation name (only if the logo file exists)."""
     path = ROOT / THEME.get("logo", "")
@@ -375,7 +405,7 @@ def table(df: pd.DataFrame, name: str, height: int | None = None, **kwargs) -> N
     if height:
         kwargs["height"] = height
     st.dataframe(df, hide_index=True, width="stretch", **kwargs)
-    st.download_button(f"⬇ Download ({len(df):,} rows, CSV)", df.to_csv(index=False).encode("utf-8-sig"),
+    st.download_button(f"⬇ Download ({len(df):,} row{'s' if len(df) != 1 else ''}, CSV)", df.to_csv(index=False).encode("utf-8-sig"),
                        file_name=f"{name}.csv", mime="text/csv", key=f"dl_{name}")
 
 
@@ -398,7 +428,7 @@ def html_table(df: pd.DataFrame, name: str, widths: dict | None = None, html_col
     plain = df.copy()
     for c in html_columns:
         plain[c] = plain[c].astype(str).str.replace(r"<[^>]+>", "", regex=True)
-    st.download_button(f"⬇ Download ({len(df):,} rows, CSV)", plain.to_csv(index=False).encode("utf-8-sig"),
+    st.download_button(f"⬇ Download ({len(df):,} row{'s' if len(df) != 1 else ''}, CSV)", plain.to_csv(index=False).encode("utf-8-sig"),
                        file_name=f"{name}.csv", mime="text/csv", key=f"dl_{name}")
 
 

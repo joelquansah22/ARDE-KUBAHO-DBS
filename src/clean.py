@@ -331,7 +331,7 @@ class Reference:
                                               dt.date.fromisoformat(str(p.end_date)[:10]))
                                for p in self.projects.itertuples()}
         self.activity_by_key = {(norm_key(a.activity_name)): a.activity_id for a in self.activities.itertuples()}
-        # Codes too (e.g. ACT01): KoboToolbox exports with XML values hold the code, not the name.
+        # Codes too (e.g. ACT01): activities entered on the dashboard are stored by their code.
         self.activity_by_key.update({norm_key(a.activity_id): a.activity_id for a in self.activities.itertuples()})
         self.activity_project = dict(zip(self.activities.activity_id, self.activities.project_id))
         # Villages by district, with their spellings already normalised, so each row is a quick
@@ -671,7 +671,8 @@ class Cleaner:
         end = self.s["reporting_window"]["end"]
         due_months = {"monthly": range(1, 13), "quarterly": (3, 6, 9, 12), "semi-annual": (6, 12),
                       "annual": (6,)}
-        submitted = set(zip(results["project_id"], results["district"], results["period"]))
+        submitted = (set(zip(results["project_id"], results["district"], results["period"]))
+                     if len(results) else set())
         rows = []
         for p in self.ref.projects.itertuples():
             p_start, p_end = self.ref.project_window[p.project_id]
@@ -798,6 +799,34 @@ def row_status(tables: dict, issues: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def flag_app_duplicates(cleaner, tables: dict) -> None:
+    """Entries made on the dashboard that repeat an Excel record. An activity with the same project, activity, date
+    and village goes to the review queue (warning); a monthly report already in an Excel file is held back
+    (critical), so the indicator is never counted twice."""
+    app = "entries.db"
+    acts = tables["activity"]
+    if len(acts) and (acts["source_file"] == app).any():
+        key = ["project_id", "activity_id", "date", "location_id"]
+        excel = acts[(acts["source_file"] != app) & acts["date"].notna()].drop_duplicates(key).set_index(key)
+        for r in acts[acts["source_file"] == app].to_dict("records"):
+            k = tuple(r[c] for c in key)
+            if r["date"] is not None and k in excel.index:
+                first = excel.loc[[k]].iloc[0]
+                cleaner.log.add("activity", r, None, "app_entry_may_repeat_excel", FLAGGED,
+                                detail=f"same project, activity, date and village as {first['source_file']} "
+                                       f"row {int(first['source_row'])}")
+    reps = tables["indicator_result"]
+    if len(reps) and (reps["source_file"] == app).any():
+        key = ["project_id", "district", "period", "indicator_code", "disaggregation_key"]
+        excel = reps[reps["source_file"] != app].drop_duplicates(key).set_index(key)
+        for r in reps[reps["source_file"] == app].to_dict("records"):
+            k = tuple(r[c] for c in key)
+            if k in excel.index:
+                first = excel.loc[[k]].iloc[0]
+                cleaner.log.add("indicator_result", r, None, "app_report_repeats_excel", FLAGGED,
+                                detail=f"already reported in {first['source_file']} row {int(first['source_row'])}")
+
+
 def run(staging=None) -> dict:
     """Clean every staged table. Returns the cleaned tables (used by tests and scoring)."""
     staging = staging or resolve_path("staging")
@@ -814,6 +843,7 @@ def run(staging=None) -> dict:
         "donor": cleaner.clean_donors(read("donor")),
         "opportunity": cleaner.clean_opportunities(read("opportunity")),
     }
+    flag_app_duplicates(cleaner, tables)
     tables["report_completeness"] = cleaner.report_completeness(tables["indicator_result"])
     for row in tables["report_completeness"][~tables["report_completeness"]["submitted"]].itertuples():
         cleaner.log.rows.append(dict(entity="indicator_report", source_file=None, source_sheet=None,

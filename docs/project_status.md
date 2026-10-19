@@ -1,6 +1,6 @@
 # Project status: ARDE/KUBAHO MEAL and Donor Analytics Prototype
 
-*For the supervisors. Version 1.1, 19 October 2026; feature freeze. Everything runs on **synthetic data**: no
+*For the supervisors. Version 1.2, 19 October 2026; feature freeze. Everything runs on **synthetic data**: no
 ARDE/KUBAHO data has been received.*
 
 ## What was built
@@ -13,13 +13,17 @@ and ID numbers at the first step, cleans and checks the records, and shows the r
   with every figure traceable to its file, sheet and row, exports for Power BI.
 - **MEAL indicators:** 13 draft indicators (all fields defined), reported values compared with the activity and
   register records.
-- **Dashboard** (7 pages): an executive summary answering the director's three questions, programme overview,
+- **Dashboard** (10 pages): an executive summary answering the director's three questions, programme overview,
   indicators, geography, data quality, donor pipeline, and **donor entry** (donor data recorded directly, with a
   change history, automatic backups and a one-time import of the Excel tracker). One-click quarterly **donor report**
   (Excel and PDF).
-- **KoboToolbox** forms for activity and indicator data on phones, read like the Excel files.
-- **Documentation for NGO staff** (user and maintenance guides, privacy note, Power BI and Kobo guides, real-data
-  checklist, data request pack) and **406 automated tests**. Every team instruction is in `docs/instruction_log.md`;
+- **A database staff can work in (v1.2):** **Upload Excel** (a filled template is checked exactly as the pipeline
+  would, with rows accepted, held back with row numbers and reasons, and sent for review, plus warnings about repeated
+  files or records, before it is added with who and when); **Data entry** forms for activity records and monthly
+  indicator reports, checked with the cleaner's rules; and a read-only **Records** page to search every stored record,
+  see where it came from, and export it to Excel. KoboToolbox was removed (it stays in the v1.1 tag).
+- **Documentation for NGO staff** (user and maintenance guides, privacy note, Power BI guide, real-data
+  checklist, data request pack) and **435 automated tests**. Every team instruction is in `docs/instruction_log.md`;
   every decision in `docs/decision_log.md`.
 
 ## Evaluation results so far
@@ -34,7 +38,6 @@ not scores against targets. Full detail: `docs/evaluation_summary.md`.
 | Reports versus records | Final round: 29 of 30 planted discrepancies of 5 or more caught, 0 unexplained false alarms |
 | MEAL readiness | 13 of 13 indicators fully defined (100%); 0 of 13 agreed with ARDE/KUBAHO yet |
 | Reporting efficiency | Donor report generated in about 0.15 s (machine time only); pages loaded in under 3 s on 15 October; on 19 October the laptop was short of memory and the browser times were not representative (the earlier version was equally slow): to re-measure |
-| Kobo import (automated check) | Synthetic exports in both formats read 100% correctly; repeated submissions removed |
 
 ## Waiting on human testing (ready to run)
 
@@ -43,7 +46,6 @@ not scores against targets. Full detail: `docs/evaluation_summary.md`.
 | Timed reporting task: the quarterly report by hand from raw files versus the dashboard button | Not run | `docs/evaluation_protocol.md`, recording sheet and reference answers in `evaluation/` |
 | Usability test: 3 to 5 participants, 8 tasks across the three roles, SUS questionnaire | Not run; university approval for testing with staff to be confirmed | Same, with consent note and SUS scoring script |
 | Fresh install on another Windows laptop using only the README | Not run | `docs/fresh_install_test.md` |
-| Kobo forms on a real KoboToolbox account and an Android phone | Not run (forms checked with pyxform only) | `docs/kobo_guide.md` |
 | Handover walkthrough with ARDE/KUBAHO's maintainer | Not run; maintainer not yet named | Maintenance guide |
 
 ## Open partner questions that block the real-data switch
@@ -58,8 +60,8 @@ From `docs/partner_questions.md` (priority 1, plus those needed before handover)
 3. **How staff write the data:** month-first dates such as "Mar 12, 2024", and the Kinyarwanda column names and
    codes in use (C1, C2).
 4. **Indicators:** the co-design session to agree definitions, owners and targets (D1).
-5. **Before handover:** the KoboToolbox server (global or EU) and where data may be stored (F8); real staff codes
-   for donor entry (F7); permission to use the logo and brand colours (F6); who maintains the tool, and on which
+5. **Before handover:** real staff codes
+   for the entry pages (F7); permission to use the logo and brand colours (F6); who maintains the tool, and on which
    laptop (F1).
 
 Known limitations (35) and the roadmap are in `docs/limitations_and_roadmap.md`. The steps for switching to real

@@ -18,8 +18,8 @@ real data is used.
 | Beneficiary register | Names, phone numbers, national ID numbers, dates of birth, sex, age, household size, disability, village | A **coded key** per person; sex, age band, household size, disability yes/no, village. **No name, phone, ID number or date of birth** |
 | Service records | Registration number, activity, date | The coded key, activity, date |
 | Activity records | Officer code, numbers of participants | Officer code (staff, not beneficiaries), counts |
-| Donor entries database (`data/app/entries.db`, entered on the dashboard) | None by design: no contact details are asked for; an individual donor's name is refused by the database | Organisation donors' names, opportunities, staff **codes** (who made each change) and the change history. Individual donors appear as "Individual donor #NNN". Backups in `data/app/backups/` and the downloaded Excel backup hold the same |
-| KoboToolbox submissions (optional, phones) | No beneficiary names, phones or IDs are asked for on the forms; the officer code, and Kobo's own account username and timestamps | Read like the Excel templates; Kobo's own columns (username, timestamps, submission IDs) are ignored. The submissions themselves stay on KoboToolbox's servers until ARDE/KUBAHO deletes them |
+| Dashboard entries database (`data/app/entries.db`, entered on the dashboard) | None by design: no contact details are asked for; an individual donor's name is refused by the database; activity records and monthly reports hold counts only (women, men, total), never people | Organisation donors' names, opportunities, activity records, monthly indicator reports, the list of uploads (file name, staff code, date), staff **codes** (who made each change) and the change history. Individual donors appear as "Individual donor #NNN". Backups in `data/app/backups/` and the downloaded Excel backup hold the same |
+| Uploaded Excel files (`data/raw/`, Upload Excel page; replaced ones in `data/app/replaced_files/`) | An uploaded **beneficiary register holds names, phones and ID numbers**, like any register | Kept with the other raw files and treated the same way: never leaves the laptop, pseudonymised by the pipeline. The upload check reads a scratch copy inside `data/app/`, deleted afterwards. The Records page never lists people |
 | Donor file | Donor organisation, contact person, email, phone | Organisation name and type. **Contact details are dropped.** Individual donors appear only as "Individual donor #NNN" |
 
 **Disability is health-related information,** which the law treats as sensitive personal data. The tool keeps only a
@@ -43,8 +43,8 @@ consent), is **to be confirmed with the partner**.
    partner** whether counts under a threshold (for example 5) should be hidden in reports shared outside ARDE/KUBAHO.
 4. **Lineage without identity.** Every figure can be traced to a file, sheet and row of the original Excel file, so
    staff with access to that file can check it, but the dashboard itself never shows the person.
-5. **Local only.** The tool runs on an ordinary laptop; it sends nothing to a cloud service (KoboToolbox, if used, is
-   a separate service that officers' phones send to: point 8). The dashboard accepts
+5. **Local only.** The tool runs on an ordinary laptop; it sends nothing to a cloud service. Data comes in only
+   through Excel files and the dashboard's own forms. The dashboard accepts
    connections only from that laptop (`address = "127.0.0.1"` in `.streamlit/config.toml`), not from other devices
    on the same network.
 6. **Synthetic data until approved.** All development and testing used invented records, labelled `SYNTHETIC_` and
@@ -52,9 +52,6 @@ consent), is **to be confirmed with the partner**.
 
 7. **Donor entries:** the database has no columns for people's contact details (tested); it refuses a name for an
    individual donor; staff are recorded by code, not by name (`config/staff.yaml`). Its backups stay on the laptop.
-8. **KoboToolbox:** beneficiary registration is **not** on Kobo (it stays in the Excel register), so no beneficiary
-   names reach Kobo's servers. Activity and indicator data on Kobo is stored by an outside organisation, outside
-   Rwanda: allowed only once ARDE/KUBAHO has decided (section 4).
 
 ## 3. What the tool cannot do (people and processes must)
 
@@ -81,7 +78,6 @@ Our reading of the law raises these questions. None has been answered yet; each 
 | Data subjects' rights | How would a person's request to see, correct or delete their data be handled across the Excel files and the tool? |
 | Breaches | Who notifies the authority and the people affected, and how fast, if a laptop or file with personal data is lost? (The law sets a short deadline; to be confirmed.) |
 | Retention | How long are registers and the tool's data kept after a project ends? |
-| Phone data on KoboToolbox | May activity and indicator data be stored on KoboToolbox's servers (global or EU)? Who owns the account, and when are submissions deleted from Kobo after export? |
 | Donor entries | Who may enter and change donor data (there is no login), and how long are entries and their backups kept? |
 
 ## 5. Roles (suggested; to be agreed)
@@ -102,5 +98,5 @@ Our reading of the law raises these questions. None has been answered yet; each 
 - [ ] Raw files stored on a protected laptop; `data/` excluded from any sync or backup service unless approved
 - [ ] Small-number rule for shared reports agreed
 - [ ] `synthetic_mode` switched off and the banner removed only after the above (Phase 8 checklist)
-- [ ] KoboToolbox server and data storage decided before any real form is used (section 4)
-- [ ] Who may use the Donor entry page agreed; monthly Excel backup kept offline
+- [ ] Who may use the Donor entry, Data entry and Upload Excel pages agreed; monthly Excel backup kept offline
+- [ ] Replaced upload files (`data/app/replaced_files/`) deleted on the same schedule as other raw files

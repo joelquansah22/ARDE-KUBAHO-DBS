@@ -99,7 +99,21 @@ tracker).
 
 ### Donor entry
 Add donors and funding opportunities, update them, and mark next actions as done, directly on the dashboard
-(section 5b). Only on this page can data be changed; every other page only shows data.
+(section 5b).
+
+### Data entry
+Type in this month's activity records and monthly indicator reports, and change what was entered here (section 5c).
+
+### Upload Excel
+Upload a filled Excel template (activities, register, monthly indicator report or donor tracker); see what is
+accepted, held back or sent for review before adding it; download blank templates (section 5c).
+
+### Records
+Browse and search every stored record (activities, indicator results, donors, opportunities, records held back for
+correction, the review queue), see where each came from, and export what you see to Excel. People (beneficiaries) are
+never listed.
+
+Data can only be changed on the Donor entry, Data entry and Upload Excel pages; every other page only shows data.
 
 Every table has a **Download** button (CSV, opens in Excel). On the Programme overview, the small line in a card shows
 the month-by-month series and the arrow compares the last 3 months with the 3 before.
@@ -142,20 +156,61 @@ Excel row each came from. From then on those Excel rows are no longer read. The 
 (`data/app/backups/`, the newest 30). The **Backup** tab also has **Download backup**: one Excel file with all donors,
 opportunities and the change history. Download one each month and keep it somewhere safe.
 
-## 5c. Field data on phones (KoboToolbox)
+## 5c. How to enter this month's data
 
-Field officers can fill in the activity and indicator-report forms on an Android phone with KoboCollect instead of
-Excel. The MEAL officer downloads the results from KoboToolbox as an Excel file and saves it in `data/raw/`; the
-pipeline reads it like the Excel templates. Setting up: `docs/kobo_guide.md`.
+There are two ways, and both end up in the same figures. **Use one per record**: a record typed in on the Data entry
+page and also in an Excel file would be counted twice (the tool warns about this, see below).
+
+**A. Upload an Excel file** (best for many rows, or for work done offline)
+
+1. Open **Upload Excel** and choose your name in **You are**.
+2. The first time, download the **blank template** you need (activity monitoring, beneficiary register, monthly
+   indicator report, donor tracker) and fill it in Excel. Keep the column headings as they are; use the drop-down
+   lists.
+3. Under **Upload a filled template**, choose the file. The page works out what kind of file it is; change it if it is
+   wrong. Click **Check the file**. Nothing is added yet.
+4. Read the summary:
+   - **Accepted**: rows that go into the figures.
+   - **Held back for correction**: rows that are not counted until corrected. Each one has its **row number** and the
+     reason, e.g. "row 14: women + men do not equal the total".
+   - **Sent for review**: rows that are counted but that the MEAL officer will check.
+   - **SKIPPED**: a whole sheet could not be read, usually because a required column is missing or was renamed.
+   - A warning if **this file was already uploaded**, or if **its records are already in another file**.
+5. If the file is a **corrected version** of one uploaded before, tick the earlier file under **Replace these earlier
+   files** (it is kept, not deleted). Otherwise its records would be counted twice.
+6. Tick the box and click **Add this file**. The file is kept with today's date and your code, appears under **Files
+   uploaded so far**, and the figures are updated (about 20 seconds).
+7. **To correct held-back rows**: correct them in your Excel file, then upload it again and replace the earlier file.
+
+**B. Type it in on the Data entry page** (best for a few records, e.g. a missing report)
+
+1. Open **Data entry** and choose your name in **You are**.
+2. **New activity record**: choose the project first (its activities and districts follow), then the district,
+   sector, cell and village (each list follows the one before). Fill in the date, planned date, status, women, men,
+   total, cost and field officer, then **Save activity record**.
+3. **New monthly indicator report**: choose the project, district, month and indicator (the page lists the months
+   still missing). For indicators reported for women and men separately, choose the sex and make one entry each.
+   Then **Save monthly report**.
+4. If something is wrong, a red message says what, and **nothing is saved**: correct it and save again. The checks are
+   the same as for Excel rows: women + men must equal the total, no negative numbers, the date within the project and
+   not in the future, codes from the lists. A yellow message means the entry was saved but will be checked by the MEAL
+   officer (for example, it looks like an activity already in an Excel file).
+5. To change something you entered: **Change an entry** tab. Records that came from Excel files **cannot be changed
+   here**: correct the Excel file and upload it again (A, step 7).
+6. Click **Update the figures now** at the bottom so the entries appear on the other pages.
+
+**Where it is all kept.** Uploaded files are kept in `data/raw/`; typed-in entries, the list of uploads and the change
+history in `data/app/entries.db`, with a dated backup after every save (Backup tab: **Download backup**, one Excel
+file). The **Records** page shows every record with where it came from, and exports it to Excel.
 
 ## 6. The monthly routine (suggested; to be agreed with ARDE/KUBAHO)
 
 | When | Who | What |
 |---|---|---|
-| By the 5th | Field officers | Send the month's activity, register and indicator-report files (standard templates) |
-| By the 7th | MEAL officer | Save the files in `data/raw/`, run the pipeline (maintenance guide, section 2) |
+| By the 5th | Field officers | Upload the month's activity, register and indicator-report files (Upload Excel page), or type in the month's records (Data entry page) (section 5c) |
+| By the 7th | MEAL officer | Check that every officer's files arrived (Upload Excel: Files uploaded so far); files sent by email can be uploaded the same way |
 | By the 10th | MEAL officer | Data quality page: send each officer their work list; check the review queue (about 20 minutes a month on the demonstration data) |
-| By the 15th | Officers, MEAL officer | Correct the Excel files; run the pipeline again |
+| By the 15th | Officers, MEAL officer | Correct the Excel files and upload them again (replacing the earlier file); correct typed-in entries on the Data entry page |
 | Monthly meeting | Managers, director | Executive summary and Indicators pages; donor reports as due |
 
 Printing: use the browser's Print (Ctrl+P). Pages print on **A4 landscape** without the sidebar and buttons.
@@ -172,6 +227,11 @@ Printing: use the browser's Print (Ctrl+P). Pages print on **A4 landscape** with
 | Figures did not change after correcting a file | The pipeline was not run again, or the page was not reloaded | Run the pipeline, then press F5 in the browser |
 | "Choose your name above before adding or changing anything" | Donor entry: nobody is selected in "You are" | Pick your staff code at the top of the page |
 | A new opportunity is not on the Donor pipeline page | The figures have not been updated since it was saved | Donor entry page, bottom: **Update the figures now** |
+| An activity or report typed in is not on the other pages | The figures have not been updated since it was saved | Data entry page, bottom: **Update the figures now** |
+| "This exact file was already uploaded" | The same file was added before | Do not add it again, unless the first upload was replaced |
+| "Some records are already in other files" | The file repeats records kept in another file | If it is a corrected version, tick the earlier file under **Replace these earlier files** |
+| "This report is already in an Excel file" (Data entry) | That month's report was already sent in Excel | Correct the Excel file and upload it again, instead of typing it in |
+| An Excel record cannot be changed on the Data entry page | Excel records are kept in their file | Correct the Excel file and upload it again |
 | "python is not recognised" | Python is not installed, or installed without "Add to PATH" | Reinstall Python with the tick (README, step 1) |
 
 ## 8. Glossary
@@ -207,5 +267,4 @@ Printing: use the browser's Print (Ctrl+P). Pages print on **A4 landscape** with
 | **Target incomplete** | Some months in the period have no target; the % is shown for the months that do, without a traffic-light colour |
 | **Weighted value** | Amount requested × probability of success: a planning figure, not money expected for certain |
 | **Change history** | On the Donor entry page: who changed which field of a donor or opportunity, from what to what, and when |
-| **KoboToolbox / KoboCollect** | A free tool for filling in forms on phones (KoboCollect is the phone app); see `docs/kobo_guide.md` |
 | **Sparkline** | The small line in a card showing the month-by-month series |

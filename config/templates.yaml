@@ -114,6 +114,25 @@ templates:
         - {header: Next action, required: false, type: text}
         - {header: Next action date, required: false, type: date}
 
+  indicator_report_template.xlsx:
+    instructions:
+      - "Monthly indicator report: one row per project, district, month and indicator. Upload it on the dashboard's Upload Excel page (or enter single reports on the Data entry page)."
+      - "Reporting period: the first day of the month, e.g. 01/06/2026 for June 2026."
+      - "Indicators reported separately for women and men (e.g. AGR-01): one row for Female and one for Male; leave Sex empty for all other indicators."
+      - "Monthly target: the target for that month, if there is one. Achieved: numbers only (no %, no text)."
+      - "Do not report the same project, district, month and indicator twice (in this file or another one): it would be counted twice and is held back."
+    sheets:
+      Report:
+        - {header: Project code, required: true, list: project_codes}
+        - {header: District, required: true, list: districts}
+        - {header: Reporting period, required: true, type: date, note: "First day of the month, e.g. 01/06/2026"}
+        - {header: Indicator code, required: true, list: reported_indicators}
+        - {header: Sex, required: false, list: sex, note: "Only for indicators reported for women and men separately"}
+        - {header: Monthly target, required: false, type: number}
+        - {header: Achieved, required: true, type: number}
+        - {header: Entered by, required: true, list: officers}
+        - {header: Comments, required: false, type: text}
+
 # Dropdown lists. "from:" means the list is filled in automatically from another config file.
 lists:
   sex: [Female, Male]
@@ -121,6 +140,8 @@ lists:
   activity_status: [Planned, Completed, Delayed, Cancelled]
   districts: {from: rwanda_admin}
   projects: {from: synthetic_projects}        # replace with the real project list in Phase 8
+  project_codes: {from: synthetic_project_codes}
+  reported_indicators: {from: catalogue_reported}   # indicators reported monthly (catalogue)
   activities: {from: synthetic_activities}    # replace with the real activity list in Phase 8
   officers: {from: synthetic_officers}        # replace with the real officer codes in Phase 8
   donor_types: [bilateral, multilateral, foundation, government, private, individual]
