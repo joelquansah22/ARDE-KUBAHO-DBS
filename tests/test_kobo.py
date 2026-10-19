@@ -88,3 +88,16 @@ def test_kobo_exports_are_read_correctly():
     inv = pd.read_csv(st / "sheet_inventory.csv")
     kobo = inv[inv["source_file"].str.contains("ARDE_")]
     assert len(kobo) == 2 and kobo["unmapped_columns"].isna().all()           # Kobo's own columns are ignored
+
+
+def test_forms_convert_with_pyxform_without_errors_or_warnings(tmp_path):
+    """pyxform is the converter KoboToolbox uses (requirements-dev.txt). ODK Validate (Java) is not run."""
+    pytest.importorskip("pyxform")
+    if not (resolve_path("staging") / "ref_activity.parquet").exists():
+        pytest.skip("Run python src/pipeline.py first")
+    import build_kobo_forms
+    from pyxform.xls2xform import xls2xform_convert
+    for path in build_kobo_forms.main(out=tmp_path):
+        warnings = xls2xform_convert(str(path), str(tmp_path / f"{path.stem}.xml"), validate=False)
+        assert warnings == [], (path.name, warnings)
+        assert (tmp_path / f"{path.stem}.xml").stat().st_size > 1000

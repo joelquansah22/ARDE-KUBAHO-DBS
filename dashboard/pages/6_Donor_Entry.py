@@ -70,7 +70,9 @@ def save(action, *args) -> bool:
 if "entry_message" in st.session_state:
     st.success(st.session_state.pop("entry_message"))
 
-tabs = st.tabs(["New opportunity", "Update an opportunity", "Next actions", "New donor", "Change history"])
+st.caption(ui.donor_sources_note())
+tabs = st.tabs(["New opportunity", "Update an opportunity", "Next actions", "New donor", "Change history",
+                "Import from the Excel tracker", "Backup"])
 
 # ------------------------------------------------------------------ new opportunity
 with tabs[0]:
@@ -173,6 +175,54 @@ with tabs[4]:
             "When": pd.to_datetime(history["changed_at"]).dt.strftime("%d %b %Y %H:%M"), "Who": history["changed_by"],
             "Record": history["record_id"], "What": history["action"], "Field": history["field"],
             "Before": history["old_value"], "After": history["new_value"]}), "donor_entry_change_history")
+
+# ------------------------------------------------------------------ one home: import the Excel tracker (once)
+with tabs[5]:
+    st.markdown("Move the donors and opportunities from the Excel donor tracker into this page, **once**, so donor "
+                "data has one home. IDs are kept, and each record keeps a note of the Excel file, sheet and row it "
+                "came from. After the import the pipeline no longer reads those Excel rows; the Excel donor template "
+                "stays only as an **offline fallback** for new opportunities (see the user guide).")
+    try:
+        preview = app_store.import_preview()
+    except app_store.EntryError as e:
+        preview = None
+        st.info(str(e))
+    if preview is not None:
+        d, o, problems = preview["donors"], preview["opportunities"], preview["problems"]
+        if not len(d) and not len(o) and not len(problems):
+            st.success("Nothing left to import: the Excel tracker's records are already kept here.")
+        else:
+            st.markdown(f"**Preview:** {len(d)} donors and {len(o)} opportunities will be moved; {len(problems)} "
+                        "opportunities must be corrected in the Excel file first (they stay in Excel until then).")
+            if len(o):
+                ui.table(pd.DataFrame({
+                    "Opportunity": o["opportunity_id"] + " " + o["title"], "Stage": o["stage"],
+                    "Requested": [ui.money(x) for x in o["requested_amount_rwf"]],
+                    "Probability": [f"{p:.0%}" for p in o["probability"]], "Owner": o["owner"],
+                    "From": o["source_file"] + " / row " + o["source_row"].astype(int).astype(str)}),
+                    "import_preview_opportunities", height=240)
+            if len(problems):
+                st.markdown("**To correct in Excel first**")
+                ui.table(problems.rename(columns={"opportunity_id": "Opportunity", "where": "Excel row",
+                                                  "problem": "Why"}), "import_preview_problems")
+            agree = st.checkbox("I have checked the preview and want to move these records to this page.",
+                                key="import_agree")
+            if st.button("Import now", type="primary", disabled=not (ready and agree and (len(d) or len(o)))):
+                save(lambda by: f"{app_store.import_tracker(by)['opportunities']} opportunities imported", who)
+
+# ------------------------------------------------------------------ backup
+with tabs[6]:
+    backups = app_store.list_backups()
+    st.markdown(f"A dated copy is kept automatically after every save and each time the dashboard starts "
+                f"(in `data/app/backups/`, the newest {ui.SETTINGS.get('app_backups_keep', 30)}). "
+                f"{len(backups)} copies now" + (f"; the newest: {backups[0].name}." if backups else "."))
+    st.download_button("⬇ Download backup (Excel: donors, opportunities, change history)",
+                       app_store.export_workbook() if app_store.db_path().exists() else b"",
+                       file_name=f"donor_entries_backup_{dt.date.today():%Y-%m-%d}.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                       disabled=not app_store.db_path().exists(), key="dl_entries_backup")
+    st.caption("Keep the downloaded file somewhere safe (not shared). To put a backup back, see the maintenance "
+               "guide, \"Restoring donor entries\".")
 
 # ------------------------------------------------------------------ entries and refresh
 st.markdown("### Entries made on this page")

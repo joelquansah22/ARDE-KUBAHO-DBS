@@ -50,9 +50,10 @@ ARDE/KUBAHO, suggested by the team and to be confirmed with the partner** (`docs
 | L22 | **Legal obligations** under Law No. 058/2021 are not yet confirmed with ARDE/KUBAHO or the university | D180 |
 | L23 | **A maintainer is needed** to add file layouts and spellings (no programming, but care with YAML files) | Maintenance guide |
 | L24 | **Derived indicators** with a new kind of calculation need someone who can write Python | Maintenance guide §6 |
-| L25 | **Donor entry has no login:** anyone using the laptop can choose any name; the history records the chosen name | D188 |
-| L26 | **Opportunities from the Excel tracker cannot be updated on the dashboard** (only those added there) | D187 |
-| L27 | **KoboToolbox forms are not yet deployed or used on a phone;** checked with pyxform only (ODK Validate not run) | D191 |
+| L25 | **No login:** anyone can pick any staff name on the Donor entry page; the change history records who people *say* they are. Real user accounts are needed before the tool is used by several people | D188 |
+| L26 | **Single laptop:** `data/app/entries.db` is not shared over a network; one person enters donor data at a time, on the one laptop. Backups are local copies (`data/app/backups/`) plus the Excel download | D187, D200 |
+| L27 | **Kobo forms are unchecked on a real account and phone** until the team tests them: they convert with pyxform (tested), but have not been deployed on KoboToolbox or filled in with KoboCollect (ODK Validate not run) | D191, D203 |
+| L30 | **Donor rows that need correcting stay in the Excel tracker** after the import until they are fixed and imported, and **new opportunities typed in the offline Excel template** are read from Excel until they are imported: during that time donor data has two homes | D201 |
 | L28 | **A Kobo export and an Excel file covering the same activities** would be counted twice | D192 |
 | L29 | **Brand colours and logo** not yet confirmed with ARDE/KUBAHO; an opened dropdown in the green sidebar was not checked automatically | D196, D198 |
 
@@ -69,7 +70,8 @@ the capstone; after that, the ARDE/KUBAHO owner (suggested role, to be confirmed
 | R2 | Data-sharing agreement, or decision that ARDE/KUBAHO runs the tool itself | L1, L22 | S to M | Executive director, ASU |
 | R3 | Usability test (3 to 5 people), timed reporting task, fresh-install test | L3 | M | Team, with programme manager and MEAL officer |
 | R4 | Re-measure load times on a quiet laptop; if the overview is still over 3 s, load the chart library on the first page | L4 | S | Team |
-| R5b | Deploy the Kobo forms on a test account and fill them in on one phone; export and run the pipeline | L27 | S | MEAL officer, with the team |
+| R5b | Deploy the Kobo forms on a test account and fill them in on one phone; export and run the pipeline | L27 | S | Team, then MEAL officer |
+| R5c | Import the Excel donor tracker into the Donor entry page (once), and agree that donor data is kept there | L30 | S | Executive director, finance officer |
 | R5 | Handover walkthrough: the maintainer refreshes the data and adds a file layout using only the guides | L23 | S | MEAL officer (maintainer) |
 
 ### Next 3 months (first real data)
@@ -91,5 +93,5 @@ the capstone; after that, the ARDE/KUBAHO owner (suggested role, to be confirmed
 | R13 | Extend to the second programme, then other programmes, one at a time | Scope | M per programme | MEAL officer |
 | R14 | Decide on Power BI or Streamlit for the long term; if Power BI, build the report from the exports (`docs/power_bi_guide.md`) | Brief §2 | M | Executive director, MEAL officer |
 | R15 | Budget data including staff and overheads, if finance can export it, for a full budget-versus-spend view | L17 | M | Finance officer |
-| R16 | If the tool is used by several people: a shared, access-controlled location and backups (a server with logins is a different project) | L19, L20 | L | Executive director |
+| R16 | If the tool is used by several people: real user accounts, a shared, access-controlled location and backups (a server with logins is a different project) | L19, L25, L26, L20 | L | Executive director |
 | R17 | A small "small numbers" rule for reports shared outside ARDE/KUBAHO, if agreed | Privacy | S | MEAL officer |

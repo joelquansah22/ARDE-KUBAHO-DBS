@@ -566,6 +566,20 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
     log = reader.log
     # Donor tracking entered on the dashboard: read next to the Excel donor tracker (both sources work together).
     app_donors, app_opps = read_app_entries(app_entries) if use_app_entries else ([], [])
+    if use_app_entries:
+        # One home for donor data: rows imported into the dashboard are no longer read from the Excel tracker.
+        import app_store
+        entries = Path(app_entries) if app_entries else app_store.db_path()
+        moved_d, moved_o = app_store.imported_ids(entries) if entries.exists() else (set(), set())
+        for entity, moved, id_field in (("donor", moved_d, "donor_id"), ("opportunity", moved_o, "opportunity_id")):
+            before = reader.records.get(entity, [])
+            kept = [r for r in before if r.get("source_file") == APP_SOURCE or str(r.get(id_field)) not in moved]
+            if len(kept) < len(before):
+                reader.records[entity] = kept
+                for (f, sh), n in pd.Series([(r["source_file"], r["source_sheet"]) for r in before if r not in kept]
+                                            ).value_counts().items():
+                    reader.inventory.append(dict(source_file=f, source_sheet=sh, entity=entity, rows=0,
+                                                 note=f"{n} rows already moved to the dashboard (Donor entry): not read"))
     if app_donors or app_opps:
         reader.records.setdefault("donor", []).extend(app_donors)
         reader.records.setdefault("opportunity", []).extend(app_opps)
@@ -627,8 +641,10 @@ def run(raw_dir: Path | None = None, staging: Path | None = None, settings: dict
     individuals = sorted((d for d in donors
                           if recode(d.get("donor_type"), settings["donor_pipeline"]["donor_type_mapping"],
                                     "donor_type").value == "individual"),
-                         key=lambda d: (d.get("source_file") == APP_SOURCE, str(d.get("donor_id"))))
-    # (Donors entered on the dashboard are numbered after the Excel tracker's, so existing labels never change.)
+                         key=lambda d: (d.get("source_file") == APP_SOURCE,
+                                        d["source_row"] if d.get("source_file") == APP_SOURCE else str(d.get("donor_id"))))
+    # Donors entered on the dashboard are numbered after the Excel tracker's, in the order they were added (an import
+    # adds the tracker's donors in donor-ID order), so existing "Individual donor #NNN" labels never change.
     label = settings["privacy"]["individual_donor_label"]
     name_to_key = {}
     for d in donors:

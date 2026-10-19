@@ -328,6 +328,35 @@ def page_header(title: str, page: str) -> None:
                 + (f"<p>{html.escape(summary)}</p>" if summary else "") + "</div>", unsafe_allow_html=True)
 
 
+@st.cache_resource(show_spinner=False)
+def startup_backup() -> str:
+    """Once each time the dashboard starts: a dated copy of the donor entries (data/app/backups/)."""
+    import app_store
+    copy = app_store.backup(reason="start")
+    return copy.name if copy else ""
+
+
+def donor_sources_note() -> str:
+    """Where the donor figures come from: the Donor entry page (incl. rows imported from the Excel tracker), and any
+    rows still read from the Excel tracker (the offline fallback)."""
+    import app_store
+    counts = query("SELECT source_file = 'entries.db' AS app, COUNT(*) AS n FROM fact_opportunity GROUP BY 1")
+    app_n = int(counts.loc[counts["app"], "n"].sum()) if len(counts) else 0
+    excel_n = int(counts.loc[~counts["app"].astype(bool), "n"].sum()) if len(counts) else 0
+    _, moved = app_store.imported_ids()
+    history = [h for h in app_store.table("change_history") if h["action"] == "imported from the Excel tracker"]
+    when = f" on {dt.datetime.fromisoformat(history[0]['changed_at']):%d %b %Y}" if history else ""
+    if moved:
+        text = (f"Donor data is kept on the Donor entry page: {app_n} opportunities, of which {len(moved)} were moved "
+                f"from the Excel tracker{when}; those Excel rows are no longer read.")
+        text += (f" {excel_n} more come from the Excel tracker, used only as an offline fallback." if excel_n
+                 else " The Excel tracker is now only an offline fallback.")
+    else:
+        text = (f"{excel_n} opportunities come from the Excel tracker and {app_n} from the Donor entry page. To keep "
+                "donor data in one place, use \"Import from the Excel tracker\" on the Donor entry page (once).")
+    return text + " Figures change after the pipeline runs."
+
+
 def sidebar_logo() -> None:
     """The logo at the top of the sidebar, with the organisation name (only if the logo file exists)."""
     path = ROOT / THEME.get("logo", "")

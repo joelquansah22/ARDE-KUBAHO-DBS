@@ -185,6 +185,33 @@ remove a line, keeping the spaces, and reload the page. Codes are recommended ra
 are in `data/app/entries.db` (SQLite): back it up with the Excel files; to inspect it, the free "DB Browser for
 SQLite" opens it (read only, please).
 
+## 8b-2. Restoring donor entries
+
+Donor entries live only in `data/app/entries.db`. Copies are kept in `data/app/backups/` (after every save, each
+time the dashboard starts, after an import; the newest 30, `app_backups_keep` in `settings.yaml`), each named with
+its date and time, e.g. `entries_20261019-101500-123456_save.db`.
+
+To put a backup back (for example after a mistaken change, or a damaged file):
+
+1. Close the dashboard (close its black window) so nobody is entering data.
+2. In a command window in the project folder (section 1), list the copies, newest first:
+   ```
+   python src/app_store.py --list-backups
+   ```
+3. Choose the copy from just before the problem (the time is in the name; the change history in the Downloaded
+   Excel backups also shows what changed when), and restore it:
+   ```
+   python src/app_store.py --restore data/app/backups/entries_20261019-101500-123456_save.db
+   ```
+   The current file is first copied to a `..._before-restore.db` backup, so a restore can itself be undone the same
+   way.
+4. Start the dashboard, open **Donor entry**, check the entries and the change history, then click **Update the
+   figures now**.
+
+If every copy on the laptop is lost (for example a broken disk), the downloaded Excel backup holds the same data:
+ask the person who maintains the tool to load it into a fresh database (each sheet is one table, with the same
+column names). Restoring is tested automatically (`tests/test_app_entries.py`).
+
 ## 8c. KoboToolbox forms
 
 The forms in `forms/` are built from the programme master and the indicator catalogue:

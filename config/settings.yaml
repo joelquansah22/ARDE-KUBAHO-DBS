@@ -69,6 +69,10 @@ reporting_window:
 # Set to null to use the real current date.
 as_of_date: 2026-06-30
 
+# Donor entries (data/app/entries.db): dated backups are kept in data/app/backups/, after every save and each time
+# the dashboard starts. Only the newest this-many are kept.
+app_backups_keep: 30
+
 budget_monitoring:
   # A project whose activity spending to the as-of date is above this % of its budget
   # gets a warning: "over budget by RWF X (Y%)". Activity costs only (no staff or overheads).

@@ -72,6 +72,7 @@ templates:
       - "Who fills this in: the person who follows up funding (e.g. the executive director or a programme manager). Update it at least once a month and before each management meeting."
       - "Donors sheet: one row per donor ORGANISATION. Fill in the Donors sheet first: the Donor column on the Opportunities sheet is a dropdown of the names typed there."
       - "Individual donors: type them as donors with Type = individual. The dashboard never shows their name, only 'Individual donor #001'. Contact person, email and phone are never shown on the dashboard."
+      - "OFFLINE FALLBACK ONLY. Donor data is kept on the dashboard's Donor entry page. Use this file only when the dashboard cannot be used (for example away from the office laptop), for NEW opportunities with NEW IDs; import them on the Donor entry page afterwards."
       - "Opportunities sheet: one row per funding opportunity (a call, a proposal, a renewal). Keep the row when it is won or lost: change the Stage."
       - "Stages, in order: Identified (we know about it) - Qualified (we fit and decided to go) - Concept note - Proposal submitted - then the OUTCOME: Awarded or Declined."
       - "Probability: your honest guess that it will be awarded, as a percentage (type 40% or 0.4). The dashboard multiplies the amount requested by it (the 'weighted' value). Declined = 0%; Awarded = 100%."

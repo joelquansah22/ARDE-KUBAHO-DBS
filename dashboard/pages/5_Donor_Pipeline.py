@@ -17,6 +17,7 @@ st.markdown(f"<div class='muted'>As of {today:%d %B %Y}. Weighted value = amount
             "success. Individual donors are shown only as 'Individual donor #NNN'. Programme, project, district and "
             "sex filters do not apply on this page.</div>", unsafe_allow_html=True)
 opps = measures.opportunities(run, ui.SETTINGS)
+st.caption(ui.donor_sources_note())
 open_ = opps[opps["is_open"]]
 awarded = opps[opps["stage"] == "Awarded"]
 declined = opps[opps["stage"] == "Declined"]

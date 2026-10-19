@@ -16,6 +16,18 @@ by their staff code from config/staff.yaml, and donor contact details are not as
 
 The pipeline reads these entries next to the Excel donor tracker (src/ingest.py, read_app_entries), so both sources
 work together; entries keep lineage (source_file "entries.db", the table, and the row number).
+
+ONE HOME FOR DONOR DATA: import_tracker() moves the Excel tracker's donors and opportunities into this database once
+(keeping their IDs, and their original file, sheet and row in origin_*). From then on the pipeline no longer reads
+those rows from Excel; the Excel donor template remains only as an offline fallback for NEW opportunities.
+
+BACKUPS: after every save, and once each time the dashboard starts, a dated copy is kept in data/app/backups/ (the
+newest settings.app_backups_keep, 30). restore() puts a backup back (the current file is backed up first).
+
+HOW TO RUN (maintenance)
+    python src/app_store.py --list-backups
+    python src/app_store.py --backup
+    python src/app_store.py --restore data/app/backups/entries_20261019-101500_save.db
 """
 
 from __future__ import annotations
@@ -37,6 +49,7 @@ CREATE TABLE IF NOT EXISTS donors (
     thematic_interests TEXT,
     created_by TEXT NOT NULL,
     created_at TEXT NOT NULL,
+    origin_file TEXT, origin_sheet TEXT, origin_row INTEGER,       -- set when imported from the Excel tracker
     CHECK (donor_type <> 'individual' OR donor_name IS NULL),      -- individuals are never named here
     CHECK (donor_type = 'individual' OR donor_name IS NOT NULL)
 );
@@ -59,6 +72,7 @@ CREATE TABLE IF NOT EXISTS opportunities (
     created_at TEXT NOT NULL,
     updated_by TEXT,
     updated_at TEXT,
+    origin_file TEXT, origin_sheet TEXT, origin_row INTEGER,       -- set when imported from the Excel tracker
     CHECK (donor_id IS NOT NULL OR donor_key IS NOT NULL)
 );
 CREATE TABLE IF NOT EXISTS change_history (
@@ -111,6 +125,11 @@ def connect(path: Path | None = None):
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     con.executescript(SCHEMA)
+    for table_name in ("donors", "opportunities"):                  # files made before the import step existed
+        have = {c[1] for c in con.execute(f"PRAGMA table_info({table_name})")}
+        for col, kind in (("origin_file", "TEXT"), ("origin_sheet", "TEXT"), ("origin_row", "INTEGER")):
+            if col not in have:
+                con.execute(f"ALTER TABLE {table_name} ADD COLUMN {col} {kind}")
     try:
         yield con
         con.commit()
@@ -212,6 +231,7 @@ def add_donor(d: dict, by: str, path: Path | None = None) -> str:
                     f"VALUES (?, {', '.join('?' for _ in DONOR_FIELDS)}, ?, ?)",
                     (donor_id, *[d[k] for k in DONOR_FIELDS], by, now()))
         _history(con, by, "donors", donor_id, "added")
+    backup(path, "save")
     return donor_id
 
 
@@ -240,6 +260,7 @@ def add_opportunity(o: dict, by: str, path: Path | None = None) -> str:
                     f" VALUES (?, {', '.join('?' for _ in OPPORTUNITY_FIELDS)}, ?, ?)",
                     (opp_id, *[_store(o[k]) for k in OPPORTUNITY_FIELDS], by, now()))
         _history(con, by, "opportunities", opp_id, "added")
+    backup(path, "save")
     return opp_id
 
 
@@ -265,6 +286,8 @@ def update_opportunity(opportunity_id: str, changes: dict, by: str, path: Path |
         if changed:
             con.execute("UPDATE opportunities SET updated_by = ?, updated_at = ? WHERE opportunity_id = ?",
                         (by, now(), opportunity_id))
+    if changed:
+        backup(path, "save")
     return changed
 
 
@@ -280,6 +303,7 @@ def mark_next_action_done(opportunity_id: str, by: str, path: Path | None = None
                  f"{row['next_action']} (due {row['next_action_date']})", None)
         con.execute("UPDATE opportunities SET next_action = NULL, next_action_date = NULL, updated_by = ?, "
                     "updated_at = ? WHERE opportunity_id = ?", (by, now(), opportunity_id))
+    backup(path, "save")
 
 
 # ---------------------------------------------------------------- reading
@@ -291,3 +315,191 @@ def table(name: str, path: Path | None = None) -> list[dict]:
         return []
     with connect(path) as con:
         return [dict(r) for r in con.execute(f"SELECT * FROM {name} ORDER BY 1")]
+
+
+# ---------------------------------------------------------------- backups
+def backup_folder(path: Path | None = None) -> Path:
+    return Path(path or db_path()).parent / "backups"
+
+
+def backup(path: Path | None = None, reason: str = "manual") -> Path | None:
+    """A dated, consistent copy of the database in data/app/backups/; only the newest N are kept
+    (settings.app_backups_keep). Returns the copy, or None if there is no database yet."""
+    path = Path(path or db_path())
+    if not path.exists():
+        return None
+    folder = backup_folder(path)
+    folder.mkdir(parents=True, exist_ok=True)
+    stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    target = folder / f"entries_{stamp}_{reason}.db"
+    src, dst = sqlite3.connect(path), sqlite3.connect(target)
+    try:
+        src.backup(dst)                                   # SQLite's own copy: safe even while the file is in use
+    finally:
+        dst.close()
+        src.close()
+    keep = int(load_settings().get("app_backups_keep", 30))
+    for old in list_backups(path)[keep:]:
+        old.unlink()
+    return target
+
+
+def list_backups(path: Path | None = None) -> list[Path]:
+    """Backups, newest first."""
+    folder = backup_folder(path)
+    return sorted(folder.glob("entries_*.db"), reverse=True) if folder.exists() else []
+
+
+def restore(backup_file: Path, path: Path | None = None) -> Path | None:
+    """Put a backup back as the database. The current database is backed up first ("before-restore"), so a restore
+    can itself be undone. Returns that safety copy."""
+    path, backup_file = Path(path or db_path()), Path(backup_file)
+    if not backup_file.exists():
+        raise EntryError(f"Backup not found: {backup_file}")
+    with sqlite3.connect(backup_file) as check:                   # refuse a file that is not an entries database
+        tables = {r[0] for r in check.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    if not {"donors", "opportunities", "change_history"} <= tables:
+        raise EntryError(f"{backup_file.name} is not a donor entries backup.")
+    safety = backup(path, "before-restore")
+    src, dst = sqlite3.connect(backup_file), sqlite3.connect(path)
+    try:
+        src.backup(dst)
+    finally:
+        dst.close()
+        src.close()
+    return safety
+
+
+def export_workbook(path: Path | None = None) -> bytes:
+    """All donor tables and the change history in one Excel file (the "Download backup" button)."""
+    import io
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+    wb = Workbook()
+    info = wb.active
+    info.title = "About"
+    info.append(["Donor entries backup (ARDE/KUBAHO MEAL dashboard)"])
+    info["A1"].font = Font(bold=True, size=13)
+    info.append([f"Exported {dt.datetime.now():%d %B %Y %H:%M} from {Path(path or db_path()).name}"])
+    if load_settings().get("synthetic_mode"):
+        info.append([load_settings()["synthetic_banner"]])
+    info.append(["No names, phone numbers, emails or ID numbers of people are stored in this database."])
+    for name, title in (("donors", "Donors"), ("opportunities", "Opportunities"), ("change_history", "Change history")):
+        rows = table(name, path)
+        ws = wb.create_sheet(title)
+        columns = list(rows[0]) if rows else []
+        if not columns:
+            with connect(path) as con:
+                columns = [c[1] for c in con.execute(f"PRAGMA table_info({name})")]
+        ws.append(columns)
+        for c in ws[1]:
+            c.font = Font(bold=True)
+        for r in rows:
+            ws.append([r[c] for c in columns])
+        ws.freeze_panes = "A2"
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
+# ---------------------------------------------------------------- one home: import the Excel tracker
+def import_preview(staging: Path | None = None, path: Path | None = None) -> dict:
+    """What import_tracker would move from the Excel donor tracker, as the pipeline last cleaned it
+    (data/staging). Returns donors, opportunities (ready to import) and problems (rows that must be corrected in
+    the Excel file first). Rows already imported, quarantined rows and rows entered on the dashboard are left out."""
+    import pandas as pd
+    staging = Path(staging or resolve_path("staging"))
+    if not (staging / "clean_opportunity.parquet").exists():
+        raise EntryError("Run the pipeline first (python src/pipeline.py): the import uses its cleaned tracker.")
+    lineage = ["source_file", "source_sheet", "source_row"]
+    clean_d, clean_o = pd.read_parquet(staging / "clean_donor.parquet"), pd.read_parquet(staging / "clean_opportunity.parquet")
+    ingested_d = pd.read_parquet(staging / "ingested_donor.parquet")[lineage + ["donor_id"]]
+    quarantine = pd.read_parquet(staging / "dq_quarantine.parquet")
+    q_keys = set(zip(quarantine["source_file"], quarantine["source_sheet"], quarantine["source_row"].astype(int)))
+    donors = clean_d[clean_d["source_file"] != "entries.db"].merge(ingested_d, on=lineage, how="left")
+    opps = clean_o[clean_o["source_file"] != "entries.db"].copy()
+    present_d = {r["donor_id"] for r in table("donors", path)}
+    present_o = {r["opportunity_id"] for r in table("opportunities", path)}
+    donors = donors[~donors["donor_id"].isin(present_d)]
+    id_of_key = dict(zip(clean_d["donor_key"], clean_d.merge(ingested_d, on=lineage, how="left")["donor_id"]))
+    problems, ready = [], []
+    for r in opps.to_dict("records"):
+        where = f"{r['source_file']} / {r['source_sheet']} / row {int(r['source_row'])}"
+        if r["opportunity_id"] in present_o:
+            continue
+        if (r["source_file"], r["source_sheet"], int(r["source_row"])) in q_keys:
+            problems.append(dict(opportunity_id=r["opportunity_id"], where=where,
+                                 problem="Quarantined by the data-quality checks: correct it in the Excel file first."))
+            continue
+        o = {k: (None if isinstance(v, float) and v != v else v) for k, v in r.items()}
+        o["donor_id"] = id_of_key.get(o.get("donor_key"))
+        for k in ("deadline", "next_action_date"):
+            if o.get(k) is not None:
+                o[k] = pd.Timestamp(o[k]).date()
+        issues = validate_opportunity({**o, "donor_key": None}, creating=False)
+        if issues:
+            problems.append(dict(opportunity_id=o["opportunity_id"], where=where, problem=" ".join(issues)))
+            continue
+        ready.append(o)
+    return dict(donors=donors.sort_values("donor_id").reset_index(drop=True),
+                opportunities=pd.DataFrame(ready), problems=pd.DataFrame(problems, columns=["opportunity_id", "where",
+                                                                                            "problem"]))
+
+
+def import_tracker(by: str, staging: Path | None = None, path: Path | None = None) -> dict:
+    """Move the Excel tracker's donors and opportunities into the database, ONCE, keeping their IDs and their
+    original file, sheet and row. Individual donors are stored without a name (their label is kept by numbering
+    them in the same order as before). Rows with problems are left in Excel (see import_preview)."""
+    _check_staff(by)
+    preview = import_preview(staging, path)
+    donors, opps = preview["donors"], preview["opportunities"]
+    with connect(path) as con:
+        for d in donors.to_dict("records"):
+            individual = d["donor_type"] == "individual"
+            con.execute("INSERT INTO donors (donor_id, donor_name, donor_type, country, thematic_interests, created_by, "
+                        "created_at, origin_file, origin_sheet, origin_row) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (d["donor_id"], None if individual else d["donor_name"], d["donor_type"],
+                         d.get("country"), d.get("thematic_interests"), by, now(), d["source_file"],
+                         d["source_sheet"], int(d["source_row"])))
+            _history(con, by, "donors", d["donor_id"], "imported from the Excel tracker", None, None,
+                     f"{d['source_file']} / {d['source_sheet']} / row {int(d['source_row'])}")
+        for o in opps.to_dict("records") if len(opps) else []:
+            con.execute(f"INSERT INTO opportunities (opportunity_id, {', '.join(OPPORTUNITY_FIELDS)}, created_by, "
+                        f"created_at, origin_file, origin_sheet, origin_row) VALUES "
+                        f"(?, {', '.join('?' for _ in OPPORTUNITY_FIELDS)}, ?, ?, ?, ?, ?)",
+                        (o["opportunity_id"], *[_store({**o, "donor_key": None}.get(k)) for k in OPPORTUNITY_FIELDS],
+                         by, now(), o["source_file"], o["source_sheet"], int(o["source_row"])))
+            _history(con, by, "opportunities", o["opportunity_id"], "imported from the Excel tracker", None, None,
+                     f"{o['source_file']} / {o['source_sheet']} / row {int(o['source_row'])}")
+    backup(path, "import")
+    return dict(donors=len(donors), opportunities=len(opps), left_in_excel=len(preview["problems"]))
+
+
+def imported_ids(path: Path | None = None) -> tuple[set, set]:
+    """IDs of donors and opportunities that were imported from the Excel tracker (the pipeline stops reading those
+    rows from Excel)."""
+    donors = {r["donor_id"] for r in table("donors", path) if r.get("origin_file")}
+    opps = {r["opportunity_id"] for r in table("opportunities", path) if r.get("origin_file")}
+    return donors, opps
+
+
+def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="Donor entries database: backups and restore.")
+    parser.add_argument("--list-backups", action="store_true")
+    parser.add_argument("--backup", action="store_true")
+    parser.add_argument("--restore", type=Path, metavar="BACKUP_FILE")
+    args = parser.parse_args()
+    if args.backup:
+        print(f"Backup written: {backup(reason='manual')}")
+    if args.restore:
+        safety = restore(args.restore)
+        print(f"Restored {args.restore.name}. The database as it was just before is kept in {safety}.")
+    if args.list_backups or not (args.backup or args.restore):
+        for b in list_backups():
+            print(f"{b.name}  ({b.stat().st_size:,} bytes)")
+
+
+if __name__ == "__main__":
+    main()

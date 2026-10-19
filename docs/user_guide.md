@@ -129,6 +129,17 @@ the month-by-month series and the arrow compares the last 3 months with the 3 be
 The entries are saved on this laptop in `data/app/entries.db`. If a check fails, a red message says what to correct;
 nothing is saved until it is right.
 
+**One home for donor data.** The Donor entry page is where donor data is kept. Once, the MEAL officer or finance
+officer uses the **Import from the Excel tracker** tab: it shows a preview (what moves, and which rows must be
+corrected in Excel first), then moves the tracker's donors and opportunities here, keeping their IDs and a note of the
+Excel row each came from. From then on those Excel rows are no longer read. The donor Excel template stays only as an
+**offline fallback**: when the dashboard cannot be used, type new opportunities (with new IDs) in it, save it in
+`data/raw/`, and import them on the Donor entry page later. The Donor pipeline page says where its figures come from.
+
+**Backups.** A dated copy of the entries is kept automatically after every save and each time the dashboard starts
+(`data/app/backups/`, the newest 30). The **Backup** tab also has **Download backup**: one Excel file with all donors,
+opportunities and the change history. Download one each month and keep it somewhere safe.
+
 ## 5c. Field data on phones (KoboToolbox)
 
 Field officers can fill in the activity and indicator-report forms on an Android phone with KoboCollect instead of

@@ -22,6 +22,7 @@ st.set_page_config(page_title="ARDE/KUBAHO MEAL dashboard", page_icon="📊", la
                    initial_sidebar_state="expanded")
 st.markdown(ui.CSS, unsafe_allow_html=True)
 ui.sidebar_logo()                                     # logo and name, if assets/arde_logo.png exists
+ui.startup_backup()                                   # a dated copy of the donor entries, once per start
 
 HERE = Path(__file__).resolve().parent
 PAGES = [
