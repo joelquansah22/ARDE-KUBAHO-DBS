@@ -489,3 +489,36 @@ I created an empty private repository: <https://github.com/joelquansah22/ARDE-KU
 ```text
 confirm
 ```
+
+## 19. 19 October 2026, 13:02 UTC (saved before acting on it)
+
+```text
+Add the "For teammates" section to the README: how to clone the repository from GitHub, set up Python and the virtual environment on Windows, install requirements, generate the demo data and run the dashboard. Write it for someone who has never used git, with each step as a command they can copy. Mention git and Python installation links. Commit and push, then stop.
+```
+
+Attached to the same message, as pasted text (**not acted on**: the message itself asked only for the README section; to be confirmed with the user):
+
+```text
+UI change (allowed under the feature freeze; no new functions):
+
+1. Home page as the landing page:
+   - A welcome header with the logo, "ARDE/KUBAHO Programme and Donor Data System" and one line on what the system does.
+   - A strip of 4 key figures (people reached, indicators on track, weighted pipeline, data-quality score).
+   - "Needs attention" box: records to review, records held back for correction, overdue donor actions, upcoming deadlines (each links to its page).
+   - Menu tiles grouped in three sections, each tile with an icon, title and one-line description, linking to its page:
+     Insights: Executive summary, Programme overview, Indicators, Geography, Data quality
+     Data: Data entry, Upload Excel, Records
+     Donors: Donor pipeline, Donor entry
+   - The Executive summary becomes a normal page, no longer the landing page.
+
+2. Sidebar menu grouped under the same three section headings (use st.navigation sections), with Home at the top. Replace emoji icons with Streamlit Material icons for a cleaner look, consistently on the sidebar and the tiles.
+
+3. Lighter colours:
+   - Sidebar: white or a very light green tint (e.g. #F4F9F2), dark text, the active item highlighted with a light green background and a green left bar.
+   - Green only as an accent: headings, buttons, active items, card top borders.
+   - Main background white or near-white. Cards white with a subtle border or shadow.
+   - Keep all colours in config/theme.yaml, rerun the contrast check, and report any pair that fails WCAG AA.
+   - Keep the yellow synthetic-data banner unchanged.
+
+4. Check at 1366 x 768 that the home page fits without scrolling. Retake screenshots (including the home page), update the user guide and demo script to start from the home page, commit, push, and stop.
+```

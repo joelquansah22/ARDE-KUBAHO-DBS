@@ -15,6 +15,132 @@ students as a capstone prototype; it is not a production system. Moving to real 
 
 ---
 
+## For teammates: get the project from GitHub and run the demo (Windows)
+
+You do not need to know git. Follow the steps in order; copy each command into the window and press Enter.
+Everything runs on **synthetic (invented) data**: no ARDE/KUBAHO data is in the repository.
+
+**Before you start (once):** ask Joel to add your GitHub account to the repository
+(https://github.com/joelquansah22/ARDE-KUBAHO-DBS is private), and accept the invitation email from GitHub.
+
+### Step 1. Install the two programs (once per laptop)
+
+1. **Git** (downloads the project from GitHub): https://git-scm.com/download/win . Run the installer and click
+   **Next** on every screen (the default choices are fine).
+2. **Python 3.11 or newer**: https://www.python.org/downloads/ . On the first screen of the installer **tick "Add
+   python.exe to PATH"**, then click **Install Now**.
+
+### Step 2. Open a command window
+
+Press the **Windows key**, type `cmd` and press **Enter**. A black window opens. Check both programs are installed
+(each line should print a version number):
+
+```
+git --version
+```
+```
+python --version
+```
+
+If either says "not recognised", install it again (for Python, with the PATH tick), then close and reopen the window.
+
+### Step 3. Download the project (once)
+
+Go to your Documents folder:
+
+```
+cd %USERPROFILE%\Documents
+```
+
+Download (clone) the project:
+
+```
+git clone https://github.com/joelquansah22/ARDE-KUBAHO-DBS.git
+```
+
+The first time, a **"Connect to GitHub"** window appears (it may be behind other windows: check the taskbar). Click
+**Sign in with your browser**, sign in to GitHub and click **Authorize**. Windows remembers this, so it only happens
+once. Then go into the project folder:
+
+```
+cd ARDE-KUBAHO-DBS
+```
+
+### Step 4. Set up Python for the project (once, about 5 minutes)
+
+Create a private Python environment inside the project folder (the `.venv` folder; it is never uploaded):
+
+```
+python -m venv .venv
+```
+
+Switch it on (the start of the line then shows `(.venv)`; do this every time you open a new command window):
+
+```
+.venv\Scripts\activate
+```
+
+Install the packages the project needs (takes a few minutes):
+
+```
+python -m pip install -r requirements.txt
+```
+
+### Step 5. Create the demonstration data (about 2 minutes)
+
+Create the synthetic Excel files (in `data\raw\`):
+
+```
+python src\generate_synthetic.py
+```
+
+Prepare the figures (read, clean, check and model the data):
+
+```
+python src\pipeline.py
+```
+
+The first run also creates your own secret "salt" in your user folder (`%USERPROFILE%\.arde_meal\`), used to code
+names; it is never inside the project and never uploaded. Each teammate has their own, which is fine for the
+synthetic data.
+
+### Step 6. Open the dashboard
+
+```
+streamlit run dashboard\app.py
+```
+
+Your browser opens the dashboard at http://localhost:8501 (if not, type that address into the browser). Keep the
+black window open while you use it; press **Ctrl+C** in it (or close it) to stop. Next time, you can simply
+double-click **`run_dashboard.bat`** in the project folder instead of steps 4 to 6.
+
+### Later: get the newest version
+
+In a command window in the project folder (`cd %USERPROFILE%\Documents\ARDE-KUBAHO-DBS`):
+
+```
+git pull
+```
+```
+.venv\Scripts\activate
+```
+```
+python -m pip install -r requirements.txt
+```
+```
+python src\pipeline.py
+```
+
+To reset the demonstration to its starting state (deletes anything entered on the dashboard): `python
+src\reset_demo.py --yes`. To run the automatic checks: `python -m pip install -r requirements-dev.txt`, then
+`python -m pytest` (5 to 10 minutes).
+
+**Please do not** put real ARDE/KUBAHO files in the project or upload any file from `data\` to GitHub. Git is set up to
+ignore everything in `data\`, the `.venv` folder and the salt. If you want to change code, ask Joel first how the team
+shares changes.
+
+---
+
 ## 1. First-time set-up on Windows (about 20 minutes, once per laptop)
 
 You need an internet connection for step 1 and step 4 only.
