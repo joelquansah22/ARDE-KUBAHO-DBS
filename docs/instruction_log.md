@@ -472,3 +472,14 @@ Lift the feature freeze for one extension. ARDE needs a database staff can work 
 
 7. Tag v1.2, then return to the feature freeze. Stop and report back.
 ```
+
+## 17. 19 October 2026, 12:50 UTC (saved before acting on it)
+
+```text
+I created an empty private repository: <https://github.com/joelquansah22/ARDE-KUBAHO-DBS>
+
+1. Show me the updated list of files that will be pushed. Before that, confirm none of these are included: anything under data/ (including uploaded Excel files and entries.db), backups, the salt, .venv, screenshots containing anything other than synthetic data. If uploaded files are stored outside data/, make sure that folder is gitignored too.
+2. Wait for my confirmation.
+3. Then add the remote, push all commits and the v1.0, v1.1 and v1.2 tags. If Windows asks me to sign in to GitHub, tell me what to expect.
+4. Report the repository URL and stop.
+```

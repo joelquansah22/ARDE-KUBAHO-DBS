@@ -21,7 +21,12 @@ data/**
 # but ignore any stray copy just in case.
 *.salt
 salt.txt
+pseudonymisation_salt*
 .env
+
+# Dashboard entries and their backups (data/app/), and uploaded or replaced Excel files (data/raw/,
+# data/app/replaced_files/) are all under data/ above. Any stray database copy elsewhere is ignored too.
+*.db
 
 # Generated reports and exports
 *.duckdb
