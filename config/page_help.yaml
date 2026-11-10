@@ -29,6 +29,30 @@ menu:
       - {key: donor_pipeline, file: pages/5_Donor_Pipeline.py, title: Donor pipeline, icon: ":material/handshake:", url: donor-pipeline, description: "Open opportunities, deadlines and the weighted pipeline"}
       - {key: donor_entry, file: pages/6_Donor_Entry.py, title: Donor entry, icon: ":material/volunteer_activism:", url: donor-entry, description: "Add and update donors and opportunities"}
 
+# The menu in ARDE/KUBAHO workbook mode (settings: data_mode: arde). Pages that need monthly records (Executive
+# summary, Programme overview, Indicators, Data entry, Records) or the demonstration donor tracker (Donor entry) have
+# no data in this format, so they are not in this menu (team instruction 21: hidden, no empty charts).
+menu_arde:
+  - section: ""
+    pages:
+      - {key: start, file: arde_home.py, title: Home, icon: ":material/home:", url: "", description: "Key figures, what needs attention, and every page"}
+  - section: Insights
+    pages:
+      - {key: portfolio, file: pages/a1_Portfolio.py, title: Portfolio, icon: ":material/folder_open:", url: portfolio, description: "Projects by area and status, timeline, budgets and progress"}
+      - {key: results_kpis, file: pages/a2_Results_KPIs.py, title: Results and KPIs, icon: ":material/account_tree:", url: results-kpis, description: "Each project's results chain and its KPIs against target"}
+      - {key: reach, file: pages/a3_Reach.py, title: Reach, icon: ":material/groups:", url: reach, description: "Direct and indirect reach, one chart per unit"}
+      - {key: geography, file: pages/a5_Geography.py, title: Geography, icon: ":material/map:", url: geography, description: "Projects by district, on a map"}
+      - {key: data_quality, file: pages/a6_Data_Quality.py, title: Data quality, icon: ":material/fact_check:", url: data-quality, description: "The checks, the review queue and values held back"}
+  - section: Data
+    pages:
+      - {key: kpi_update, file: pages/a7_KPI_Update.py, title: KPI update, icon: ":material/edit_note:", url: kpi-update, description: "Record a KPI's achieved value and status"}
+      - {key: upload_excel, file: pages/a8_Upload_Workbook.py, title: Upload Excel, icon: ":material/upload_file:", url: upload-excel, description: "Check and add a newer copy of the MEAL workbook"}
+      - {key: register, file: pages/a9_Register.py, title: Register, icon: ":material/table_view:", url: register, description: "Browse every table, see its source row, download the register"}
+  - section: Donors
+    pages:
+      - {key: donor_pipeline, file: pages/a10_Donor_Pipeline.py, title: Donor pipeline, icon: ":material/handshake:", url: donor-pipeline, description: "Funding opportunities; link to funding history"}
+      - {key: partners_funding, file: pages/a4_Partners_Funding.py, title: Partners and funding, icon: ":material/volunteer_activism:", url: partners-funding, description: "Funding history: financial and in-kind contributions"}
+
 # Pages where the sidebar's sex filter does not apply (it is shown greyed out).
 no_sex_filter: [data_quality, donor_pipeline, donor_entry, data_entry, upload_excel, records]
 
@@ -44,6 +68,73 @@ summaries:
   data_entry: "Enter this month's activity records and indicator reports; every change is recorded."
   upload_excel: "Upload a filled Excel template: see what is accepted, held back or sent for review, then add it."
   records: "Browse and search every stored record, see where it came from, and export it to Excel."
+  # ARDE/KUBAHO workbook mode
+  arde_start: "ARDE/KUBAHO's projects, results and partners in one place: what needs attention, and where to find everything."
+  portfolio: "Which projects we run, where they stand, and what they cost, in their own currency."
+  results_kpis: "For each project: its objectives and outputs, and how each KPI compares with its target."
+  reach: "How many people, households and organisations each project reaches, unit by unit."
+  arde_geography: "In which districts the projects work."
+  arde_data_quality: "Which values need checking or correcting in the workbook, and why."
+  kpi_update: "Record a KPI's latest achieved value and status; every change is kept."
+  arde_upload: "Upload a newer copy of the MEAL workbook: check it first, then add it."
+  register: "Every table with its source row, and the whole register as an Excel workbook."
+  arde_donor_pipeline: "Funding opportunities and the funding history."
+  partners_funding: "Who contributes what to each project, in money and in kind."
+
+arde_start: |
+  - The figures come from ARDE/KUBAHO's MEAL workbook (the copy named in the sidebar), with any KPI updates made on the dashboard.
+  - **KPIs**: Achieved = 100% of target or more; On track = 75 to 99%; Needs attention = below 75% (the workbook's own thresholds). **Not recorded** = not started, nothing achieved yet. **No target** = the target is 0 or blank.
+  - **Direct reach (people)** counts only rows whose unit is "people". Women, men, children, households and organisations are on the Reach page, unit by unit: they are never added together.
+  - **Data-quality score**: for each check that holds a value back or sends it for review, the share of records that pass; the score is the average.
+
+portfolio: |
+  - **Budgets** are shown in their own currency (EUR, RWF or USD). The RWF figure next to them is an **estimate** (≈), at an approximate exchange rate for the project's start year (to be confirmed with the BNR rates). Totals are given per currency; across currencies only the RWF estimate is added.
+  - **Budget used** and **progress** are stored as percentages. A value that cannot be a percentage (for example 5,000%) is shown as **invalid, check**: it looks like an amount typed into the % column. It is not used anywhere.
+  - Managers are shown by role, not by name.
+
+results_kpis: |
+  - Choose a project to see its **results chain**: General Objective > Specific Objective > Output, with the KPIs under each result.
+  - **% achieved** = achieved / target. The band uses the workbook's thresholds (Achieved 100%+, On track 75 to 99%, Needs attention below 75%). **Not recorded** = not started with nothing achieved; **No target** = target 0 or blank.
+  - "Workbook band" is the band in ARDE's working register. It differs from ours only for KPIs not started (the register calls them Needs attention) and a KPI with no target.
+  - KPIs updated on the dashboard show who updated them and when.
+
+reach: |
+  - Reach is counted in many **units** (people, women, households, cooperatives, schools...). They are **never added together**: each chart shows one unit type, and each bar one unit.
+  - **Women and men rows may overlap people rows** in the same project. Such rows are marked on the Data quality page (possible double counting).
+  - The Projects sheet's own "Direct beneficiaries" column (used by the workbook's dashboard) is shown for comparison. It is not broken down by unit.
+
+arde_geography: |
+  - Districts are read from each project's location text. A project working in two districts counts in both.
+  - Reach is **not** shown by district: the workbook does not say how a project's reach splits between its districts.
+
+arde_data_quality: |
+  - Every check **flags**; none changes a value in the workbook.
+  - **Held back** values are not used in the figures (for example a budget used % of 5,000%) until corrected in the workbook.
+  - **For review**: the value is used, but someone should check it (for example a KPI at 200% of target).
+  - **Information**: reported only (for example units written in different ways, amounts converted to RWF).
+  - Correct the workbook, then upload it again (Upload Excel page).
+
+kpi_update: |
+  - **Choose your name** first ("You are"): every change is recorded with your staff code and the time.
+  - Choose the project, then the result, then the KPI. Enter the new achieved value and status, and a note on the evidence.
+  - The update is used straight away after "Update the figures". It replaces editing the amber cells of the workbook; the workbook file itself is never changed.
+  - When a newer workbook is uploaded, its values are used from then on. Download the register first (Register page) to keep the updates in the workbook.
+  - A backup is kept after every update.
+
+arde_upload: |
+  - Upload a newer copy of ARDE/KUBAHO's MEAL workbook. It is **recognised by its sheet names** (Projects, Results, KPIs, Activities, Beneficiaries, Stakeholders, Results & KPIs).
+  - **Check the file** reads it as the pipeline would and runs every check. Nothing is added yet.
+  - **Add this file** keeps it in data/real/uploads/ (the earlier copies are kept too) and prepares the figures from it.
+  - KPI updates made on the dashboard before the upload are replaced by the workbook's values: download the register first if you want to keep them.
+
+register: |
+  - Choose a table. The sidebar filters apply. Each row shows its **source**: the sheet and row number in the workbook.
+  - Staff names are shown as roles.
+  - **Download the register** gives the current data (with dashboard KPI updates) as an Excel file with the same sheets and columns as ARDE's workbook. It can be edited and uploaded again.
+
+partners_funding: |
+  - **Financial** contributions are shown in their own currency, with an RWF estimate (≈). **In-kind** contributions are mostly not valued in money; their unit is shown as written.
+  - Totals are given per currency. In-kind values in other units (people, roles, schools...) are listed, never added to money.
 
 home: |
   - This page answers three questions for the current fiscal quarter: are we on track, can we trust the numbers, and what funding is coming up.

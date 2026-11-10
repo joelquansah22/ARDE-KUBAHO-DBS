@@ -1,7 +1,9 @@
 """Run the production pipeline with one command: read the Excel files through to the exports.
 
 HOW TO RUN
-    python src/pipeline.py            production run: ingest, clean, validate, model, indicators
+    python src/pipeline.py            with data_mode: arde (config/settings.yaml), the ARDE/KUBAHO workbook run
+                                      (src/arde_pipeline.py); with data_mode: synthetic, the demo run below:
+                                      ingest, clean, validate, model, indicators
     python src/pipeline.py --score    the same, then score the cleaning against the synthetic
                                       answer keys (main and held-out sets; testing only)
 
@@ -23,7 +25,7 @@ import sys
 import time
 from pathlib import Path
 
-from common import load_settings, resolve_path
+from common import data_mode, load_settings, resolve_path
 
 # (step name, module in src/, function to call, phase in which it is built)
 STEPS = [
@@ -69,6 +71,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--score", action="store_true",
                         help="after the production run, score the cleaning against the synthetic answer keys")
     args = parser.parse_args(argv)
+
+    if data_mode() == "arde":
+        # ARDE/KUBAHO workbook mode (settings: data_mode). The synthetic steps below are the demo mode.
+        print("data_mode is 'arde': running the ARDE/KUBAHO workbook pipeline (src/arde_pipeline.py).")
+        return importlib.import_module("arde_pipeline").main()
 
     raw = resolve_path("raw")
     if not any(raw.glob("*.xlsx")):

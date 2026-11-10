@@ -1,0 +1,235 @@
+# =============================================================================
+# ARDE/KUBAHO MEAL workbook: the layout the pipeline expects (data_mode: arde)
+# =============================================================================
+# The workbook has a title block at the top of each sheet; the column headings are NOT on row 1. The reader finds
+# each sheet's heading row by looking for the FIRST column name given below ("header_starts_with") in column A.
+# Rows below the headings are data until the first completely empty row block at the end.
+#
+# columns: the heading as written in ARDE's workbook -> the name used in the database. A heading that is missing
+# stops the sheet with a plain message (never guessed). Extra headings are kept as they are.
+#
+# If ARDE renames a heading, change the LEFT side here; nothing else needs to change.
+# =============================================================================
+
+# The workbook is recognised by these sheet names (Upload Excel page). All must be present.
+required_sheets: [Projects, Results, KPIs, Activities, Beneficiaries, Stakeholders, "Results & KPIs"]
+# Calculated sheets: never imported, only read to compare their figures with ours.
+compare_only_sheets: [Dashboard, Data Quality]
+
+sheets:
+  Projects:
+    header_starts_with: Project Code
+    columns:
+      Project Code: project_code
+      Project Title: project_title
+      Intervention Area: intervention_area
+      Donor / Partner: donor_partner
+      Location: location
+      Manager: manager                       # may hold staff names: shown on screen as roles only
+      Start Date: start_date
+      End Date: end_date
+      Approved Budget: approved_budget
+      Currency: currency
+      Budget Used %: budget_used_pct          # a fraction: 1 = 100%
+      Progress %: progress_pct                # a fraction: 1 = 100%
+      Status: status
+      Verification: verification
+      Direct Beneficiaries: direct_beneficiaries
+      Indirect Beneficiaries: indirect_beneficiaries
+      Total Reach: total_reach
+      Female: female
+      Male: male
+      Youth: youth
+      Disability: disability
+      Direct Jobs: direct_jobs
+      Indirect Jobs: indirect_jobs
+  Results:
+    header_starts_with: Result Code
+    columns:
+      Result Code: result_code
+      Project Code: project_code
+      Level: level
+      Parent Result: parent_result
+      Statement: statement
+      Description: description
+      Assumptions: assumptions
+      Status: status
+      Order: result_order
+  KPIs:
+    header_starts_with: KPI Code
+    columns:
+      KPI Code: kpi_code
+      Project Code: project_code
+      Result Code: result_code
+      Result Level: result_level
+      Indicator: indicator
+      Baseline: baseline
+      Target: target
+      Achieved: achieved
+      Achievement %: achievement_pct
+      Performance Band: performance_band
+      Unit: unit
+      Frequency: frequency
+      Responsible: responsible
+      Status: kpi_status
+      Evidence / Source: evidence
+  Results & KPIs:
+    header_starts_with: Project Code
+    columns:
+      Project Code: project_code
+      Project Title: project_title
+      Intervention Area: intervention_area
+      Result Code: result_code
+      Result Level: result_level
+      Parent Result: parent_result
+      Result Statement: statement
+      Result Status: result_status
+      KPI Code: kpi_code
+      Indicator: indicator
+      Unit: unit
+      Baseline: baseline
+      Target: target
+      Achieved: achieved
+      Achievement %: achievement_pct
+      Performance Band: performance_band
+      Frequency: frequency
+      Responsible: responsible
+      KPI Status: kpi_status
+      Evidence / Source: evidence
+      Last Update: last_update
+      Notes: notes
+  Activities:
+    header_starts_with: Activity Code
+    columns:
+      Activity Code: activity_code
+      Project Code: project_code
+      Output Code: output_code
+      Activity: activity
+      Description: description
+      Personnel Count: personnel_count
+      Personnel: personnel                   # may hold staff names: shown on screen as roles only
+      Funds: funds
+      Currency: currency
+      Materials / Inputs: materials
+      Responsible: responsible
+      Start Date: start_date
+      End Date: end_date
+      Progress %: progress_pct
+      Status: status
+  Beneficiaries:
+    header_starts_with: Project Code
+    columns:
+      Project Code: project_code
+      Category: category
+      Reach Type: reach_type
+      Count: count
+      Unit: unit
+      Source Row: workbook_source_row         # ARDE's own row reference, kept as it is
+  Stakeholders:
+    header_starts_with: Project Code
+    columns:
+      Project Code: project_code
+      Stakeholder: stakeholder
+      Stakeholder Type: stakeholder_type
+      Nature: nature                          # Financial or In-kind
+      Contribution Type: contribution_type
+      Value: value
+      Currency / Unit: currency_or_unit
+      Evidence: evidence
+      Notes: notes
+
+# Columns that may contain staff names. They are stored in full in the database (data/real/ only) but every
+# dashboard page shows them through the "roles only" filter: personal names listed in data/real/
+# staff_names_hidden.yaml are replaced by "[name]" and "Name - Role" becomes "Role".
+staff_name_columns:
+  dim_project: [manager]
+  fact_kpi: [responsible]
+  fact_project_activity: [personnel, responsible]
+
+# -----------------------------------------------------------------------------
+# Units (rule 4): case and spelling variants. Matching first ignores upper/lower case and spaces at either end;
+# then the aliases below turn a variant into one spelling. The original unit is always kept next to the
+# normalised one. Add a line here when a new variant appears; nothing else needs to change.
+# -----------------------------------------------------------------------------
+unit_aliases:
+  cooperative: cooperatives
+  committee: committees
+  water kiosk: water kiosks
+  greenhouse: greenhouses
+  meeting: meetings
+  package: packages
+  network: networks
+  organizations: organisations
+  organization: organisations
+  km: kilometres
+  system: systems
+  facility: facilities
+  mechanism: mechanisms
+  people / daily service users: daily service users
+  roles: roles
+  volunteer roles: volunteer roles
+
+# Which kind of thing each (normalised) unit counts, for the Reach page (rule 10). Reach is NEVER added across
+# unit types, and within a type it is shown unit by unit (people, women, men... are not added together either,
+# because "women" and "men" rows may already be inside a "people" row).
+unit_types:
+  people: [people, women, men, children, students, youth, teachers, girls, young people, people trained,
+           people reached, participants, members, daily service users, staff, board members]
+  households: [households, families, household contacts, household-month contacts]
+  organisations: [cooperatives, groups, committees, clubs, school clubs, networks, organisations, association,
+                  schools]
+  # anything else is "other" (e.g. work opportunities, volunteer roles)
+
+# The headline "direct reach in people" counts rows whose normalised unit is exactly this. Women, men, children
+# and other people rows are shown separately on the Reach page, because they may overlap the people rows.
+headline_people_unit: people
+# Units that may overlap a "people" row in the same project and reach type (rule 10, possible double counting).
+people_subgroup_units: [women, men, children, girls, youth, young people, students]
+
+# -----------------------------------------------------------------------------
+# Languages (rule 11): titles are kept exactly as written. These words only COUNT how many titles look French or
+# Kinyarwanda, for the profile; nothing is translated or changed.
+# -----------------------------------------------------------------------------
+language_markers:
+  French: [projet, promotion, période, periode, étape, etape, d'exécution, socio-économique, socio-economique,
+           développement, appui, renforcement, des, du, et la, pour, coopératives]
+  Kinyarwanda: [imbere, ubuzima, amazi, isuku, abaturage, kubaho, twiteze, umurenge, akarere, abagore,
+                 ubuhinzi, iterambere, amahoro]
+# Words taken from the workbook's own titles go in data/real/arde_local.yaml (gitignored), not here.
+
+# Words that look like names in the staff columns but are organisations or roles (never hidden). General
+# acronyms only: the names of ARDE's partners and projects come from the confidential workbook, so they are listed in
+# data/real/arde_local.yaml (gitignored), which is added to this list.
+not_personal_names: [ARDE, KUBAHO, MEAL, RWANDA, DRC, AP, BNR, NGO, UN, WFP, FAO, UNICEF, WASH, TVET, VSLA, SACCO,
+                     CBO, HQ, RBS, MRV]
+
+# -----------------------------------------------------------------------------
+# Data-quality rules for this format (rule codes used in the database and on the Data quality page).
+# level: held_back = the value is not used in figures until corrected in the workbook (the row is kept and shown);
+#        review    = used, but listed in the MEAL officer's review queue;
+#        info      = reported in the profile and on the page; nobody needs to act on a row.
+# Rules FLAG; none of them changes a value in the workbook.
+# -----------------------------------------------------------------------------
+rules:
+  budget_used_impossible: {level: held_back, table: dim_project, label: "Budget used % impossible (looks like an amount)"}
+  budget_used_over_100: {level: review, table: dim_project, label: "Budget used above 100%"}
+  budget_zero: {level: review, table: dim_project, label: "Approved budget is 0"}
+  currency_converted: {level: info, table: dim_project, label: "Budget not in RWF: RWF figure is an estimate"}
+  activity_currency_converted: {level: info, table: fact_project_activity, label: "Activity funds not in RWF: RWF figure is an estimate"}
+  unit_variant: {level: info, table: fact_kpi, label: "Unit written differently (case or spelling); normalised"}
+  reach_unit_variant: {level: info, table: fact_reach, label: "Reach unit written differently; normalised"}
+  kpi_not_recorded: {level: review, table: fact_kpi, label: "KPI not recorded / not started"}
+  past_end_still_active: {level: review, table: dim_project, label: "Past its end date but still On track / Active"}
+  completed_low_progress: {level: review, table: dim_project, label: "Completed but progress below 100%"}
+  parent_placeholder: {level: review, table: fact_result, label: "General Objective's parent is a placeholder, not a result code"}
+  kpi_over_150: {level: review, table: fact_kpi, label: "KPI achieved above 150% of target"}
+  kpi_no_target: {level: held_back, table: fact_kpi, label: "KPI target is 0 or blank: achievement cannot be worked out"}
+  activity_funds_zero: {level: review, table: fact_project_activity, label: "Activity funds are 0"}
+  reach_mixed_units: {level: info, table: fact_reach, label: "Reach in a unit other than people (never added to people)"}
+  reach_possible_double_count: {level: review, table: fact_reach, label: "Women/men rows may overlap a people row in the same project"}
+  reach_register_differs: {level: review, table: dim_project, label: "Projects sheet direct beneficiaries differ from the Beneficiaries sheet's people rows"}
+  district_not_found: {level: review, table: dim_project, label: "No Rwandan district found in the location"}
+  title_not_english: {level: info, table: dim_project, label: "Title in French or Kinyarwanda (kept as written)"}
+  band_differs_from_workbook: {level: info, table: fact_kpi, label: "Our performance band differs from the workbook's"}
+  orphan_reference: {level: held_back, table: any, label: "Code refers to a project or result that does not exist"}
+  register_differs: {level: review, table: fact_kpi, label: "Working register and KPIs/Results sheet disagree"}

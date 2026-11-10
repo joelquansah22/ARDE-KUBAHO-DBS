@@ -11,6 +11,10 @@ For load times worth quoting, close other programs first (browsers, Office, musi
 which programs had a window open, the CPU load and the free memory at the start, so readers can judge.
 
 Writes docs/screenshots/*.png and docs/screenshots/page_load_times.md.
+
+CONFIDENTIALITY: with data_mode: arde (ARDE/KUBAHO's own data) the screenshots show confidential data, so they go to
+data/real/screenshots/ (gitignored) and NEVER to docs/screenshots/. The repository's screenshots stay synthetic:
+    set ARDE_DATA_MODE=synthetic   (Windows; export ARDE_DATA_MODE=synthetic on Mac/Linux), then run this script.
 """
 
 from __future__ import annotations
@@ -27,7 +31,12 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "docs" / "screenshots"
+sys.path.insert(0, str(ROOT / "src"))
+from common import data_mode, load_settings, load_yaml  # noqa: E402
+
+MODE = data_mode()
+# arde mode: confidential, so never into docs/ (see the note above).
+OUT = ROOT / load_settings()["arde"]["screenshots"] if MODE == "arde" else ROOT / "docs" / "screenshots"
 PORT = 8599
 PAGES = [("home", "", "Home"), ("executive_summary", "summary", "Executive summary"),
          ("programme_overview", "overview", "Programme overview"),
@@ -35,6 +44,8 @@ PAGES = [("home", "", "Home"), ("executive_summary", "summary", "Executive summa
          ("data_quality", "data-quality", "Data quality"), ("donor_pipeline", "donor-pipeline", "Donor pipeline"),
          ("donor_entry", "donor-entry", "Donor entry"), ("data_entry", "data-entry", "Data entry"),
          ("upload_excel", "upload-excel", "Upload Excel"), ("records", "records", "Records")]
+if MODE == "arde":
+    PAGES = [(p["key"], p["url"], p["title"]) for s in load_yaml("page_help.yaml")["menu_arde"] for p in s["pages"]]
 HEADINGS = {"Home": "Programme and Donor Data System"}   # pages whose main heading is not their menu title
 WIDTH, HEIGHT = 1366, 768
 
@@ -158,7 +169,8 @@ def write_times(all_runs: list[list[dict]], state: dict) -> None:
 
     lines = ["# Dashboard page load times", "",
              f"*Measured by `tools/capture_screenshots.py` on {dt.datetime.now():%d %B %Y %H:%M}, Google Chrome "
-             f"(headless) at {WIDTH} x {HEIGHT}, main synthetic set, dashboard running on the same laptop.*", "",
+             f"(headless) at {WIDTH} x {HEIGHT}, {'ARDE/KUBAHO workbook (confidential)' if MODE == 'arde' else 'main synthetic set'}, "
+             "dashboard running on the same laptop.*", "",
              "Load time = from opening the page address until the page title is shown and Streamlit has finished "
              "running the page. **Cold** = first visit after the dashboard starts (queries not yet cached); "
              "**warm** = second visit (cached). Target: under 3 seconds.", "",

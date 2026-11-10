@@ -530,3 +530,9 @@ Yes, the redesign is my instruction. Please do it now: the home page as the land
 ```
 
 The redesign text is the pasted block under instruction 19.
+
+## 21. 10 November 2026 (saved before acting on it)
+
+**Saved word for word in `data/real/instruction_21_verbatim.md` (gitignored), not here**, because the message quotes figures from ARDE/KUBAHO's confidential workbook and the same message says nothing from that file may be committed. Summary without figures:
+
+Lift the feature freeze. Make the system work on ARDE/KUBAHO's sample workbook (in `data/real/`), keeping synthetic data as a demo mode. (0) Gitignore `data/real/` first, never edit the original, add `data_mode: synthetic | arde` with a confidential banner in arde mode, show roles not staff names. (1) Read the workbook in read-only mode, find header rows by first column name, decide the source of truth between "Results & KPIs" and the "Results"/"KPIs" sheets. (2) Add a results-chain layer: dim_project, fact_result, fact_kpi, fact_project_activity, fact_reach, fact_contribution, with lineage. (3) Turn eleven known problems into flagging rules; write `docs/arde_sample_profile.md` and `docs/partner_questions.md`. (4) Arde-mode dashboard: Home figures, new Portfolio, Results and KPIs, Reach, Partners and funding pages, this format's data-quality rules; hide pages with no data. (5) Upload recognises the workbook; KPI update form with history and backups; download the register in ARDE's layout. (6) Tests, docs, arde screenshots only under `data/real/screenshots/`, confirm nothing under `data/real/` is tracked, commit, push, tag v1.4; stop and report if the workbook contradicts the instruction.

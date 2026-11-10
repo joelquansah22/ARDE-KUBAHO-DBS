@@ -42,6 +42,17 @@ if file is None:
     st.session_state.pop("upload_summary", None)
 else:
     data = file.getvalue()
+    import arde_reader
+    try:
+        is_arde = arde_reader.is_arde_workbook(arde_reader.sheet_names(data))
+    except arde_reader.WorkbookError:
+        is_arde = False
+    if is_arde:
+        # ARDE/KUBAHO's own MEAL workbook, recognised by its sheet names: it belongs to arde mode, not the demo.
+        st.warning("This is ARDE/KUBAHO's MEAL workbook (recognised by its sheet names). The dashboard is showing the "
+                   "demonstration data: set data_mode: arde in config/settings.yaml, restart the dashboard, and "
+                   "upload it on that mode's Upload Excel page. Nothing was added.")
+        st.stop()
     guess = uploads.guess_kind(data)
     kinds = list(uploads.KINDS)
     kind = st.selectbox("What kind of file is it?", kinds, index=kinds.index(guess) if guess else 0,

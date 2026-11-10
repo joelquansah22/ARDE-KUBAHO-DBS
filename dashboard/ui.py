@@ -20,9 +20,12 @@ for p in (ROOT / "src", Path(__file__).resolve().parent):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-from common import fiscal_year_label, load_settings, load_yaml, resolve_path  # noqa: E402
+from common import PROJECT_ROOT, data_mode, fiscal_year_label, load_settings, load_yaml, resolve_path  # noqa: E402
 
 SETTINGS = load_settings()
+# Which data the dashboard shows (config/settings.yaml: data_mode; ARDE_DATA_MODE overrides it for one session).
+MODE = data_mode()
+ARDE = MODE == "arde"
 OPEN_STAGES = SETTINGS["donor_pipeline"]["open_stages"]
 LABELS = SETTINGS["labels"]
 
@@ -60,7 +63,8 @@ _register_chart_template()
 
 # ---------------------------------------------------------------- data access
 def db_path() -> Path:
-    return resolve_path("warehouse")
+    """The database the pages read: ARDE/KUBAHO's workbook (data/real/, arde mode) or the synthetic demo."""
+    return PROJECT_ROOT / SETTINGS["arde"]["warehouse"] if ARDE else resolve_path("warehouse")
 
 
 @st.cache_resource(show_spinner=False)
@@ -94,10 +98,25 @@ If this message comes back, see "Problems and what to do" in `docs/user_guide.md
 """
 
 
+NOT_BUILT_ARDE = """
+### The ARDE/KUBAHO figures have not been prepared yet
+
+The dashboard is set to show **ARDE/KUBAHO's MEAL workbook** (`data_mode: arde` in `config/settings.yaml`), but its
+figures have not been prepared on this computer.
+
+**What to do:**
+1. Check that the workbook is in the `data/real/` folder (`ARDE-KUBAHO_MEAL_Important_Data_Editable.xlsx`). It is
+   confidential and is never in the shared repository: ask the team lead for it.
+2. Double-click **`run_dashboard.bat`** again, or run `python src/pipeline.py` and refresh this page.
+
+To show the demonstration data instead, set `data_mode: synthetic` in `config/settings.yaml`.
+"""
+
+
 def require_warehouse() -> None:
     """A friendly message (instead of an error) when the pipeline has not been run yet."""
     if not db_path().exists():
-        st.info(NOT_BUILT)
+        st.info(NOT_BUILT_ARDE if ARDE else NOT_BUILT)
         st.stop()
 
 
@@ -194,7 +213,9 @@ def filters(sex_applies: bool = True) -> Filters:
 
 # ---------------------------------------------------------------- labels and formatting
 def banner() -> None:
-    if SETTINGS.get("synthetic_mode"):
+    if ARDE:
+        st.markdown(f"<div class='synthetic-banner'>⚠ {SETTINGS['arde']['banner']}</div>", unsafe_allow_html=True)
+    elif SETTINGS.get("synthetic_mode"):
         st.markdown(f"<div class='synthetic-banner'>⚠ {SETTINGS['synthetic_banner']}</div>", unsafe_allow_html=True)
 
 
@@ -214,8 +235,9 @@ def no_data(what: str = "for this selection") -> None:
 
 @st.cache_data(show_spinner=False)
 def _source_files(version: float) -> pd.DataFrame:
-    return _connection(version).cursor().execute(
-        "SELECT DISTINCT source_file FROM dq_by_source_file ORDER BY 1").df()
+    sql = ("SELECT workbook AS source_file FROM run_info" if ARDE else
+           "SELECT DISTINCT source_file FROM dq_by_source_file ORDER BY 1")
+    return _connection(version).cursor().execute(sql).df()
 
 
 def data_updated() -> tuple[str, list[str]]:
@@ -330,9 +352,11 @@ def page_header(title: str, page: str) -> None:
 
 @st.cache_resource(show_spinner=False)
 def startup_backup() -> str:
-    """Once each time the dashboard starts: a dated copy of the donor entries (data/app/backups/)."""
+    """Once each time the dashboard starts: a dated copy of the donor entries (data/app/backups/), or in arde mode
+    of the KPI updates (data/real/app/backups/)."""
     import app_store
-    copy = app_store.backup(reason="start")
+    import arde_store
+    copy = (arde_store if ARDE else app_store).backup(reason="start")
     return copy.name if copy else ""
 
 
@@ -359,8 +383,9 @@ def donor_sources_note() -> str:
 
 def menu() -> list[dict]:
     """The menu (config/page_help.yaml: menu): sections, each with its pages (file, title, Material icon, address,
-    one-line description). Used by the sidebar (app.py) and the Home page tiles, so the two always match."""
-    return load_yaml("page_help.yaml")["menu"]
+    one-line description). Used by the sidebar (app.py) and the Home page tiles, so the two always match.
+    In arde mode the menu is menu_arde: pages with no data in that format are simply not in it."""
+    return load_yaml("page_help.yaml")["menu_arde" if ARDE else "menu"]
 
 
 def menu_page(key: str) -> dict:
@@ -510,12 +535,129 @@ def current_quarter() -> tuple[str, dt.date, dt.date]:
 
 
 def as_of() -> dt.date:
+    if ARDE:
+        import arde_model
+        return arde_model.as_of()
     return SETTINGS["as_of_date"] or dt.date.today()
 
 
 def in_list(values: list) -> str:
     """SQL placeholders for an IN (...) list."""
     return "(" + ", ".join("?" for _ in values) + ")" if values else "(NULL)"
+
+
+
+# ---------------------------------------------------------------- ARDE/KUBAHO workbook mode
+@dataclass
+class ArdeFilters:
+    """The sidebar filters in arde mode: intervention area, project, project status and the years a project ran."""
+    area: str | None
+    project_code: str | None
+    status: str | None
+    years: tuple[int, int]
+
+    @property
+    def project_codes(self) -> list[str]:
+        p = query("SELECT project_code, intervention_area, status, start_year, end_year FROM dim_project")
+        if self.project_code:
+            return [self.project_code]
+        keep = p["start_year"].fillna(0).le(self.years[1]) & p["end_year"].fillna(9999).ge(self.years[0])
+        if self.area:
+            keep &= p["intervention_area"] == self.area
+        if self.status:
+            keep &= p["status"] == self.status
+        return list(p.loc[keep, "project_code"])
+
+    @property
+    def scope_text(self) -> str:
+        parts = [self.project_code or self.area or "all intervention areas"]
+        if self.status:
+            parts.append(f"status {self.status}")
+        parts.append(f"projects running {self.years[0]} to {self.years[1]}")
+        return ", ".join(parts)
+
+
+def arde_sidebar_filters() -> ArdeFilters:
+    p = query("SELECT project_code, project_title, intervention_area, status, start_year, end_year FROM dim_project "
+              "ORDER BY project_code")
+    sb = st.sidebar
+    sb.markdown("**Filters**")
+    areas = ["All areas"] + sorted(p["intervention_area"].dropna().unique())
+    area = sb.selectbox("Intervention area", areas, key=_remember("fa_area", "All areas"))
+    shown = p if area == "All areas" else p[p["intervention_area"] == area]
+    names = {"All projects": None} | {r.project_code: r.project_code for r in shown.itertuples()}
+    if st.session_state.get("fa_project") not in names:
+        st.session_state["fa_project"] = "All projects"
+    project = sb.selectbox("Project", list(names), key=_remember("fa_project", "All projects"))
+    statuses = ["All statuses"] + sorted(p["status"].dropna().unique())
+    status = sb.selectbox("Project status", statuses, key=_remember("fa_status", "All statuses"))
+    lo, hi = int(p["start_year"].min()), int(p["end_year"].max())
+    years = sb.slider("Projects running between", lo, hi, key=_remember("fa_years", (lo, hi)))
+    return ArdeFilters(None if area == "All areas" else area, names[project],
+                       None if status == "All statuses" else status, tuple(years))
+
+
+def arde_filters() -> ArdeFilters:
+    """The arde-mode sidebar filters (set up by app.py; a page run on its own sets them up itself)."""
+    if not isinstance(st.session_state.get("filters"), ArdeFilters) or st.session_state.get("_standalone"):
+        st.session_state["_standalone"] = True
+        st.markdown(CSS, unsafe_allow_html=True)
+        sidebar_logo()
+        banner()
+        require_warehouse()
+        st.session_state["filters"] = arde_sidebar_filters()
+        source_files_in_sidebar()
+    return st.session_state["filters"]
+
+
+@st.cache_data(show_spinner=False)
+def _hidden_names() -> list[str]:
+    import arde_model
+    return arde_model.load_hidden_names()
+
+
+def roles(series: pd.Series) -> pd.Series:
+    """Staff columns on screen: roles, not names (personal names become "[name]"; "Name - Role" becomes "Role")."""
+    import arde_model
+    names = _hidden_names()
+    return series.map(lambda v: arde_model.roles_only(v, names))
+
+
+def native_money(amount, currency) -> str:
+    """An amount in its own currency, e.g. 'EUR 640,708'. Never converted here."""
+    if amount is None or pd.isna(amount):
+        return "–"
+    return f"{currency} {float(amount):,.0f}"
+
+
+def rwf_estimate(amount) -> str:
+    """An RWF figure converted from another currency: always marked as an estimate (≈)."""
+    if amount is None or pd.isna(amount):
+        return "–"
+    v = float(amount)
+    if abs(v) >= 1_000_000_000:
+        return f"≈ RWF {v / 1_000_000_000:,.2f}bn"
+    if abs(v) >= 1_000_000:
+        return f"≈ RWF {v / 1_000_000:,.1f}m"
+    return f"≈ RWF {v:,.0f}"
+
+
+def pct(x) -> str:
+    return "–" if x is None or pd.isna(x) else f"{100 * float(x):,.0f}%"
+
+
+BAND_STYLE = {"Achieved": ("✔", _S["on_track"]), "On track": ("●", CHART[0]),
+              "Needs attention": ("▲", _S["at_risk"]), "Not recorded": ("…", _S["no_target"]),
+              "No target": ("–", _S["no_target"])}
+
+
+def band_html(band: str) -> str:
+    symbol, colour = BAND_STYLE.get(band, ("", _S["no_target"]))
+    return f"<span style='color:{colour};font-weight:600'>{symbol} {band}</span>"
+
+
+def band_label(band: str) -> str:
+    return f"{BAND_STYLE.get(band, ('', ''))[0]} {band}".strip()
 
 
 CSS = """

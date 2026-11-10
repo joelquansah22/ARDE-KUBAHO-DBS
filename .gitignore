@@ -17,6 +17,13 @@ data/**
 !data/holdout/manual/raw/
 !data/holdout/manual/raw/.gitkeep
 
+# ARDE/KUBAHO real data: CONFIDENTIAL. Never commit anything under data/real/
+# (the workbook, copies of it, screenshots taken in arde mode, generated profiles).
+data/real/
+data/real/**
+# The profile is written from the real workbook (it quotes codes and figures): confidential too.
+docs/arde_sample_profile.md
+
 # Secrets: the pseudonymisation salt lives OUTSIDE the repository (see config/settings.yaml),
 # but ignore any stray copy just in case.
 *.salt
@@ -41,3 +48,4 @@ Thumbs.db
 
 # Evaluation results recorded while using the prototype (kept locally, not in git)
 evaluation/report_generation_log.csv
+ARDE_sample_data_instructions.md

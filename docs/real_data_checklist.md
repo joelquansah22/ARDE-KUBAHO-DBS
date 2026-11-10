@@ -10,6 +10,34 @@ is trusted until it is done.**
 
 ---
 
+## 0. ARDE/KUBAHO's MEAL workbook (arde mode, from November 2026)
+
+ARDE/KUBAHO's own data is a **portfolio workbook** (projects, results chain, KPIs, activities, reach, partners), not
+the monthly templates below. It has its own mode. Sections 1 to 7 are only for monthly field files in the template
+layout, if ARDE/KUBAHO adopts them later.
+
+- [ ] `data/real/` is ignored by git: `git check-ignore -v data/real/x.xlsx` prints a rule. **Never** commit, push or
+      e-mail anything from `data/real/`, `docs/arde_sample_profile.md`, or a screenshot taken in arde mode.
+- [ ] Copy the workbook into `data/real/` under the name in `config/settings.yaml` (`arde.workbook`). Do not open and
+      save it there. The pipeline reads a copy; the original is never changed.
+- [ ] `config/settings.yaml`: `data_mode: arde`. Check `arde.exchange_rates_rwf_per_unit` against BNR rates and
+      `arde.as_of_date` (`null` = today).
+- [ ] Personal names: list them in `data/real/staff_names_hidden.yaml` (one per line, as written). The dashboard also
+      hides anything that looks like a name, but the list is the reliable way.
+- [ ] Run `python src/pipeline.py`. Read `docs/arde_sample_profile.md`: rows per sheet, the source-of-truth table, every
+      rule's count, and the workbook's own figures (all should say "yes").
+- [ ] If ARDE renames a column heading, change the left side in `config/arde_format.yaml` (`sheets`). A new unit
+      spelling goes in `unit_aliases` and `unit_types`.
+- [ ] Later copies of the workbook are added on the dashboard's **Upload Excel** page (check, then add). Before that,
+      download the register if KPI updates were made on the dashboard.
+- [ ] **Removing the banner:** the arde banner ("confidential, for project use only") stays for as long as the data is
+      confidential. To change its wording, edit `arde.banner`. It cannot be removed without editing `dashboard/ui.py:
+      banner()`, and that should only happen with ARDE/KUBAHO's agreement.
+- [ ] Screenshots of arde mode: `python tools/capture_screenshots.py` with `data_mode: arde`. They go to
+      `data/real/screenshots/`. For the repository's screenshots, set `ARDE_DATA_MODE=synthetic` first.
+- [ ] Demo: `set ARDE_DATA_MODE=synthetic` (Windows) before `run_dashboard.bat` shows the synthetic data for that
+      session only.
+
 ## 1. Prepare a clean copy of the tool
 
 - [ ] Copy the whole project folder to the ARDE/KUBAHO laptop (or clone it), and set it up as in the README.

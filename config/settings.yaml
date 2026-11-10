@@ -11,10 +11,70 @@
 #   - Text after a colon is the value. Keep the spacing as you see it.
 # =============================================================================
 
-# While this is true, every file name starts with SYNTHETIC_ and every dashboard
-# page shows the banner below. Set to false only when real partner data is in use.
+# WHICH DATA THE DASHBOARD SHOWS (team instruction 21, 10 November 2026)
+#   arde:      ARDE/KUBAHO's own MEAL workbook (projects, results chain, KPIs, activities, reach, partners).
+#              The file lives in data/real/ (never committed). The pipeline reads a COPY of it, never the original.
+#   synthetic: the monthly demonstration data (data/raw/SYNTHETIC_*.xlsx), kept as a demo mode only.
+# For one session only you can override this without editing the file: set the environment variable
+# ARDE_DATA_MODE=synthetic (or arde) before starting the dashboard or the pipeline.
+data_mode: arde
+
+# Synthetic demo mode: while this is true, every file in data/raw/ must start with SYNTHETIC_ and the synthetic
+# pages show the banner below. It describes the demo data only; arde mode has its own banner (section "arde").
 synthetic_mode: true
 synthetic_banner: "Demonstration data. Synthetic records, not ARDE/KUBAHO data."
+
+# -----------------------------------------------------------------------------
+# ARDE/KUBAHO workbook mode (data_mode: arde). The layout of the workbook (sheets, columns, units) is in
+# config/arde_format.yaml; this section holds paths, the banner, exchange rates and thresholds.
+# -----------------------------------------------------------------------------
+arde:
+  banner: "ARDE/KUBAHO data: confidential, for project use only"
+  # Everything in arde mode stays under data/real/ (gitignored): the workbook, uploads, the database, the KPI
+  # update store and its backups, screenshots, and the profile written from the data.
+  workbook: data/real/ARDE-KUBAHO_MEAL_Important_Data_Editable.xlsx   # the file as received; never edited
+  uploads: data/real/uploads                  # newer versions of the workbook added on the Upload Excel page
+  warehouse: data/real/warehouse/arde_workbook.duckdb
+  exports: data/real/exports
+  app_store: data/real/app/kpi_updates.db     # KPI updates made on the dashboard, with change history
+  screenshots: data/real/screenshots
+  staff_names_file: data/real/staff_names_hidden.yaml   # personal names to hide on screen (never committed)
+  profile_doc: docs/arde_sample_profile.md    # written by the pipeline; gitignored because it quotes the data
+  # "Today" for checks such as "past its end date but still active". null = the real current date.
+  as_of_date: null
+  # Performance bands: the workbook's own thresholds ('Results & KPIs' column P), so our figures match theirs.
+  # achievement = achieved / target. At or above "achieved_min" = Achieved; at or above "on_track_min" = On track;
+  # below = Needs attention. A KPI with no target cannot be scored.
+  band:
+    achieved_min: 1.0
+    on_track_min: 0.75
+  # KPI statuses that mean "no value has been recorded yet" (rule: KPIs not recorded).
+  not_recorded_statuses: [Not started, Not recorded]
+  # Project statuses that mean the project is still running (rule: past end date but still active).
+  active_statuses: [On track, Active, In progress]
+  completed_statuses: [Completed]
+  # A Completed project below this progress is flagged (rule: completed but low progress). 1.0 = 100%.
+  completed_min_progress: 1.0
+  # Budget used % and Progress % are stored as fractions (1 = 100%). Above this, the value is impossible and is
+  # shown as "invalid, check" (it looks like an amount typed into the % column). Between 1.0 and this: overspend
+  # to check.
+  budget_used_max_fraction: 1.5
+  progress_max_fraction: 1.0
+  # A KPI achieved above this share of its target goes to review (1.5 = 150%).
+  kpi_over_target_review: 1.5
+  # Exchange rates to estimate RWF amounts. RWF per 1 unit of currency, by calendar year: the amount is converted
+  # with the rate for the year of the project's (or activity's) start date. These are APPROXIMATE annual averages
+  # (TO BE CONFIRMED against the National Bank of Rwanda's published rates). Every converted figure is labelled
+  # "RWF estimate" and shown next to the amount in its own currency. A year not listed uses the nearest year.
+  exchange_rates_rwf_per_unit:
+    EUR: {2013: 860, 2014: 915, 2015: 800, 2016: 870, 2017: 940, 2018: 1015, 2019: 1005, 2020: 1075,
+          2021: 1165, 2022: 1085, 2023: 1255, 2024: 1425, 2025: 1620, 2026: 1690}
+    USD: {2013: 645, 2014: 690, 2015: 720, 2016: 790, 2017: 830, 2018: 860, 2019: 900, 2020: 945,
+          2021: 990, 2022: 1030, 2023: 1160, 2024: 1315, 2025: 1440, 2026: 1450}
+    RWF: {2013: 1}
+  # Data-quality score: for each "held back" or "review" rule, the share of the records it checks that pass;
+  # the score is the average of those shares. "info" rules are reported but not scored.
+  dq_score_levels: [held_back, review]
 
 # -----------------------------------------------------------------------------
 # Folders (relative to the project folder)

@@ -71,6 +71,28 @@ The reference in brackets is the decision-log entry with the background.
 | E4 | Do project budgets include staff and overheads? The tool compares **activity costs only** with the whole budget for the over-budget warning | 2 | D168 | |
 | E5 | How does ARDE/KUBAHO track funding opportunities today (stages, probability)? | 3 | Brief §5 | |
 
+## G. ARDE/KUBAHO sample workbook (from the November 2026 sample)
+
+The figures and examples behind each question are in `docs/arde_sample_profile.md` (confidential, not in the shared
+repository; ask the team lead). Codes are given there, not here.
+
+| # | Question | Priority | Ref | Answer |
+|---|---|---|---|---|
+| G1 | **Budget used %**: in some projects this column holds what look like amounts, not percentages. What should it hold, and can the values be corrected? Until then they are shown as "invalid, check" and not used. | 1 | D238 | |
+| G2 | **Direct beneficiaries**: your Dashboard adds the Projects sheet's Direct Beneficiaries column. Does that column count **people only**? The Beneficiaries sheet also counts households, cooperatives, schools and so on, and its rows do not add up to the Projects figure for every project. Which source is official? | 1 | D237 | |
+| G3 | In the Beneficiaries sheet, do the "Women"/"Men" rows **overlap** the "People" rows of the same project (part of them), or are they extra people? | 1 | D235 | |
+| G4 | **KPIs not started**: your Data Quality sheet counts only KPIs with no target as "not recorded", while the KPIs sheet calls every KPI at 0% "Not recorded". Which do you mean? We count KPIs "Not started" with nothing achieved. | 2 | D236 | |
+| G5 | The KPIs sheet's **Achievement %** is typed in and differs from the working register's in a few rows. Can it become a formula, or be removed, so the register is the only source? | 2 | D232 | |
+| G6 | Some projects are **past their end date but still "On track"/"Active"**, and one is "Completed" at partial progress. Please confirm their status. | 2 | D238 | |
+| G7 | **Approved budget 0** for some projects (one has activity funds above 0): unknown, or really zero? | 2 | D238 | |
+| G8 | Every General Objective has the same **parent result**, which is not a result code. Is it a placeholder (for example a programme or strategy code)? | 3 | D238 | |
+| G9 | **Exchange rates** for the RWF estimates: which rates should be used (BNR annual average, the rate on the agreement date, the donor's rate)? We use approximate annual averages for now. | 2 | D234 | |
+| G10 | **Activities with funds of 0**: not funded separately, or not yet entered? | 3 | D238 | |
+| G11 | Some KPIs are **above 150% of target**: correct, or a target/achieved typo? | 3 | D238 | |
+| G12 | Do you keep a list of **funding opportunities** being applied for (deadlines, amounts, stage)? The workbook holds funding received; the Donor pipeline page has nothing to show without it. | 3 | D240 | |
+| G13 | **Staff names** in Manager, Personnel and Responsible: may they appear in internal exports (the register download)? The dashboard shows roles only. | 1 | D239 | |
+| G14 | Will staff keep editing the workbook, or use the dashboard's **KPI update** form? If both, which one wins when they differ (we use the newest)? | 2 | D241 | |
+
 ## F. Handover
 
 | # | Question | Priority | Ref | Answer |

@@ -3,8 +3,38 @@
 For ARDE/KUBAHO staff who **use** the dashboard: the executive director, programme managers, the MEAL officer and
 field officers. No Python needed. The person who looks after the tool also needs `docs/maintenance_guide.md`.
 
-> The tool currently shows **synthetic (invented) records**, not ARDE/KUBAHO data. The yellow banner on every page
-> says so. All indicators are **drafts, for co-design with ARDE/KUBAHO staff**.
+> **Two modes.** The tool now shows **ARDE/KUBAHO's own MEAL workbook** (the yellow banner reads "ARDE/KUBAHO data:
+> confidential, for project use only"). Section 0 below describes these pages. The earlier **synthetic (invented)
+> monthly records** remain as a demonstration mode, described from section 1 on. Its indicators are **drafts, for
+> co-design with ARDE/KUBAHO staff**.
+
+## 0. ARDE/KUBAHO workbook mode (the pages you see now)
+
+The figures come from ARDE/KUBAHO's MEAL workbook, plus any KPI updates made on the dashboard. The workbook itself is
+never changed. Filters on the left: intervention area, project, project status, and the years a project ran.
+
+| Page | What it answers |
+|---|---|
+| **Home** | Projects by status; KPIs achieved, on track, needing attention or not recorded; direct reach in **people**; the data-quality score; and "Needs attention", which lists the result of each check. |
+| **Portfolio** | Projects by area and status, the timeline, budgets **in their own currency** with an RWF estimate (≈), budget used and progress. A value that cannot be a percentage shows **"invalid, check"**. |
+| **Results and KPIs** | Choose a project to see its results chain (General Objective, then Specific Objective, then Output) with each KPI's target, achieved, % and band. Filter by level, band and status. |
+| **Reach** | Direct and indirect reach, **one chart per unit type**, one unit at a time. People, households and cooperatives are never added together. |
+| **Geography** | Projects by district, read from the location text. |
+| **Data quality** | Every check, with the values held back, the review queue and information. Also the workbook's own Dashboard and Data Quality figures next to ours, and the source-of-truth comparison. |
+| **KPI update** | Choose your name, then the project, result and KPI. Enter the new achieved value, status and a note. Every change is kept with who and when, and a backup is made. Then click "Update the figures now". |
+| **Upload Excel** | Upload a newer copy of the workbook. **Check the file** first; then **Add this file**. |
+| **Register** | Every table with its sheet and row number. **Download the register** gives an Excel file with the same sheets and columns as ARDE's workbook, including dashboard updates. It is confidential. |
+| **Donor pipeline** | The workbook has no funding opportunities yet; there is a link to **funding history**. |
+| **Partners and funding** | Financial and in-kind contributions by stakeholder type and project, in their own currency. |
+
+**Bands:** Achieved = 100% of target or more; On track = 75 to 99%; Needs attention = below 75% (the workbook's own
+thresholds). Not recorded = not started, nothing achieved yet. No target = target 0 or blank.
+
+**Staff names** are shown as roles. **Money** is never added across currencies, and **reach** is never added across
+units.
+
+**Correcting data:** values "held back" on the Data quality page must be corrected in the workbook. Then upload it
+again. KPI achieved values and statuses can also be updated on the KPI update page.
 
 ---
 

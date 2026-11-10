@@ -47,6 +47,16 @@ def district_to_province() -> dict[str, str]:
     }
 
 
+def data_mode() -> str:
+    """'arde' (ARDE/KUBAHO's own workbook) or 'synthetic' (the monthly demo data). From config/settings.yaml
+    (data_mode), unless the environment variable ARDE_DATA_MODE is set for this session."""
+    import os
+    mode = (os.environ.get("ARDE_DATA_MODE") or load_settings().get("data_mode") or "synthetic").strip().lower()
+    if mode not in ("arde", "synthetic"):
+        raise ValueError(f"data_mode must be 'arde' or 'synthetic', not '{mode}' (config/settings.yaml).")
+    return mode
+
+
 def resolve_path(key: str) -> Path:
     """Turn a folder name from settings.yaml 'paths' into a full path."""
     return PROJECT_ROOT / load_settings()["paths"][key]

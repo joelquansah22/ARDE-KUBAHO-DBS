@@ -4,10 +4,15 @@ A small, free tool that turns ARDE/KUBAHO's Excel and paper records into a clean
 a dashboard and a one-page donor report. Staff keep working in Excel and upload their files on the dashboard, or
 type records in directly; donor data is recorded on the dashboard too.
 
-> **Demonstration data.** Everything currently runs on **synthetic records, not ARDE/KUBAHO data**. Synthetic files
-> always start with `SYNTHETIC_`, and every dashboard page says so in a yellow banner.
+> **Two modes** (`data_mode` in `config/settings.yaml`, now `arde`):
+> - **arde**: ARDE/KUBAHO's own MEAL workbook: projects, results chain, KPIs, activities, reach and partners. The
+>   workbook is **confidential**. It lives only in `data/real/`, which is never committed or pushed, and every page
+>   says "ARDE/KUBAHO data: confidential, for project use only". If you do not have the workbook, use the demo mode.
+> - **synthetic**: the monthly **demonstration records, not ARDE/KUBAHO data** (files start with `SYNTHETIC_`).
+>   For one session, set it with `set ARDE_DATA_MODE=synthetic` (Windows) before starting the dashboard.
 
-**Status:** version 1.2 (v1.0 at the end of Phase 8; v1.1 added donor entry and the ARDE/KUBAHO look; v1.2 added
+**Status:** version 1.4 adds ARDE/KUBAHO's workbook format (arde mode: new Portfolio, Results and KPIs, Reach, and
+Partners and funding pages, a KPI update form, and the register download). Before that, version 1.2 (v1.0 at the end of Phase 8; v1.1 added donor entry and the ARDE/KUBAHO look; v1.2 added
 Excel upload, data entry forms for activities and monthly reports, and the Records page, and removed KoboToolbox);
 feature freeze. Summary for supervisors: **`docs/project_status.md`**. Built by three ASU MS Business Analytics
 students as a capstone prototype; it is not a production system. Moving to real ARDE/KUBAHO data:
@@ -88,6 +93,13 @@ python -m pip install -r requirements.txt
 
 ### Step 5. Create the demonstration data (about 2 minutes)
 
+The project is set to ARDE/KUBAHO's confidential workbook, which is not on GitHub. First switch this window to the
+demonstration mode (repeat this line whenever you open a new command window for the demo):
+
+```
+set ARDE_DATA_MODE=synthetic
+```
+
 Create the synthetic Excel files (in `data\raw\`):
 
 ```
@@ -106,13 +118,22 @@ synthetic data.
 
 ### Step 6. Open the dashboard
 
+The project is set to ARDE/KUBAHO's confidential workbook (arde mode), which is **not** on GitHub. To see the
+demonstration data, switch this window to the demo mode first:
+
 ```
+set ARDE_DATA_MODE=synthetic
 streamlit run dashboard\app.py
 ```
 
+If you have been given the workbook, put it in `data\real\` as described in `docs/real_data_checklist.md` (section
+0), run `python src\pipeline.py` without the `set` line, and then start the dashboard.
+
 Your browser opens the dashboard at http://localhost:8501 (if not, type that address into the browser). Keep the
 black window open while you use it; press **Ctrl+C** in it (or close it) to stop. Next time, you can simply
-double-click **`run_dashboard.bat`** in the project folder instead of steps 4 to 6.
+double-click **`run_dashboard.bat`** in the project folder instead of steps 4 to 6. The launcher uses the mode in
+`config/settings.yaml` (`data_mode`): without the workbook, it says so and stops. For the demo, either use the commands
+above, or change that line to `data_mode: synthetic` on your copy (do not commit that change).
 
 ### Later: get the newest version
 
@@ -230,7 +251,8 @@ is **`docs/maintenance_guide.md`**.
 
 | Command | What it does |
 |---|---|
-| `python src/pipeline.py` | **Production run**: read `data/raw/`, pseudonymise, clean, check, build the warehouse, exports and indicators |
+| `python src/pipeline.py` | **Production run.** In arde mode it reads a copy of ARDE's workbook and writes `data/real/` and the confidential `docs/arde_sample_profile.md`. In synthetic mode it reads `data/raw/`, pseudonymises, cleans, checks, and builds the warehouse, exports and indicators |
+| `python src/arde_store.py --list-backups` / `--restore <file>` | List or restore backups of the KPI updates (arde mode) |
 | `streamlit run dashboard/app.py` | Start the dashboard without the launcher |
 | `python src/donor_report.py PRJ01 "FY2025/26 Q4"` | Make a donor report from the command line |
 | `python src/generate_synthetic.py` | Create the synthetic demonstration files (`--verify` checks your copy against the documented fingerprint) |
@@ -253,6 +275,7 @@ is **`docs/maintenance_guide.md`**.
 | `templates/` | Standard Excel entry templates for staff |
 | `assets/` | The ARDE/KUBAHO logo shown in the dashboard |
 | `data/app/` | What is entered on the dashboard (`entries.db`: donors, opportunities, activity records, monthly reports, the list of uploads, the change history), its backups, and files replaced by a corrected upload |
+| `data/real/` | **Confidential, never committed.** ARDE/KUBAHO's workbook, its database, exports, KPI updates and backups, uploads, arde-mode screenshots, and the list of staff names to hide |
 | `data/raw/` | The Excel files the pipeline reads, including uploaded ones (synthetic for now) |
 | `data/staging/` | Cleaned tables with no names, phones or ID numbers, plus the log of every change and flag |
 | `data/warehouse/` | The data warehouse (`arde.duckdb`, one file) |

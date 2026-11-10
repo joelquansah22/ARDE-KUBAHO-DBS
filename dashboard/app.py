@@ -4,8 +4,9 @@ HOW TO RUN
     run_dashboard.bat (Windows) or ./run_dashboard.sh (Mac/Linux), or:
     streamlit run dashboard/app.py
 
-This file sets up the page, the synthetic-data banner and the filters (shared by every page),
-then opens the page chosen in the menu.
+This file sets up the page, the banner and the filters (shared by every page), then opens the page chosen in the
+menu. Which menu, banner and filters depends on config/settings.yaml: data_mode (arde = ARDE/KUBAHO's workbook,
+synthetic = the demonstration data).
 """
 
 from __future__ import annotations
@@ -37,8 +38,12 @@ NO_SEX_FILTER = {p["title"] for section in MENU for p in section["pages"]
 page = st.navigation(PAGES)                           # the sidebar menu
 ui.banner()                                           # on every page
 ui.require_warehouse()                                # a friendly message if the pipeline has not been run
-# The sex filter only applies where people are counted; elsewhere it is shown greyed out.
-st.session_state["filters"] = ui.sidebar_filters(sex_applies=page.title not in NO_SEX_FILTER)
+if ui.ARDE:
+    # ARDE/KUBAHO workbook mode: area, project, status and years (the workbook has no districts per record or sex).
+    st.session_state["filters"] = ui.arde_sidebar_filters()
+else:
+    # The sex filter only applies where people are counted; elsewhere it is shown greyed out.
+    st.session_state["filters"] = ui.sidebar_filters(sex_applies=page.title not in NO_SEX_FILTER)
 ui.source_files_in_sidebar()
 page.run()
 # An invisible marker after the whole page: tools/capture_screenshots.py waits for it, so a page is timed and

@@ -1,11 +1,17 @@
 """Shared test set-up: make src/ importable and generate synthetic data once per test run."""
 
+import os
 import sys
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+# The existing tests check the SYNTHETIC demo (dashboard pages, warehouse figures). The ARDE/KUBAHO workbook mode is
+# tested in tests/test_arde_*.py on a small MADE-UP workbook in ARDE's layout (tests/arde_fixture.py), so no test
+# needs or reads the confidential file. Run the whole suite in synthetic mode unless told otherwise.
+os.environ.setdefault("ARDE_DATA_MODE", "synthetic")
 
 
 @pytest.fixture(scope="session")
