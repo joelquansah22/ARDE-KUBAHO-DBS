@@ -34,8 +34,8 @@ One row per project (Projects sheet), every column of the sheet plus the fields 
 | direct_jobs | int64 |  |
 | indirect_jobs | int64 |  |
 | budget_rwf_estimate | float64 | Approved budget converted to RWF with the rate for the start year (an ESTIMATE). |
-| fx_rate_used | float64 | RWF per unit of currency used for the estimate (settings: arde.exchange_rates_rwf_per_unit). |
-| fx_rate_year | float64 | Year of the exchange rate used. |
+| fx_rate_used | float64 | RWF per unit of currency used for the estimate (settings: arde.exchange_rates, from BNR). |
+| fx_rate_year | object | Year of the exchange rate used. |
 | budget_used_valid | float64 | Budget used % if possible (0 to 150%), else empty: shown as 'invalid, check'. |
 | budget_used_check | str | 'invalid, check' or 'over 100%, check' when the budget used % needs checking. |
 | progress_valid | float64 | Progress % if between 0 and 100%, else empty. |
@@ -147,8 +147,8 @@ One row per activity (Activities sheet), linked to an output.
 | progress_pct | float64 |  |
 | status | str |  |
 | funds_rwf_estimate | float64 | Funds converted to RWF with the rate for the activity's start year (an ESTIMATE). |
-| fx_rate_used | float64 | RWF per unit of currency used for the estimate (settings: arde.exchange_rates_rwf_per_unit). |
-| fx_rate_year | float64 | Year of the exchange rate used. |
+| fx_rate_used | float64 | RWF per unit of currency used for the estimate (settings: arde.exchange_rates, from BNR). |
+| fx_rate_year | object | Year of the exchange rate used. |
 | source_file | str | Lineage: the workbook file the row came from. |
 | source_sheet | str | Lineage: the sheet. |
 | source_row | int64 | Lineage: the row number as seen in Excel. |
@@ -189,7 +189,7 @@ Partner contributions, financial and in-kind (Stakeholders sheet).
 | notes | str |  |
 | currency | str | EUR, RWF or USD when the value is money; empty for in-kind values in other units. |
 | value_rwf_estimate | float64 | Money value converted to RWF (an ESTIMATE); empty for non-money values. |
-| fx_rate_used | float64 | RWF per unit of currency used for the estimate (settings: arde.exchange_rates_rwf_per_unit). |
+| fx_rate_used | float64 | RWF per unit of currency used for the estimate (settings: arde.exchange_rates, from BNR). |
 | is_money | bool | True if the value is an amount of money. |
 | source_file | str | Lineage: the workbook file the row came from. |
 | source_sheet | str | Lineage: the sheet. |

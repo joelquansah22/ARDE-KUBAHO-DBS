@@ -20,7 +20,7 @@ for p in (ROOT / "src", Path(__file__).resolve().parent):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-from common import PROJECT_ROOT, data_mode, fiscal_year_label, load_settings, load_yaml, resolve_path  # noqa: E402
+from common import PROJECT_ROOT, data_mode, fiscal_year_label, mode_notice, load_settings, load_yaml, resolve_path  # noqa: E402
 
 SETTINGS = load_settings()
 # Which data the dashboard shows (config/settings.yaml: data_mode; ARDE_DATA_MODE overrides it for one session).
@@ -213,6 +213,9 @@ def filters(sex_applies: bool = True) -> Filters:
 
 # ---------------------------------------------------------------- labels and formatting
 def banner() -> None:
+    notice = mode_notice()            # arde mode asked for, but the workbook is missing: the demo is shown
+    if notice:
+        st.info(notice)
     if ARDE:
         st.markdown(f"<div class='synthetic-banner'>⚠ {SETTINGS['arde']['banner']}</div>", unsafe_allow_html=True)
     elif SETTINGS.get("synthetic_mode"):
@@ -356,7 +359,9 @@ def startup_backup() -> str:
     of the KPI updates (data/real/app/backups/)."""
     import app_store
     import arde_store
-    copy = (arde_store if ARDE else app_store).backup(reason="start")
+    if ARDE:
+        arde_store.backup(reason="start")             # KPI updates
+    copy = app_store.backup(reason="start")           # donor entries (data/real/app/ in arde mode)
     return copy.name if copy else ""
 
 
@@ -631,15 +636,25 @@ def native_money(amount, currency) -> str:
 
 
 def rwf_estimate(amount) -> str:
-    """An RWF figure converted from another currency: always marked as an estimate (≈)."""
+    """An RWF figure converted from another currency: marked ≈, and "unconfirmed rate" until the BNR rates in
+    settings (arde.exchange_rates) are marked confirmed. No rate entered: "no rate yet"."""
+    import arde_model
     if amount is None or pd.isna(amount):
-        return "–"
+        return "no rate yet"
     v = float(amount)
-    if abs(v) >= 1_000_000_000:
-        return f"≈ RWF {v / 1_000_000_000:,.2f}bn"
-    if abs(v) >= 1_000_000:
-        return f"≈ RWF {v / 1_000_000:,.1f}m"
-    return f"≈ RWF {v:,.0f}"
+    text = (f"≈ RWF {v / 1_000_000_000:,.2f}bn" if abs(v) >= 1_000_000_000 else
+            f"≈ RWF {v / 1_000_000:,.1f}m" if abs(v) >= 1_000_000 else f"≈ RWF {v:,.0f}")
+    return text if arde_model.rates_confirmed() else text + " (unconfirmed rate)"
+
+
+def currency_tiles(df: pd.DataFrame, amount: str, what: str, unit: str = "entries") -> list[tuple]:
+    """One tile per currency (RWF, EUR, USD), side by side: amounts are never added across currencies."""
+    tiles = []
+    for cur in ("RWF", "EUR", "USD"):
+        part = df[df["currency"] == cur]
+        if len(part):
+            tiles.append((f"{what} in {cur}", native_money(part[amount].sum(), cur), f"{len(part)} {unit}"))
+    return tiles
 
 
 def pct(x) -> str:

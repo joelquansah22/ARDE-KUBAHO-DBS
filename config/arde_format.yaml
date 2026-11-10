@@ -214,8 +214,8 @@ rules:
   budget_used_impossible: {level: held_back, table: dim_project, label: "Budget used % impossible (looks like an amount)"}
   budget_used_over_100: {level: review, table: dim_project, label: "Budget used above 100%"}
   budget_zero: {level: review, table: dim_project, label: "Approved budget is 0"}
-  currency_converted: {level: info, table: dim_project, label: "Budget not in RWF: RWF figure is an estimate"}
-  activity_currency_converted: {level: info, table: fact_project_activity, label: "Activity funds not in RWF: RWF figure is an estimate"}
+  currency_converted: {level: info, table: dim_project, label: "Budget not in RWF: shown in its own currency"}
+  activity_currency_converted: {level: info, table: fact_project_activity, label: "Activity funds not in RWF: shown in their own currency"}
   unit_variant: {level: info, table: fact_kpi, label: "Unit written differently (case or spelling); normalised"}
   reach_unit_variant: {level: info, table: fact_reach, label: "Reach unit written differently; normalised"}
   kpi_not_recorded: {level: review, table: fact_kpi, label: "KPI not recorded / not started"}

@@ -108,14 +108,66 @@ def test_unit_mapping_is_listed_in_config():
     assert aliases["cooperative"] == "cooperatives" and aliases["organizations"] == "organisations"
 
 
-def test_currency_conversion_uses_dated_rates_and_marks_unknowns(monkeypatch):
-    rates = am.arde_settings()["exchange_rates_rwf_per_unit"]
-    rwf, rate, year = am.to_rwf(1000, "EUR", dt.date(2018, 5, 1))
-    assert (rate, year) == (rates["EUR"][2018], 2018) and rwf == 1000 * rates["EUR"][2018]
+def with_rates(monkeypatch, rates: dict, confirmed: bool = False):
+    """Settings with these BNR rates entered (made-up numbers, for the test only)."""
+    import copy
+    real = am.arde_settings()
+    patched = copy.deepcopy(real)
+    patched["exchange_rates"] = {"source": "test", "confirmed": confirmed, **rates}
+    monkeypatch.setattr(am, "arde_settings", lambda: patched)
+
+
+def test_no_self_set_rates_the_bnr_table_is_blank_with_a_source_field():
+    rates = am.arde_settings()["exchange_rates"]
+    assert "source" in rates and rates["confirmed"] is False
+    for cur in ("EUR", "USD"):
+        assert set(rates[cur]) >= set(range(2013, 2027)) and all(v is None for v in rates[cur].values())
+    assert am.to_rwf(1000, "EUR", dt.date(2018, 5, 1)) == (None, None, None)     # no rate: not converted
     assert am.to_rwf(1000, "RWF", dt.date(2018, 5, 1))[0] == 1000
-    assert am.fx_rate("USD", 2040)[1] == max(rates["USD"])          # a year not listed: the nearest year
-    assert am.to_rwf(1000, "GBP", dt.date(2018, 5, 1)) == (None, None, None)
+
+
+def test_currency_conversion_uses_the_rate_for_that_year_only(monkeypatch):
+    with_rates(monkeypatch, {"EUR": {2018: 1000.0, 2019: None}, "USD": {2018: 900.0}})
+    assert am.to_rwf(10, "EUR", dt.date(2018, 5, 1)) == (10000.0, 1000.0, 2018)
+    assert am.to_rwf(10, "EUR", dt.date(2019, 5, 1)) == (None, None, None)       # blank year: no guessing
+    assert am.to_rwf(10, "EUR", dt.date(2020, 5, 1)) == (None, None, None)       # missing year: no nearest year
+    assert am.to_rwf(10, "GBP", dt.date(2018, 5, 1)) == (None, None, None)
     assert am.to_rwf(None, "EUR", dt.date(2018, 5, 1)) == (None, None, None)
+    assert not am.rates_confirmed()
+
+
+def test_rwf_estimates_are_marked_unconfirmed_until_confirmed(monkeypatch):
+    sys.path.insert(0, str(ROOT / "dashboard"))
+    import ui
+    with_rates(monkeypatch, {"EUR": {2018: 1000.0}})
+    assert ui.rwf_estimate(1_500_000).endswith("(unconfirmed rate)")
+    assert ui.rwf_estimate(None) == "no rate yet"
+    with_rates(monkeypatch, {"EUR": {2018: 1000.0}}, confirmed=True)
+    assert ui.rwf_estimate(1_500_000) == "≈ RWF 1.5m"
+
+
+def test_data_mode_default_is_synthetic_and_arde_comes_from_a_local_file(monkeypatch, tmp_path):
+    import common
+    monkeypatch.delenv("ARDE_DATA_MODE", raising=False)
+    monkeypatch.setattr(common, "LOCAL_SETTINGS", tmp_path / "local.yaml")
+    assert common.load_settings()["data_mode"] == "synthetic"                   # the repository default
+    assert common.requested_mode() == "synthetic"
+    (tmp_path / "local.yaml").write_text("data_mode: arde\n", encoding="utf-8")
+    assert common.requested_mode() == "arde"
+    monkeypatch.setenv("ARDE_DATA_MODE", "synthetic")                           # the session wins
+    assert common.requested_mode() == "synthetic"
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    assert "config/local.yaml" in gitignore
+
+
+def test_arde_mode_without_the_workbook_falls_back_to_synthetic_with_a_message(monkeypatch):
+    import common
+    monkeypatch.setenv("ARDE_DATA_MODE", "arde")
+    monkeypatch.setattr(common, "arde_workbook_available", lambda: False)
+    assert common.data_mode() == "synthetic"
+    assert "not in data/real/" in common.mode_notice() and "demonstration data" in common.mode_notice()
+    monkeypatch.setattr(common, "arde_workbook_available", lambda: True)
+    assert common.data_mode() == "arde" and common.mode_notice() == ""
 
 
 def test_money_is_totalled_per_currency_never_across(run):
@@ -123,6 +175,7 @@ def test_money_is_totalled_per_currency_never_across(run):
     totals = am.sum_by_currency(p, "approved_budget")
     assert totals == {"EUR": 100000, "RWF": 1000000, "USD": 5000}
     assert p.loc[p["currency"] == "RWF", "budget_rwf_estimate"].tolist() == [0, 1000000]
+    assert p.loc[p["currency"] != "RWF", "budget_rwf_estimate"].isna().all()       # no BNR rates entered yet
 
 
 def test_districts_are_read_from_the_location_text():
@@ -357,6 +410,10 @@ def arde_app(workbook, tmp_path_factory):
     save_warehouse(arde_pipeline.warehouse_tables(built, workbook, None), db)
     saved = (ui.ARDE, ui.MODE, ui.db_path)
     ui.ARDE, ui.MODE, ui.db_path = True, "arde", (lambda: db)
+    import app_store                                    # donor entries: an empty file of the test's own
+    entries = tmp_path_factory.mktemp("arde_entries") / "entries.db"
+    saved_store = app_store.db_path
+    app_store.db_path = lambda: entries
 
     def page(key: str):
         at = AppTest.from_file(str(ROOT / "dashboard" / "app.py"), default_timeout=180)
@@ -369,6 +426,7 @@ def arde_app(workbook, tmp_path_factory):
 
     yield page, built
     ui.ARDE, ui.MODE, ui.db_path = saved
+    app_store.db_path = saved_store
     am.as_of = am_today
 
 
@@ -383,8 +441,8 @@ def tile(at, label: str) -> str:
     return re.search(r"<div class='tile-value'>(.*?)</div>", html).group(1)
 
 
-ARDE_PAGES = ["start", "portfolio", "results_kpis", "reach", "geography", "data_quality", "kpi_update",
-              "upload_excel", "register", "donor_pipeline", "partners_funding"]
+ARDE_PAGES = ["start", "home", "portfolio", "results_kpis", "reach", "geography", "data_quality", "kpi_update",
+              "upload_excel", "records", "donor_pipeline", "donor_entry", "partners_funding"]
 
 
 def test_every_arde_page_opens_shows_the_confidential_banner_and_no_staff_name(arde_app):
@@ -396,13 +454,14 @@ def test_every_arde_page_opens_shows_the_confidential_banner_and_no_staff_name(a
         assert "TESTNAME" not in text, key                        # roles, not names
 
 
-def test_arde_menu_hides_pages_with_no_data_in_this_format():
+def test_arde_menu_keeps_the_adapted_pages_and_hides_only_monthly_data_entry():
     from common import load_yaml
     titles = [p["title"] for s in load_yaml("page_help.yaml")["menu_arde"] for p in s["pages"]]
-    for hidden in ("Executive summary", "Programme overview", "Indicators", "Data entry", "Records", "Donor entry"):
+    for kept in ("Executive summary", "Records", "Donor entry", "Donor pipeline", "Portfolio", "Results and KPIs",
+                 "Reach", "Partners and funding", "KPI update", "Geography", "Data quality", "Upload Excel"):
+        assert kept in titles
+    for hidden in ("Programme overview", "Indicators", "Data entry"):
         assert hidden not in titles
-    for new in ("Portfolio", "Results and KPIs", "Reach", "Partners and funding", "KPI update"):
-        assert new in titles
 
 
 def test_home_figures_match_the_tables(arde_app):
@@ -420,7 +479,9 @@ def test_portfolio_shows_invalid_budget_used_and_native_currencies(arde_app):
     text = text_of(at)
     assert "invalid, check (5,123 typed)" in text
     assert "EUR 100,000" in tile(at, "Approved budgets in EUR") or tile(at, "Approved budgets in EUR") == "EUR 100,000"
-    assert tile(at, "All budgets, RWF estimate").startswith("≈ RWF")
+    assert tile(at, "Approved budgets in USD") == "USD 5,000"                     # side by side, per currency
+    assert not any("All budgets, RWF estimate" in m.value for m in at.markdown)  # no rates: no RWF total
+    assert "No RWF total is given until BNR exchange rates are entered" in text
 
 
 def test_reach_page_never_shows_a_total_across_units(arde_app):
@@ -448,7 +509,32 @@ def test_results_page_band_counts_match(arde_app):
     assert tile(at, "… Not recorded") == "1"
 
 
-def test_donor_pipeline_links_to_funding_history(arde_app):
-    at = arde_app[0]("donor_pipeline")
-    assert any("Funding history" in str(getattr(e, "proto", "")) or "funding history" in m.value
-               for e in at.main for m in at.markdown)
+def test_donor_pipeline_empty_invites_the_first_opportunity_then_shows_it(arde_app):
+    import app_store
+    page, _ = arde_app
+    at = page("donor_pipeline")
+    assert "No funding opportunities recorded yet. Add your first one" in text_of(at)
+    summary = page("home")
+    assert "no funding opportunities recorded yet" in text_of(summary)
+    donor = app_store.add_donor({"donor_type": "foundation", "donor_name": "Test Foundation"}, "MEAL01")
+    app_store.add_opportunity({"donor_id": donor, "title": "Water grant", "thematic_fit": "WASH", "stage": "Qualified",
+                               "deadline": dt.date(2030, 1, 31), "requested_amount_rwf": 10_000_000,
+                               "probability": 0.5, "owner": "MEAL01"}, "MEAL01")
+    at = page("donor_pipeline")
+    assert tile(at, "Open opportunities") == "1" and tile(at, "Weighted open pipeline") == "RWF 5.0m"
+    assert "Water grant" in text_of(at)
+    assert "1 opportunities, weighted RWF 5.0m" in text_of(page("home"))
+
+
+def test_geography_shows_cross_border_projects_separately_not_on_the_map(arde_app):
+    at = arde_app[0]("geography")
+    frames = {tuple(df.value.columns): df.value for df in at.dataframe}
+    cross = next(v for k, v in frames.items() if "Label" in k)
+    assert cross["Project"].tolist() == ["TP-B"] and "Goma" in cross["Label"].iloc[0]
+    mapped = next(v for k, v in frames.items() if "Districts in project" in k)
+    assert "TP-B" not in mapped["Project"].tolist() and set(mapped["Project"]) == {"TP-A", "TP-D"}
+
+
+def test_records_page_offers_an_excel_export(arde_app):
+    at = arde_app[0]("records")
+    assert "Export this view to Excel" in str([e.proto for e in at.main])

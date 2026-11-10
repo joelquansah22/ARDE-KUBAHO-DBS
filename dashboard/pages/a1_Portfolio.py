@@ -26,12 +26,17 @@ funds = ui.query(f"""SELECT project_code, currency, SUM(funds) AS funds, SUM(fun
                      COUNT(*) AS activities FROM fact_project_activity WHERE project_code IN {IN} GROUP BY 1, 2""", *codes)
 
 # ------------------------------------------------------------------ totals per currency
-by_cur = p.groupby("currency")["approved_budget"].sum()
-tiles = [(f"Approved budgets in {cur}", ui.native_money(v, cur), f"{int((p['currency'] == cur).sum())} projects")
-         for cur, v in by_cur.items()]
-tiles.append(("All budgets, RWF estimate", ui.rwf_estimate(p["budget_rwf_estimate"].sum()),
-              "converted at approximate rates for each start year (to be confirmed)"))
+# One tile per currency, side by side (never added across currencies). An RWF total of everything appears only
+# when every budget could be converted with a BNR rate entered in settings.
+tiles = ui.currency_tiles(p, "approved_budget", "Approved budgets", "projects")
+foreign = p[p["currency"] != "RWF"]
+if len(foreign) and foreign["budget_rwf_estimate"].notna().all():
+    tiles.append(("All budgets, RWF estimate", ui.rwf_estimate(p["budget_rwf_estimate"].sum()),
+                  "at BNR annual rates for each start year"))
 ui.tiles(tiles)
+if len(foreign) and not foreign["budget_rwf_estimate"].notna().all():
+    st.caption("Budgets are shown in their own currency. No RWF total is given until BNR exchange rates are entered "
+               "in config/settings.yaml (arde: exchange_rates).")
 
 # ------------------------------------------------------------------ by area and status
 left, right = st.columns([2, 3])

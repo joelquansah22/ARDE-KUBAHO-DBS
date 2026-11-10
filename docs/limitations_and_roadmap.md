@@ -66,13 +66,13 @@ ARDE/KUBAHO, suggested by the team and to be confirmed with the partner** (`docs
 | # | Limitation | Ref |
 |---|---|---|
 | L40 | **One sample workbook.** The format was built from a single sample; a renamed heading stops that sheet with a plain message (edit `config/arde_format.yaml`), and new unit spellings need a line in `unit_aliases` | D231, D235 |
-| L41 | **RWF estimates use approximate annual exchange rates of the team's own**, not BNR's published rates; every converted figure is marked ≈ and shown next to its own currency | D234 |
+| L41 | **No RWF totals across currencies until BNR rates are entered** (`arde.exchange_rates`, blank for now): budgets and contributions are shown per currency side by side; once rates are entered, estimates say "unconfirmed rate" until confirmed | D247 |
 | L42 | **No headline total reach across units**, by design. The headline counts "people" rows only; whether ARDE's Projects-sheet figure is people only is unanswered (G2), and women/men rows may overlap people rows (G3) | D235, D237 |
 | L43 | **Impossible budget-used values are not used** until ARDE corrects them; budget execution cannot be shown for those projects | D238 |
 | L44 | **Districts are read from free text**: a project in several districts counts in each, and reach is not split by district | D233 |
 | L45 | **Staff-name hiding relies on a list plus a pattern**; a name written in an unusual way (e.g. all lower case) and not listed could show. Check the hidden-names file when new workbooks arrive. The register download keeps names (ARDE's own columns) | D239 |
 | L46 | **KPI updates and workbook edits can conflict**: the newest wins (an upload replaces earlier dashboard updates). Download the register before uploading | D241 |
-| L47 | **No monthly trend, reconciliation or donor pipeline** in this format: those pages are hidden, and the donor pipeline needs an opportunities list ARDE does not keep in the workbook (G12) | D240 |
+| L47 | **No monthly trend or reconciliation** in this format (Programme overview, Indicators and monthly Data entry are not in the arde menu). The donor pipeline is empty until opportunities are entered on Donor entry (G12); opportunities are recorded in RWF only | D249 |
 | L48 | **Arde-mode load times not yet measured on a quiet laptop**; the first round was on a busy machine | D244 |
 
 ## 2. Roadmap

@@ -25,7 +25,7 @@ import sys
 import time
 from pathlib import Path
 
-from common import data_mode, load_settings, resolve_path
+from common import data_mode, load_settings, mode_notice, resolve_path
 
 # (step name, module in src/, function to call, phase in which it is built)
 STEPS = [
@@ -72,6 +72,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="after the production run, score the cleaning against the synthetic answer keys")
     args = parser.parse_args(argv)
 
+    if mode_notice():
+        print(mode_notice())
     if data_mode() == "arde":
         # ARDE/KUBAHO workbook mode (settings: data_mode). The synthetic steps below are the demo mode.
         print("data_mode is 'arde': running the ARDE/KUBAHO workbook pipeline (src/arde_pipeline.py).")

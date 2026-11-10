@@ -27,14 +27,10 @@ if not len(c):
     st.stop()
 
 money = c[c["is_money"] & (c["value"].fillna(0) > 0)]
-cur = money.groupby("currency")["value"].sum()
 tiles = [("Contributions recorded", f"{len(c):,}",
           f"{int((c['nature'] == 'Financial').sum())} financial · {int((c['nature'] == 'In-kind').sum())} in-kind")]
-tiles += [(f"Valued contributions in {k}", ui.native_money(v, k), f"{int((money['currency'] == k).sum())} entries")
-          for k, v in cur.items()]
-tiles.append(("All valued contributions, RWF estimate", ui.rwf_estimate(money["value_rwf_estimate"].sum()),
-              "approximate rates for each project's start year"))
-ui.tiles(tiles[:5])
+tiles += ui.currency_tiles(money, "value", "Valued contributions")      # per currency, side by side
+ui.tiles(tiles)
 
 left, right = st.columns(2)
 with left:
@@ -49,17 +45,18 @@ with left:
     st.caption("The 12 most frequent stakeholder types (counts of contributions, not amounts). All are in the table "
                "below.")
 with right:
-    st.markdown("#### Valued contributions by project (RWF estimate)")
+    st.markdown("#### Valued contributions by project, in their own currency")
     if len(money):
-        bym = money.groupby(["project_code", "nature"], as_index=False)["value_rwf_estimate"].sum()
-        fig = px.bar(bym, y="project_code", x="value_rwf_estimate", color="nature", orientation="h",
-                     labels={"project_code": "", "value_rwf_estimate": "RWF estimate (≈)", "nature": ""},
-                     height=380)
+        currencies = [k for k in ("RWF", "EUR", "USD") if k in set(money["currency"])]
+        chosen = (st.radio("Currency", currencies, horizontal=True, key="pf_currency") if len(currencies) > 1
+                  else currencies[0])
+        bym = money[money["currency"] == chosen].groupby(["project_code", "nature"], as_index=False)["value"].sum()
+        fig = px.bar(bym, y="project_code", x="value", color="nature", orientation="h",
+                     labels={"project_code": "", "value": chosen, "nature": ""}, height=340)
         fig.update_yaxes(automargin=True, categoryorder="total ascending")
         ui.legend_on_top(fig)
         st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
-        st.caption("Each bar is converted from its own currency at an approximate rate (≈); the table gives the "
-                   "amount in its own currency.")
+        st.caption("One currency at a time: amounts in different currencies are never added together.")
     else:
         st.markdown("No contribution in this selection is valued in money.")
 

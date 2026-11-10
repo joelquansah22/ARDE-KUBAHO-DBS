@@ -1,5 +1,8 @@
 """Geography (ARDE/KUBAHO workbook mode): in which districts the projects work.
 
+Projects whose location also names a place outside Rwanda (Goma, DR Congo) are NOT on the Rwanda map: they are
+listed separately and labelled (team instruction 22).
+
 Districts are read from each project's free-text location (src/arde_model.py: extract_districts). A project naming
 two districts counts in both. Reach is NOT mapped: the workbook does not say how a project's reach splits between
 its districts, and reach is never added across units.
@@ -26,7 +29,9 @@ d = ui.query(f"""SELECT b.*, p.status, p.intervention_area, p.outside_rwanda, p.
                  JOIN dim_project p USING (project_code) WHERE b.project_code IN {IN}""", *codes)
 missing = ui.query(f"SELECT project_code, location FROM dim_project WHERE district_count = 0 AND project_code IN {IN}",
                    *codes)
-if not len(d):
+cross_border = d[d["outside_rwanda"]].copy()
+d = d[~d["outside_rwanda"]]
+if not len(d) and not len(cross_border):
     st.info("No Rwandan district could be read from the locations of the projects in this selection, so there is "
             "nothing to map. The locations are listed on the Data quality page.")
     st.stop()
@@ -87,14 +92,20 @@ with c2:
                  labels={"projects": "Projects", "district": ""}, height=300)
     fig.update_traces(marker_color=ui.CHART[0])
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
-    outside = d.loc[d["outside_rwanda"], "project_code"].unique()
-    if len(outside):
-        st.caption(f"{len(outside)} project(s) also work outside Rwanda (Goma, DR Congo): "
-                   f"{', '.join(outside)}. Only the Rwandan district is mapped.")
+    if len(cross_border):
+        st.caption(f"Not on the map: {cross_border['project_code'].nunique()} project(s) that also work outside "
+                   "Rwanda, listed below.")
 
 ui.table(pd.DataFrame({"Project": d["project_code"], "District": d["district"], "Province": d["province"],
                        "Districts in project": d["districts_in_project"], "Area": d["intervention_area"],
                        "Status": d["status"], "Location (as written)": d["location"]}), "projects_by_district")
+if len(cross_border):
+    st.markdown("#### Projects that also work outside Rwanda (Goma, DR Congo): not on the map")
+    ui.table(pd.DataFrame({"Project": cross_border["project_code"],
+                           "Label": "Cross-border: Rwanda and Goma (DR Congo)",
+                           "Rwandan district named": cross_border["district"], "Area": cross_border["intervention_area"],
+                           "Status": cross_border["status"], "Location (as written)": cross_border["location"]}),
+             "projects_cross_border")
 if len(missing):
     st.warning(f"{len(missing)} project(s) name no Rwandan district in their location: "
                + ", ".join(missing["project_code"]) + ". They are listed on the Data quality page.")

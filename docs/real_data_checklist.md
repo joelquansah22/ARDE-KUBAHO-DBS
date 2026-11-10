@@ -20,8 +20,13 @@ layout, if ARDE/KUBAHO adopts them later.
       e-mail anything from `data/real/`, `docs/arde_sample_profile.md`, or a screenshot taken in arde mode.
 - [ ] Copy the workbook into `data/real/` under the name in `config/settings.yaml` (`arde.workbook`). Do not open and
       save it there. The pipeline reads a copy; the original is never changed.
-- [ ] `config/settings.yaml`: `data_mode: arde`. Check `arde.exchange_rates_rwf_per_unit` against BNR rates and
-      `arde.as_of_date` (`null` = today).
+- [ ] Create `config/local.yaml` (this laptop only; git ignores it) with the line `data_mode: arde`. Do **not**
+      change `data_mode` in `config/settings.yaml`: the shared default stays synthetic. If the workbook is missing,
+      the dashboard says so and shows the demo.
+- [ ] Exchange rates: fill `arde.exchange_rates` in `config/settings.yaml` from the BNR annual averages (RWF per 1 EUR
+      and per 1 USD, one per year), write where they came from in `source`, and set `confirmed: true` only once they
+      are checked. Until then, totals are shown per currency and any RWF estimate says "unconfirmed rate".
+      `arde.as_of_date`: `null` = today.
 - [ ] Personal names: list them in `data/real/staff_names_hidden.yaml` (one per line, as written). The dashboard also
       hides anything that looks like a name, but the list is the reliable way.
 - [ ] Run `python src/pipeline.py`. Read `docs/arde_sample_profile.md`: rows per sheet, the source-of-truth table, every
@@ -35,8 +40,8 @@ layout, if ARDE/KUBAHO adopts them later.
       banner()`, and that should only happen with ARDE/KUBAHO's agreement.
 - [ ] Screenshots of arde mode: `python tools/capture_screenshots.py` with `data_mode: arde`. They go to
       `data/real/screenshots/`. For the repository's screenshots, set `ARDE_DATA_MODE=synthetic` first.
-- [ ] Demo: `set ARDE_DATA_MODE=synthetic` (Windows) before `run_dashboard.bat` shows the synthetic data for that
-      session only.
+- [ ] Demo on this laptop: `set ARDE_DATA_MODE=synthetic` before `streamlit run dashboard\app.py` shows the
+      synthetic data for that session only (or delete `config/local.yaml`).
 
 ## 1. Prepare a clean copy of the tool
 

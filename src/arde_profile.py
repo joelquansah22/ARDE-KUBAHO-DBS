@@ -51,7 +51,7 @@ DESCRIPTIONS = {
 }
 COLUMN_NOTES = {
     "budget_rwf_estimate": "Approved budget converted to RWF with the rate for the start year (an ESTIMATE).",
-    "fx_rate_used": "RWF per unit of currency used for the estimate (settings: arde.exchange_rates_rwf_per_unit).",
+    "fx_rate_used": "RWF per unit of currency used for the estimate (settings: arde.exchange_rates, from BNR).",
     "fx_rate_year": "Year of the exchange rate used.",
     "budget_used_valid": "Budget used % if possible (0 to 150%), else empty: shown as 'invalid, check'.",
     "budget_used_check": "'invalid, check' or 'over 100%, check' when the budget used % needs checking.",
@@ -147,8 +147,13 @@ def write(run: dict, tables: dict, target: Path) -> None:
         if number == 3:
             L.append("- Approved budgets by currency (never added across currencies): "
                      + "; ".join(f"{cur} {v:,.0f}" for cur, v in am.sum_by_currency(p, "approved_budget").items())
-                     + f". RWF estimate of all budgets: RWF {p['budget_rwf_estimate'].sum():,.0f} (estimate; "
-                     "approximate annual rates, to be confirmed).")
+                     + ". " + (f"RWF estimate of the budgets that could be converted: RWF "
+                               f"{p['budget_rwf_estimate'].sum():,.0f} ("
+                               f"{'' if am.rates_confirmed() else 'unconfirmed rate; '}"
+                               f"{int(p['budget_rwf_estimate'].notna().sum())} of {len(p)} projects)."
+                               if p.loc[p['currency'] != 'RWF', 'budget_rwf_estimate'].notna().any() else
+                               "No RWF estimate: BNR rates have not been entered in config/settings.yaml yet "
+                               "(arde.exchange_rates)."))
             L.append("- Activity funds by currency: "
                      + "; ".join(f"{cur} {v:,.0f}" for cur, v in am.sum_by_currency(a, "funds").items()) + ".")
         if number == 4:

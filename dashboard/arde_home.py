@@ -76,11 +76,11 @@ def tiles(pages: list[dict], per_row: int) -> None:
 
 sections = {s["section"]: s["pages"] for s in ui.menu() if s["section"]}
 st.markdown("<div class='menu-section'>Insights</div>", unsafe_allow_html=True)
-tiles(sections["Insights"], 5)
-left, right = st.columns([3, 2])
+tiles(sections["Insights"], 6)
+left, right = st.columns(2)
 with left:
     st.markdown("<div class='menu-section'>Data</div>", unsafe_allow_html=True)
     tiles(sections["Data"], 3)
 with right:
     st.markdown("<div class='menu-section'>Donors</div>", unsafe_allow_html=True)
-    tiles(sections["Donors"], 2)
+    tiles(sections["Donors"], 3)

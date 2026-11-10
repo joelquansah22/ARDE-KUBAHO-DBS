@@ -67,20 +67,25 @@ def as_of() -> dt.date:
 
 
 # ---------------------------------------------------------------- money
+CURRENCIES = ("RWF", "EUR", "USD")
+
+
+def rates_confirmed() -> bool:
+    """True only when the team has entered BNR rates and set exchange_rates.confirmed: true."""
+    return bool(arde_settings()["exchange_rates"].get("confirmed"))
+
+
 def fx_rate(currency, year) -> tuple[float | None, int | None]:
-    """RWF per one unit of the currency in that year (config/settings.yaml: arde.exchange_rates_rwf_per_unit).
-    A year that is not listed uses the nearest listed year. Unknown currency: (None, None)."""
-    rates = arde_settings()["exchange_rates_rwf_per_unit"]
+    """RWF per one unit of the currency in that year (config/settings.yaml: arde.exchange_rates, from BNR).
+    RWF: 1. A year with no rate entered, or an unknown currency: (None, None); nothing is guessed."""
     cur = str(currency).strip().upper() if currency is not None else ""
-    if cur not in rates:
-        return None, None
-    table = {int(k): float(v) for k, v in rates[cur].items()}
     if cur == "RWF":
         return 1.0, None
-    if year is None or pd.isna(year):
+    rates = arde_settings()["exchange_rates"].get(cur)
+    if not rates or year is None or pd.isna(year):
         return None, None
-    nearest = min(table, key=lambda y: (abs(y - int(year)), -y))
-    return table[nearest], nearest
+    rate = rates.get(int(year))
+    return (float(rate), int(year)) if rate else (None, None)
 
 
 def to_rwf(amount, currency, when) -> tuple[float | None, float | None, int | None]:
@@ -345,8 +350,7 @@ def build_tables(sheets: dict, kpi_updates: pd.DataFrame | None = None) -> dict[
     c["value"] = _num(c["value"])
     starts = p.set_index("project_code")["start_date"]
     c["currency"] = c["currency_or_unit"].map(
-        lambda v: str(v).strip().upper() if str(v).strip().upper() in arde_settings()["exchange_rates_rwf_per_unit"]
-        else None)
+        lambda v: str(v).strip().upper() if str(v).strip().upper() in CURRENCIES else None)
     conv = [to_rwf(v, cur, starts.get(code)) if cur else (None, None, None)
             for v, cur, code in zip(c["value"], c["currency"], c["project_code"])]
     c["value_rwf_estimate"] = [x[0] for x in conv]
@@ -395,7 +399,10 @@ def run_rules(t: dict[str, pd.DataFrame]) -> tuple[pd.DataFrame, pd.DataFrame]:
     # 3. Currencies: converted amounts are estimates (info)
     add("currency_converted", p[p["currency"].str.upper() != "RWF"], "project_code",
         lambda x: f"{x.approved_budget:,.0f} {x.currency} ≈ RWF {x.budget_rwf_estimate:,.0f} at {x.fx_rate_used:,.0f} "
-                  f"({x.fx_rate_year})" if pd.notna(x.budget_rwf_estimate) else f"No rate for {x.currency}", len(p))
+                  f"({x.fx_rate_year}{'' if rates_confirmed() else ', unconfirmed rate'})"
+                  if pd.notna(x.budget_rwf_estimate) else
+                  f"{x.approved_budget:,.0f} {x.currency}: no BNR rate entered for {x.start_year:.0f}, not converted",
+        len(p))
     add("activity_currency_converted", a[a["currency"].str.upper() != "RWF"], "activity_code",
         lambda x: f"{x.funds:,.0f} {x.currency}", len(a))
     # 4. Units written differently: a normalised unit written in more than one way anywhere in the workbook

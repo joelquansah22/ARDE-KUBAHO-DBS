@@ -47,14 +47,47 @@ def district_to_province() -> dict[str, str]:
     }
 
 
-def data_mode() -> str:
-    """'arde' (ARDE/KUBAHO's own workbook) or 'synthetic' (the monthly demo data). From config/settings.yaml
-    (data_mode), unless the environment variable ARDE_DATA_MODE is set for this session."""
+LOCAL_SETTINGS = CONFIG_DIR / "local.yaml"      # this computer only; gitignored (team instruction 22)
+
+
+def requested_mode() -> str:
+    """The mode asked for, first match wins:
+      1. the environment variable ARDE_DATA_MODE (one session only);
+      2. config/local.yaml, data_mode: arde (this computer only; never committed);
+      3. config/settings.yaml, data_mode (the repository default: synthetic)."""
     import os
-    mode = (os.environ.get("ARDE_DATA_MODE") or load_settings().get("data_mode") or "synthetic").strip().lower()
+    mode = os.environ.get("ARDE_DATA_MODE")
+    if not mode and LOCAL_SETTINGS.exists():
+        with open(LOCAL_SETTINGS, encoding="utf-8") as handle:
+            mode = (yaml.safe_load(handle) or {}).get("data_mode")
+    mode = str(mode or load_settings().get("data_mode") or "synthetic").strip().lower()
     if mode not in ("arde", "synthetic"):
-        raise ValueError(f"data_mode must be 'arde' or 'synthetic', not '{mode}' (config/settings.yaml).")
+        raise ValueError(f"data_mode must be 'arde' or 'synthetic', not '{mode}'.")
     return mode
+
+
+def arde_workbook_available() -> bool:
+    """True if ARDE/KUBAHO's workbook is on this computer (as received, or a copy added on the Upload Excel page)."""
+    arde = load_settings()["arde"]
+    uploads = PROJECT_ROOT / arde["uploads"]
+    return (PROJECT_ROOT / arde["workbook"]).exists() or (uploads.exists() and any(uploads.glob("*.xlsx")))
+
+
+def data_mode() -> str:
+    """The mode in use: 'arde' (ARDE/KUBAHO's own workbook) or 'synthetic' (the monthly demo data). If arde mode is
+    asked for but the workbook is not on this computer, the demo (synthetic) is used instead and mode_notice() says
+    why."""
+    mode = requested_mode()
+    return "synthetic" if mode == "arde" and not arde_workbook_available() else mode
+
+
+def mode_notice() -> str:
+    """A plain message when arde mode was asked for but could not be used; otherwise ''."""
+    if requested_mode() == "arde" and data_mode() != "arde":
+        return ("ARDE/KUBAHO mode is switched on for this computer, but the ARDE/KUBAHO workbook is not in data/real/. "
+                "Showing the demonstration data instead. Copy the workbook into data/real/ "
+                "(docs/real_data_checklist.md, section 0) and start again.")
+    return ""
 
 
 def resolve_path(key: str) -> Path:

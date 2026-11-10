@@ -4,15 +4,19 @@ A small, free tool that turns ARDE/KUBAHO's Excel and paper records into a clean
 a dashboard and a one-page donor report. Staff keep working in Excel and upload their files on the dashboard, or
 type records in directly; donor data is recorded on the dashboard too.
 
-> **Two modes** (`data_mode` in `config/settings.yaml`, now `arde`):
-> - **arde**: ARDE/KUBAHO's own MEAL workbook: projects, results chain, KPIs, activities, reach and partners. The
->   workbook is **confidential**. It lives only in `data/real/`, which is never committed or pushed, and every page
->   says "ARDE/KUBAHO data: confidential, for project use only". If you do not have the workbook, use the demo mode.
-> - **synthetic**: the monthly **demonstration records, not ARDE/KUBAHO data** (files start with `SYNTHETIC_`).
->   For one session, set it with `set ARDE_DATA_MODE=synthetic` (Windows) before starting the dashboard.
+> **Two modes.**
+> - **synthetic** (the default for everyone): the monthly **demonstration records, not ARDE/KUBAHO data**. Their file
+>   names start with `SYNTHETIC_`, and a yellow banner on every page says so.
+> - **arde**: ARDE/KUBAHO's own MEAL workbook (projects, results chain, KPIs, activities, reach and partners). The
+>   workbook is **confidential**. It lives only in `data/real/`, which is never committed or pushed. Only a laptop
+>   that holds the workbook switches to this mode, through a file of its own that is never uploaded:
+>   `config/local.yaml` containing the line `data_mode: arde` (see "Using ARDE/KUBAHO's workbook" below). If that
+>   file says arde but the workbook is missing, the dashboard shows the demo with a plain message.
 
-**Status:** version 1.4 adds ARDE/KUBAHO's workbook format (arde mode: new Portfolio, Results and KPIs, Reach, and
-Partners and funding pages, a KPI update form, and the register download). Before that, version 1.2 (v1.0 at the end of Phase 8; v1.1 added donor entry and the ARDE/KUBAHO look; v1.2 added
+**Status:** version 1.5. Version 1.4 added ARDE/KUBAHO's workbook format (arde mode: Portfolio, Results and KPIs,
+Reach and Partners and funding pages, a KPI update form, and the register download). Version 1.5 makes the demo the
+default again and adapts the Executive summary, Records, Donor pipeline and Donor entry pages to the workbook.
+Before that, version 1.2 (v1.0 at the end of Phase 8; v1.1 added donor entry and the ARDE/KUBAHO look; v1.2 added
 Excel upload, data entry forms for activities and monthly reports, and the Records page, and removed KoboToolbox);
 feature freeze. Summary for supervisors: **`docs/project_status.md`**. Built by three ASU MS Business Analytics
 students as a capstone prototype; it is not a production system. Moving to real ARDE/KUBAHO data:
@@ -93,13 +97,6 @@ python -m pip install -r requirements.txt
 
 ### Step 5. Create the demonstration data (about 2 minutes)
 
-The project is set to ARDE/KUBAHO's confidential workbook, which is not on GitHub. First switch this window to the
-demonstration mode (repeat this line whenever you open a new command window for the demo):
-
-```
-set ARDE_DATA_MODE=synthetic
-```
-
 Create the synthetic Excel files (in `data\raw\`):
 
 ```
@@ -118,22 +115,29 @@ synthetic data.
 
 ### Step 6. Open the dashboard
 
-The project is set to ARDE/KUBAHO's confidential workbook (arde mode), which is **not** on GitHub. To see the
-demonstration data, switch this window to the demo mode first:
-
 ```
-set ARDE_DATA_MODE=synthetic
 streamlit run dashboard\app.py
 ```
 
-If you have been given the workbook, put it in `data\real\` as described in `docs/real_data_checklist.md` (section
-0), run `python src\pipeline.py` without the `set` line, and then start the dashboard.
-
 Your browser opens the dashboard at http://localhost:8501 (if not, type that address into the browser). Keep the
 black window open while you use it; press **Ctrl+C** in it (or close it) to stop. Next time, you can simply
-double-click **`run_dashboard.bat`** in the project folder instead of steps 4 to 6. The launcher uses the mode in
-`config/settings.yaml` (`data_mode`): without the workbook, it says so and stops. For the demo, either use the commands
-above, or change that line to `data_mode: synthetic` on your copy (do not commit that change).
+double-click **`run_dashboard.bat`** in the project folder instead of steps 4 to 6.
+
+### Using ARDE/KUBAHO's workbook (only on a laptop that has been given it)
+
+The workbook is confidential and is never on GitHub. On a laptop that holds it:
+
+1. Copy it into the `data\real\` folder (create the folder), as described in `docs/real_data_checklist.md`, section 0.
+2. Create the file `config\local.yaml` with this one line (it stays on this laptop; git ignores it):
+
+   ```
+   data_mode: arde
+   ```
+3. Double-click `run_dashboard.bat`. Every page then says "ARDE/KUBAHO data: confidential, for project use only".
+
+To show the demo on that laptop for one session only, run `set ARDE_DATA_MODE=synthetic` before
+`streamlit run dashboard\app.py`. Never commit anything from `data\real\`, and never share screenshots taken in arde
+mode.
 
 ### Later: get the newest version
 

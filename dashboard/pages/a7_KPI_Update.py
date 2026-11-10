@@ -105,5 +105,5 @@ with st.expander("All KPI updates made on the dashboard"):
                               ).iloc[::-1], "kpi_updates")
 
 st.divider()
-ui.update_figures_button(ready, "the Home, Results and KPIs and Register pages")
+ui.update_figures_button(ready, "the Home, Results and KPIs and Records pages")
 ui.footer()

@@ -80,7 +80,7 @@ else:
             pending = arde_store.current_updates(since=uploaded_at)
             if len(pending):
                 st.warning(f"**{len(pending)} KPI updates made on the dashboard** will be replaced by this file's "
-                           "values. To keep them, download the register first (Register page), copy the values into "
+                           "values. To keep them, download the register first (Records page), copy the values into "
                            "your file, and upload that.")
             with st.expander("Rows read per sheet, and every check"):
                 ui.table(pd.DataFrame({"Sheet": [n for n in run["sheets"] if not n.startswith("_")],

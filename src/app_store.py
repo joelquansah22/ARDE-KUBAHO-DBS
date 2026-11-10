@@ -140,6 +140,11 @@ class EntryError(ValueError):
 
 
 def db_path() -> Path:
+    """data/app/entries.db for the demo; in ARDE/KUBAHO workbook mode a separate file under data/real/app/
+    (settings: arde.donor_store), so demonstration donors never mix with ARDE's."""
+    from common import PROJECT_ROOT, data_mode
+    if data_mode() == "arde":
+        return PROJECT_ROOT / load_settings()["arde"]["donor_store"]
     return resolve_path("app_entries")
 
 
@@ -149,7 +154,12 @@ def staff() -> list[dict]:
 
 
 def today() -> dt.date:
-    """'Today' for the checks: the configured as-of date (so synthetic demonstrations behave), else the real date."""
+    """'Today' for the checks: the configured as-of date (so synthetic demonstrations behave), else the real date.
+    In ARDE/KUBAHO workbook mode: arde.as_of_date (null = the real date)."""
+    from common import data_mode
+    if data_mode() == "arde":
+        import arde_model
+        return arde_model.as_of()
     return load_settings().get("as_of_date") or dt.date.today()
 
 

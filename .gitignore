@@ -23,6 +23,8 @@ data/real/
 data/real/**
 # The profile is written from the real workbook (it quotes codes and figures): confidential too.
 docs/arde_sample_profile.md
+# This computer's own settings (e.g. data_mode: arde on a laptop that holds the workbook).
+config/local.yaml
 
 # Secrets: the pseudonymisation salt lives OUTSIDE the repository (see config/settings.yaml),
 # but ignore any stray copy just in case.

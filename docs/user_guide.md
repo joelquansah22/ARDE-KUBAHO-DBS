@@ -15,16 +15,18 @@ never changed. Filters on the left: intervention area, project, project status, 
 
 | Page | What it answers |
 |---|---|
+| **Executive summary** | Three questions on one screen: are the active projects on track (KPI bands), can we trust the numbers (score and top issues), what funding is coming in (contributions history and open opportunities). |
 | **Home** | Projects by status; KPIs achieved, on track, needing attention or not recorded; direct reach in **people**; the data-quality score; and "Needs attention", which lists the result of each check. |
-| **Portfolio** | Projects by area and status, the timeline, budgets **in their own currency** with an RWF estimate (≈), budget used and progress. A value that cannot be a percentage shows **"invalid, check"**. |
+| **Portfolio** | Projects by area and status, the timeline, budgets **in their own currency** (RWF, EUR and USD totals side by side), budget used and progress. A value that cannot be a percentage shows **"invalid, check"**. An RWF estimate appears only once BNR rates are entered, marked "unconfirmed rate" until confirmed. |
 | **Results and KPIs** | Choose a project to see its results chain (General Objective, then Specific Objective, then Output) with each KPI's target, achieved, % and band. Filter by level, band and status. |
 | **Reach** | Direct and indirect reach, **one chart per unit type**, one unit at a time. People, households and cooperatives are never added together. |
-| **Geography** | Projects by district, read from the location text. |
+| **Geography** | Projects by district, read from the location text. Projects that also work outside Rwanda (Goma, DR Congo) are listed separately, not on the map. |
 | **Data quality** | Every check, with the values held back, the review queue and information. Also the workbook's own Dashboard and Data Quality figures next to ours, and the source-of-truth comparison. |
 | **KPI update** | Choose your name, then the project, result and KPI. Enter the new achieved value, status and a note. Every change is kept with who and when, and a backup is made. Then click "Update the figures now". |
 | **Upload Excel** | Upload a newer copy of the workbook. **Check the file** first; then **Add this file**. |
-| **Register** | Every table with its sheet and row number. **Download the register** gives an Excel file with the same sheets and columns as ARDE's workbook, including dashboard updates. It is confidential. |
-| **Donor pipeline** | The workbook has no funding opportunities yet; there is a link to **funding history**. |
+| **Records** | Search projects, results, KPIs, activities, reach and contributions, each row with its sheet and row number; **export the view to Excel**. **Download the register** gives an Excel file with the same sheets and columns as ARDE's workbook, including dashboard updates. It is confidential. |
+| **Donor pipeline** | Open opportunities, weighted pipeline, deadlines and overdue actions. With none recorded yet: "No funding opportunities recorded yet. Add your first one", with a link to Donor entry. Always links to the **funding history**. |
+| **Donor entry** | Add donors and opportunities, update them, mark next actions done. Every change is recorded; ARDE's entries are kept apart from the demonstration data. |
 | **Partners and funding** | Financial and in-kind contributions by stakeholder type and project, in their own currency. |
 
 **Bands:** Achieved = 100% of target or more; On track = 75 to 99%; Needs attention = below 75% (the workbook's own

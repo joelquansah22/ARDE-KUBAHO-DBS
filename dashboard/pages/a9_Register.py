@@ -1,5 +1,6 @@
-"""Register (ARDE/KUBAHO workbook mode): browse every table with its source row, and download the whole register as
-an Excel workbook with the same sheets and columns as ARDE's MEAL workbook (src/arde_register.py).
+"""Records (ARDE/KUBAHO workbook mode): browse and search projects, results, KPIs, activities, reach and
+contributions with their lineage (sheet and row), export the view to Excel, and download the whole register as an
+Excel workbook with the same sheets and columns as ARDE's MEAL workbook (src/arde_register.py).
 
 On screen, staff columns show roles, not names. The downloaded register is ARDE's own data in ARDE's own layout, so
 it keeps the columns exactly as in their workbook (it can be edited and uploaded again).
@@ -15,7 +16,7 @@ import arde_model        # noqa: E402
 import arde_register     # noqa: E402
 
 f = ui.arde_filters()
-ui.page_header("Register", "register")
+ui.page_header("Records", "register")
 ui.how_to_read("register")
 codes = f.project_codes
 IN = ui.in_list(codes)
@@ -37,7 +38,26 @@ if search:
 if "source_row" in df:
     df.insert(0, "Source", df["source_sheet"].astype(str) + " row " + df["source_row"].astype(str))
 st.caption(f"{len(df):,} rows. Staff columns show roles, not names.")
-ui.table(df.drop(columns=[c for c in ("source_file",) if c in df]), f"register_{name}", height=420)
+shown = df.drop(columns=[c for c in ("source_file",) if c in df])
+ui.table(shown, f"records_{name}", height=420)
+
+
+def view_to_excel(frame: pd.DataFrame) -> bytes:
+    """Exactly the rows shown, plus an "About" sheet with the table, filters and search."""
+    import io
+    out = io.BytesIO()
+    with pd.ExcelWriter(out, engine="openpyxl") as writer:
+        frame.to_excel(writer, sheet_name=choice[:31], index=False)
+        pd.DataFrame({"Item": ["Table", "Filters", "Search", "Exported", "Note"],
+                      "Value": [choice, f.scope_text, search or "(none)", f"{dt.datetime.now():%d %B %Y %H:%M}",
+                                "ARDE/KUBAHO data: confidential, for project use only. Staff shown by role."]}
+                     ).to_excel(writer, sheet_name="About", index=False)
+    return out.getvalue()
+
+
+st.download_button("⬇ Export this view to Excel", view_to_excel(shown),
+                   file_name=f"ARDE-KUBAHO_{name}_{dt.date.today():%Y-%m-%d}.xlsx",
+                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="records_excel")
 
 st.markdown("#### Download the register")
 st.markdown("The current data, **with the KPI updates made on the dashboard**, as an Excel file with the same sheets "

@@ -17,17 +17,12 @@ from common import load_settings, resolve_path
 
 def main() -> int:
     settings = load_settings()
-    from common import data_mode
+    from common import data_mode, mode_notice
+    if mode_notice():                  # arde mode asked for, but no workbook here: the demo is prepared instead
+        print(mode_notice())
     if data_mode() == "arde":
         # ARDE/KUBAHO workbook mode: prepare the figures from the workbook every time (about a second).
         import arde_pipeline
-        import arde_store
-        workbook, _ = arde_store.current_workbook()
-        if not workbook.exists():
-            print(f"The ARDE/KUBAHO workbook is not on this computer ({workbook}). It is confidential and not in the "
-                  "shared repository: ask the team lead for it (docs/real_data_checklist.md, section 0).\n"
-                  "To show the demonstration data instead, set data_mode: synthetic in config/settings.yaml.")
-            return 1
         return arde_pipeline.main()
     raw = resolve_path("raw")
     has_files = raw.exists() and any(raw.glob("*.xlsx"))
